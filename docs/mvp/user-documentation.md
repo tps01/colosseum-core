@@ -17,7 +17,7 @@ This file tracks user-facing documentation for test engineers and plugin authors
 | Exit codes | CI authors | usable | `docs/sphinx/source/guides/exit_codes.rst` |
 | Measurement and verification concepts | Test engineers | usable | `docs/sphinx/source/guides/measurements_verifications.rst` |
 | Plugin development guide | Extension authors | usable | `docs/sphinx/source/guides/plugins.rst` |
-| Windows / Linux notes | All users | draft | `docs/sphinx/source/guides/platform_notes.rst` |
+| Windows / Linux notes | All users | usable | `docs/sphinx/source/guides/platform_notes.rst` |
 | Equipment API reference | Test engineers | draft | Generated through `scripts/docgen` |
 | Shared utility API reference | Test engineers | draft | Generated through `scripts/docgen` |
 | Multiprocessing guidance | Advanced users | missing | Deferred; see `docs/design/ddd-multiprocessing.md` |

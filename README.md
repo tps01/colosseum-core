@@ -86,7 +86,7 @@ if __name__ == "__main__":
     col.endex()
 ```
 
-Each run writes `outputs/<timestamp>_<name>/debug.log`, `execution.sqlite`, and `summary.txt`.
+Each run writes `outputs/<timestamp>_<name>/debug.log`, `execution.sqlite`, `summary.txt`, and `summary.json`.
 
 ## Implemented Capabilities
 
@@ -96,7 +96,7 @@ Each run writes `outputs/<timestamp>_<name>/debug.log`, `execution.sqlite`, and 
 - `col.endex()` as the only supported end-of-run API.
 - CLI commands: `colosseum run` and `colosseum run-suite`.
 - Suite TOML with `name`, `setup`, `tests`, and `teardown` lists.
-- Local evidence: `debug.log`, `execution.sqlite`, `summary.txt`.
+- Local evidence: `debug.log`, `execution.sqlite`, `summary.txt`, and machine-readable `summary.json`.
 - Public database read helpers: `col.database.read_measurements()`, `read_verifications()`, `read_run_metadata()`, and guarded `read_table(...)`.
 - Plugin entry points for runtime namespaces and doc generation.
 - First-party `col.equipment.*` and `col.shared.*` namespaces.
@@ -104,6 +104,10 @@ Each run writes `outputs/<timestamp>_<name>/debug.log`, `execution.sqlite`, and 
 - Generic DMM/PSU SCPI support plus `keysight-edu34450a` and `tdk-genesys` model selection.
 - Sphinx/docgen scripts under `scripts/docgen/`.
 - Test tiers and optional Cosmic Ray mutation driver under `scripts/` and `tests/regression/`.
+
+## Continuous integration
+
+GitHub Actions runs pytest tiers 1–3 on Windows and Ubuntu (Python 3.9 and 3.11), PyVISA-sim tests on Python 3.10+, and docgen on pushes to `main`. Documentation is published to GitHub Pages from the `Documentation` workflow (enable Pages from workflow artifacts in repository settings).
 
 ## Development
 
@@ -117,6 +121,13 @@ Run all default pytest tiers:
 
 ```powershell
 python scripts/run_tests.py
+```
+
+PyVISA-sim driver tests (Python 3.10+, ``equipment-sim`` extra):
+
+```powershell
+pip install -e ".[test,equipment-sim]"
+pytest -m visa_sim -q
 ```
 
 Profile unit tests:
@@ -142,8 +153,11 @@ python scripts/cleanup.py
 
 - [Implemented MVP status](docs/mvp/scope.md)
 - [Project documentation map](docs/README.md)
-- [User guides](docs/sphinx/source/guides/)
+- [User guides](docs/sphinx/source/guides/) — built HTML is published via GitHub Pages when the Documentation workflow runs on `main`
 - [Testing guide](docs/testing/README.md)
+- [PyVISA-sim fixtures](docs/testing/pyvisa-sim-fixtures.md)
 - [Original architecture sketch](scratchpad/colosseum_architecture_document.md)
+
+Local doc build: ``pip install -e ".[docs]"`` then ``python scripts/docgen/build_all.py`` (output under ``build/docgen/site/html/``).
 
 The FFO, DDD, and ADR documents remain useful design history. The current implementation status and known gaps are summarized in `docs/mvp/scope.md`.

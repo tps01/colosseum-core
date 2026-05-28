@@ -26,6 +26,11 @@ def test_decorators_create_sqlite_log_and_summary(bench_sim, isolated_cwd) -> No
     assert {"run_metadata", "measurements", "verifications", "events", "artifacts"} <= tables
     summary = (run_dir / "summary.txt").read_text(encoding="utf-8")
     assert "Overall result: PASS" in summary
+    import json
+
+    payload = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+    assert payload["overall_result"] == "PASS"
+    assert payload["exit_code"] == 0
 
 
 def test_read_api_returns_measurement_keys(bench_sim, isolated_cwd) -> None:

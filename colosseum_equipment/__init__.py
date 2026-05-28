@@ -20,13 +20,13 @@ _CONFIG_SPECS = (
         "equipment.psu",
         "psu_id",
         required_keys=("driver", "resource"),
-        optional_keys=("model", "interface", "voltage", "ovp", "ocp", "timeout"),
+        optional_keys=("model", "interface", "voltage", "ovp", "ocp", "timeout", "visa_backend", "sim_definition"),
     ),
     ConfigSectionSpec(
         "equipment.dmm",
         "dmm_id",
         required_keys=("driver", "resource"),
-        optional_keys=("model", "interface", "timeout"),
+        optional_keys=("model", "interface", "timeout", "visa_backend", "sim_definition"),
     ),
     ConfigSectionSpec(
         "equipment.serial",

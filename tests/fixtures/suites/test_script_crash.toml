@@ -1,0 +1,4 @@
+name = "test_script_crash"
+setup = []
+tests = ["../scripts/crash_test.py"]
+teardown = []

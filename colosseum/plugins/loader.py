@@ -3,10 +3,7 @@ from __future__ import annotations
 import importlib
 import logging
 
-try:
-    from importlib.metadata import entry_points
-except ImportError:  # pragma: no cover
-    from importlib_metadata import entry_points  # type: ignore
+from colosseum.compat.entry_points import entry_points_for_group
 
 from .registry import PluginRegistry
 
@@ -32,7 +29,7 @@ def ensure_plugins_loaded(registry: PluginRegistry) -> None:
     if registry.loaded:
         return
 
-    eps = list(entry_points(group="colosseum.plugins"))
+    eps = entry_points_for_group("colosseum.plugins")
     if eps:
         for ep in eps:
             try:

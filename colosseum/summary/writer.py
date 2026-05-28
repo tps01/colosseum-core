@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -58,4 +59,45 @@ class SummaryWriter:
                 lines.append(f"  - {row.get('domain')}.{row.get('command')} key={row.get('key')}: {row['status']}")
 
         summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        self._write_json(output_dir, aggregator, ctx, measurement_count, required, optional, failed_required)
         return summary_path
+
+    def _write_json(
+        self,
+        output_dir: Path,
+        aggregator: ResultAggregator,
+        ctx: RuntimeContext,
+        measurement_count: int,
+        required: dict,
+        optional: dict,
+        failed_required: list,
+    ) -> None:
+        payload = {
+            "colosseum_version": ctx.framework_version,
+            "test_case": ctx.test_case_name,
+            "suite": ctx.suite_name,
+            "config_path": str(ctx.config_path) if ctx.config_path else None,
+            "output_directory": str(output_dir),
+            "end_time_utc": datetime.now(timezone.utc).isoformat(),
+            "overall_result": "PASS" if aggregator.overall_pass() else "FAIL",
+            "exit_code": aggregator.exit_code(),
+            "measurement_count": measurement_count,
+            "verification_counts": {
+                "required": required,
+                "optional": optional,
+            },
+            "failed_required_verifications": [
+                {
+                    "domain": row.get("domain", ""),
+                    "command": row.get("command", ""),
+                    "key": row.get("key", ""),
+                    "status": row.get("status", ""),
+                    "message": row.get("message", ""),
+                }
+                for row in failed_required
+            ],
+            "suite_error": aggregator.suite_error,
+            "teardown_failed": aggregator.teardown_failed,
+        }
+        json_path = output_dir / "summary.json"
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")

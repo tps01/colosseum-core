@@ -17,7 +17,14 @@ def open_transport(kind: str, equipment_id: int, config: dict) -> Transport:
         resource = config.get("resource")
         if not resource:
             raise EquipmentConnectionError(f"equipment.{kind} id {equipment_id} missing `resource`")
-        return VISATransport(str(resource), timeout=timeout)
+        visa_backend = config.get("visa_backend")
+        sim_definition = config.get("sim_definition")
+        return VISATransport(
+            str(resource),
+            timeout=timeout,
+            visa_backend=str(visa_backend) if visa_backend is not None else None,
+            sim_definition=str(sim_definition) if sim_definition is not None else None,
+        )
     if driver == "serial":
         port = config.get("port") or config.get("resource")
         if not port:
