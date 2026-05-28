@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "colosseum"
+version = "0.3.0"
+description = "Colosseum test automation framework (core + bench plugins)"
+requires-python = ">=3.9"
+dependencies = [
+  "tomli; python_version < '3.11'",
+]
+
+[project.optional-dependencies]
+equipment = ["pyvisa", "pyserial"]
+shared = ["paramiko"]
+bench = ["pyvisa", "pyserial", "paramiko"]
+docs = ["sphinx>=7.0"]
+test = ["pytest>=8.0"]
+mutation = [
+  "cosmic-ray>=8.4,<9",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/unit", "tests/integration", "tests/e2e"]
+pythonpath = ["."]
+markers = [
+    "requirement(id): traceability to test-plan requirement ID",
+]
+
+[project.entry-points."colosseum.docgen"]
+colosseum = "colosseum.docgen_entry:spec"
+equipment = "colosseum_equipment.docgen_entry:spec"
+shared = "colosseum_shared.docgen_entry:spec"
+
+[project.scripts]
+colosseum = "colosseum.runner.cli:main"
+
+[project.entry-points."colosseum.plugins"]
+equipment = "colosseum_equipment:register"
+shared = "colosseum_shared:register"
+
+[tool.setuptools.packages.find]
+include = ["colosseum*", "colosseum_equipment*", "colosseum_shared*"]

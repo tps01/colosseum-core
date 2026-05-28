@@ -1,0 +1,60 @@
+# FFO: Laboratory Equipment Control
+
+## Summary
+
+Users control bench instruments (PSU, DMM, serial devices) through high-level Colosseum APIs. Transport (VISA, serial) and protocol (SCPI) are configuration concerns; tests use stable `col.equipment.*` calls with optional raw escape hatches.
+
+## Actors
+
+- Test engineer
+- Equipment plugin maintainer
+
+## Preconditions
+
+- `colosseum-equipment` installed
+- Bench config defines instruments with `*_id`, `driver`, `resource`, optional `model`, `interface`
+- Runtime and config loaded
+
+## Main flow
+
+1. User configures PSU/DMM in TOML ([ffo-bench-configuration.md](ffo-bench-configuration.md)).
+2. User enables output: `col.equipment.psu.set_output(psu_id=1, enabled=True)`.
+3. User measures: `col.equipment.dmm.measure_voltage(dmm_id=1, channel=1, key="vrail_3v3")`.
+4. User verifies: `col.equipment.dmm.verify_voltage(key="vrail_3v3", expected_val=3.3, tolerance=0.1)`.
+5. For custom cases: `col.equipment.scpi.query(...)` or serial read/write APIs.
+
+## Wave breakdown
+
+| Capability | Wave |
+|------------|------|
+| VISA transport, SCPI helpers, serial | 2 |
+| Generic DMM/PSU | 2 |
+| Keysight EDU34450A, TDK-Lambda Genesys | 3 ([ADR-006](../decisions/adr-006-vendor-instruments.md)) |
+
+## Outputs
+
+- Measurement/verification rows in SQLite
+- Optional artifact files (e.g. saved traces)
+
+## Failure modes
+
+| Condition | Result |
+|-----------|--------|
+| VISA connection failure | ERROR on measurement |
+| SCPI error response | ERROR with instrument message in log |
+| Out-of-range verify | FAIL |
+
+## Exit code impact
+
+Via required verifications on equipment measurements.
+
+## Non-goals
+
+- Every vendor instrument library
+- CAN/JTAG/DAQ in MVP (architecture mentions future)
+- Automatic instrument discovery (VISA scan) in v1
+
+## Related design
+
+- [ddd-equipment-architecture.md](../design/ddd-equipment-architecture.md)
+- [ddd-equipment-dmm-psu.md](../design/ddd-equipment-dmm-psu.md)

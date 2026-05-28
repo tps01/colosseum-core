@@ -1,0 +1,122 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Optional
+
+from ..context import get_context, init_context
+from ..plugins.loader import ensure_plugins_loaded
+from .normalize import normalize_sections
+from .sections import ConfigSectionSpec
+from .validate import collect_unknown_key_warnings, run_section_validators
+
+try:
+    import tomllib  # type: ignore[attr-defined]
+except ModuleNotFoundError:  # pragma: no cover
+    import tomli as tomllib  # type: ignore[no-redef]
+
+
+class ConfigError(RuntimeError):
+    pass
+
+
+@dataclass
+class ConfigStore:
+    _raw: dict[str, Any]
+    _normalized: dict[str, dict[int, dict]]
+    _specs: dict[str, ConfigSectionSpec]
+
+    def raw(self) -> dict[str, Any]:
+        return self._raw
+
+    def get_section(self, dotted: str) -> Any:
+        cursor: Any = self._raw
+        for part in dotted.split("."):
+            if not isinstance(cursor, dict):
+                return None
+            cursor = cursor.get(part)
+            if cursor is None:
+                return None
+        return cursor
+
+    def list_items(self, dotted: str) -> list[dict]:
+        items = self._normalized.get(dotted, {})
+        return [items[key] for key in sorted(items)]
+
+    def get_item(self, dotted: str, item_id: int) -> dict:
+        section = self._normalized.get(dotted)
+        if section is None:
+            raise ConfigError(f"Config section `{dotted}` is not registered")
+        if item_id not in section:
+            raise ConfigError(f"Unknown id `{item_id}` in section `{dotted}`")
+        return section[item_id]
+
+    def require_item(self, dotted: str, item_id: int) -> dict:
+        item = self.get_item(dotted, item_id)
+        spec = self._specs.get(dotted)
+        if spec is None:
+            return item
+        missing = [key for key in spec.required_keys if key not in item or item[key] in ("", None)]
+        if missing:
+            raise ConfigError(
+                f"Section `{dotted}` id `{item_id}` missing required keys: {', '.join(missing)}"
+            )
+        return item
+
+    def get_equipment(self, kind: str, equipment_id: int) -> dict:
+        return self.require_item(f"equipment.{kind}", equipment_id)
+
+    def list_equipment(self, kind: str) -> list[dict]:
+        return self.list_items(f"equipment.{kind}")
+
+
+def _default_test_name() -> str:
+    import sys
+
+    main_script = Path(sys.argv[0])
+    if main_script.suffix == ".py" and main_script.stem:
+        return main_script.stem
+    return "run"
+
+
+def load_config(path: str | Path) -> ConfigStore:
+    config_path = Path(path).resolve()
+    if not config_path.exists():
+        raise ConfigError(f"Config file not found: {config_path}")
+    try:
+        with config_path.open("rb") as fh:
+            raw = tomllib.load(fh)
+    except tomllib.TOMLDecodeError as exc:
+        raise ConfigError(f"Invalid TOML in {config_path}: {exc}") from exc
+
+    existing_ctx = get_context()
+    if existing_ctx is None:
+        ctx = init_context(test_case_name=_default_test_name(), config_path=config_path)
+    else:
+        ctx = existing_ctx
+        ctx.config_path = config_path
+
+    ensure_plugins_loaded(ctx.plugin_registry)
+    specs = list(ctx.plugin_registry.config_section_specs())
+    spec_map = {s.dotted_path: s for s in specs}
+    normalized = normalize_sections(raw, specs)
+    ctx.config_warnings = collect_unknown_key_warnings(normalized, spec_map)
+    validator_map = {
+        spec.dotted_path: ctx.plugin_registry.validators_for(spec.dotted_path) for spec in specs
+    }
+    ctx.config_warnings.extend(run_section_validators(normalized, spec_map, validator_map))
+    store = ConfigStore(raw, normalized, spec_map)
+    ctx.config = store
+    return store
+
+
+def get(dotted: str, default: Optional[Any] = None) -> Any:
+    ctx = get_context()
+    if ctx is None or ctx.config is None:
+        if default is not None:
+            return default
+        raise ConfigError("Configuration is not loaded. Call col.config.load_config(path).")
+    value = ctx.config.get_section(dotted)
+    if value is None:
+        return default
+    return value

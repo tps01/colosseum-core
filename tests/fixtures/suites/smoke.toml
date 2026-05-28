@@ -1,0 +1,10 @@
+name = "smoke"
+
+setup = ["../scripts/setup_ok.py"]
+
+tests = [
+  "../../../examples/test_power_rails.py",
+  "../../../examples/test_ssh_health.py",
+]
+
+teardown = ["../scripts/teardown_ok.py"]

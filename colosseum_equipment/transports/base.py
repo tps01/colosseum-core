@@ -1,0 +1,13 @@
+from __future__ import annotations
+
+from typing import Protocol
+
+
+class Transport(Protocol):
+    def write(self, data: str) -> None: ...
+
+    def read(self) -> str: ...
+
+    def query(self, data: str) -> str: ...
+
+    def close(self) -> None: ...

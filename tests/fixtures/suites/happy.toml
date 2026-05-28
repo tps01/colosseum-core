@@ -1,0 +1,7 @@
+name = "fixture_happy"
+
+setup = ["../scripts/setup_ok.py"]
+
+tests = ["../scripts/pass_test.py"]
+
+teardown = ["../scripts/teardown_ok.py"]
