@@ -29,12 +29,9 @@ def _load_builtin_specs() -> List[DocgenModuleSpec]:
 
 def discover_specs() -> List[DocgenModuleSpec]:
     """Load all ``colosseum.docgen`` entry points; fall back to built-ins in source tree."""
-    try:
-        from importlib.metadata import entry_points
-    except ImportError:  # pragma: no cover
-        from importlib_metadata import entry_points  # type: ignore
+    from colosseum.compat.entry_points import entry_points_for_group
 
-    eps = list(entry_points(group=DOCGEN_ENTRY_GROUP))
+    eps = entry_points_for_group(DOCGEN_ENTRY_GROUP)
     if not eps:
         return sorted(_load_builtin_specs(), key=lambda s: s.order)
 
