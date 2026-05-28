@@ -1,168 +1,152 @@
-# Colosseum MVP Scope and Success Criteria
+# Colosseum Implemented MVP Status
 
 ## Purpose
 
-This document is the canonical boundary for the Colosseum minimum viable product (MVP). It defines what ships in each wave, what is deferred, and how success is judged. Detailed behavior lives in [feature functional overviews](../features/) and [detailed design documents](../design/). Architecture background is in [scratchpad/colosseum_architecture_document.md](../../scratchpad/colosseum_architecture_document.md).
+This document is the current implementation summary for the Colosseum MVP. It replaces the earlier wave-planning view with what is actually present in the repository as of version `0.3.0`.
 
-## Product summary
+The original feature overviews, detailed design documents, ADRs, and scratchpad architecture remain useful design history. When they still use "Wave 1/2/3" language, read that as historical sequencing unless this document says otherwise.
 
-Colosseum is a Python-importable, offline, plugin-oriented test automation framework for embedded system integration and acceptance testing on the bench. Users write ordinary Python test scripts that call high-level APIs (`import colosseum as col`), load TOML bench configuration, perform measurements and verifications, and produce local execution evidence (logs, SQLite, summaries).
+## Product Summary
 
-## Compatibility matrix (all waves)
+Colosseum is a Python-importable, offline-first, plugin-oriented test automation framework for embedded system integration and acceptance testing on a bench. Users write ordinary Python scripts with `import colosseum as col`, load TOML bench configuration, perform measurements and verifications, and produce local execution evidence.
 
-| Requirement | MVP commitment |
-|-------------|----------------|
-| Python | 3.9+ |
-| Platforms | Windows and Linux |
-| Network | Offline by default; no cloud dependency |
+The supported end-of-run API is `col.endex()`. It writes final metadata, writes `summary.txt`, flushes/closes logging and SQLite, runs plugin shutdown hooks, closes cached resources, and exits with code `0` or `1`.
+
+## Compatibility
+
+| Area | Implemented status |
+|------|--------------------|
+| Python | `>=3.9` |
+| Platforms | Windows and Linux-oriented code paths; current local validation has been on Windows |
+| Network | No cloud dependency; hardware/SSH access is optional through extras |
 | User import | `import colosseum as col` |
-| Documentation generation | Sphinx from docstrings (implementation task, not a separate DDD) |
+| Packaging | One source project containing `colosseum`, `colosseum_equipment`, and `colosseum_shared` packages |
+| Optional extras | `equipment`, `shared`, `bench`, `docs`, `test`, `mutation` |
+| Documentation generation | Sphinx/docgen scripts under `scripts/docgen/` |
 
-## Distribution split
+## Implemented Runtime Behavior
 
-| Distribution | Package import | User namespace | Key dependencies |
-|--------------|----------------|----------------|------------------|
-| `colosseum` | `colosseum` | `col.config`, `col.database`, core decorators, runner | `tomli` on Python &lt; 3.11 |
-| `colosseum-equipment` | `colosseum_equipment` (plugin) | `col.equipment.*` | `pyserial`, `pyvisa` |
-| `colosseum-shared` | `colosseum_shared` (plugin) | `col.shared.*` | `paramiko` |
+### Core Runtime
 
-See [ADR-001](../decisions/adr-001-distributions.md).
+- Global runtime context with config, database, logger, plugin registry, resource cache, phase, and result aggregator.
+- Context initialization through `col.config.load_config(...)`, `colosseum run`, or `colosseum run-suite`.
+- Lazy output directory creation under `outputs/<timestamp>_<logical-name>/`.
+- `debug.log`, `execution.sqlite`, and `summary.txt` are produced for finalized runs.
+- `col.endex()` is idempotent enough to preserve the first final exit code if called again.
 
-## Phased MVP
+### Configuration
 
-### Wave 1 — Core runnable test
+- TOML loading uses `tomllib` on Python 3.11+ and `tomli` on older Python.
+- Plugin-registered config sections are normalized from either a single table or an array of tables.
+- Implemented first-party sections include `equipment.psu`, `equipment.dmm`, `equipment.serial`, and `shared.ssh`.
+- Required keys are enforced when resources are required.
+- Unknown keys are collected as warnings on the runtime context.
 
-**User-visible outcome:** Load config, run a single test file (direct Python or `colosseum run`), persist measurements/verifications to `outputs/<timestamp>_<test>/`, exit `0` or `1`.
+### Measurements And Verifications
 
-**In scope:**
+- `@measurement` records command/domain/key evidence in SQLite.
+- Single-row measurements reject duplicate keys for the same domain and command.
+- `multi_row=True` measurements require `row_index`.
+- `@verification` records PASS, FAIL, or ERROR.
+- Verification sources are explicit through `MeasurementSource`.
+- Required FAIL/ERROR fails the run; optional FAIL/ERROR is recorded but does not fail the aggregate result.
+- Plugin module prefixes map verification and measurement domains to `equipment` or `shared`.
 
-- Global runtime context
-- TOML configuration load and normalization (single table vs array-of-tables)
-- `@measurement` and `@verification` decorators
-- Result states: PASS, FAIL, ERROR, SKIP
-- Measurement key uniqueness (per command/domain rules)
-- Optional verifications (`optional=True`)
-- Lazy `outputs/` directory creation
-- Core SQLite schema and `debug.log` with run header metadata
-- CLI: `colosseum run <test.py> --config <bench.toml>`
-- Identical output directory naming for CLI and direct Python (when runtime is initialized)
+### CLI And Suites
 
-**Deferred from Wave 1:**
+- `colosseum run <test.py> --config <bench.toml>` initializes runtime, loads config, executes the script with `runpy`, calls `main()`, and finalizes with `col.endex()`.
+- The CLI does not execute a script's `if __name__ == "__main__"` block.
+- `colosseum run-suite <suite.toml> --config <bench.toml>` runs setup scripts, test scripts, and teardown scripts in one runtime context and one output directory.
+- Suite paths are relative to the suite file.
+- Setup failure marks the suite failed, skips tests, still runs teardown, and exits `1`.
+- Teardown failure marks the run failed and exits `1`.
+- Test script failures are logged and the suite continues; a test failure affects the final exit code when it records a required verification failure or suite error.
 
-- Suites, setup/teardown
-- First-party equipment/shared beyond plugin stubs (if any)
-- Vendor-specific SCPI
-- `summary.txt`
-- Public database read helpers
-- Multiprocessing worker patterns
-- Context-manager runtime API
+### Evidence And Read APIs
 
-**Related docs:** FFO F1–F4; DDD D1–D3, D5–D10.
+- SQLite tables store measurements, verifications, events, artifacts, and run metadata.
+- Public read helpers are implemented:
+  - `col.database.read_measurements()`
+  - `col.database.read_verifications()`
+  - `col.database.read_run_metadata()`
+  - `col.database.read_table(...)` for allowed core tables and `plugin_*` tables
+- Read helpers are for inspection and tooling. Test scripts should not compute final exit status from read helpers; use `col.endex()`.
 
-### Wave 2 — Bench adaptation
+### Plugins
 
-**User-visible outcome:** Architecture doc example flows work: PSU/DMM via VISA, serial, SSH measure + regex verify, raw SCPI/transport escape hatches.
+- Runtime plugins use the `colosseum.plugins` entry point and a `register(registry)` function.
+- Plugins may register namespaces, config sections, validators, and shutdown hooks.
+- Documentation plugins use the `colosseum.docgen` entry point and return `DocgenModuleSpec`.
+- First-party `col.equipment.*` and `col.shared.*` are registered through the same plugin path used by third-party extensions.
 
-**In scope:**
+### Equipment And Shared Utilities
 
-- `colosseum-equipment` and `colosseum-shared` as plugins (same registration as third-party)
-- Transport / protocol / instrument layering
-- Generic DMM and PSU high-level APIs backed by generic SCPI
-- pyserial, pyvisa, paramiko integration
-- Optional verifications (full behavior per architecture)
+- `col.equipment.psu` supports voltage/current/output operations and PSU voltage measurement.
+- `col.equipment.dmm` supports voltage measurement and voltage verification.
+- `col.equipment.scpi` exposes raw SCPI write/query/query-float helpers.
+- Simulated transports are available for offline development and CI.
+- VISA and serial transports are available when the `equipment` or `bench` extras are installed.
+- Generic SCPI DMM/PSU drivers are implemented.
+- Reference model selection includes `keysight-edu34450a` and `tdk-genesys`.
+- `col.shared.ssh.measure_stdout` records command output.
+- `col.shared.regex.verify_match` verifies a regex against a measured source.
+- SSH uses a simulated client for `driver = "sim"` and Paramiko when the shared/bench extra is installed.
 
-**Deferred from Wave 2:**
+### Testing And Regression
 
-- Vendor-specific EDU34450A and Genesys implementations (Wave 3)
-- Parallel suite/DUT execution
-- Formal plugin namespace collision policy (warn + last-wins for v1)
+- `scripts/run_tests.py` runs the standard pytest tiers.
+- `scripts/profile_unit_tests.py` profiles unit tests and prints project-scoped `pstats` output.
+- `tests/regression/run_docgen_check.py` checks doc generation.
+- `tests/regression/run_soak_sim.py` runs simulated soak coverage.
+- `tests/regression/run_mutation.py` runs optional Cosmic Ray mutation tests and writes reports under `build/mutation/`.
+- The mutation runner serializes itself with a lock because Cosmic Ray mutates the working tree while testing.
 
-**Related docs:** FFO F5, F6, F8; DDD D4, D14–D19.
+## Current User Documentation
 
-### Wave 3 — Suite orchestration and reference instruments
+Hand-written Sphinx guides exist under `docs/sphinx/source/guides/` for:
 
-**User-visible outcome:** `colosseum run-suite`, setup/teardown scripts, `summary.txt`, reference DMM/PSU drivers, database read helpers.
+- Installation
+- Quickstart
+- Configuration
+- Running tests
+- Running suites
+- Output artifacts
+- Exit codes
+- Measurements and verifications
+- Plugin development
+- Platform notes
 
-**In scope:**
+Autodoc staging and site build scripts live under `scripts/docgen/`.
 
-- Suite TOML (`name`, `setup`, `tests`, `teardown`)
-- Setup failure → ERROR, exit `1`; teardown failure → exit `1` (v1)
-- `summary.txt` at end of run only
-- Keysight EDU34450A and TDK-Lambda Genesys behind same high-level APIs
-- `col.database.read_*` helpers (typed records, no pandas)
+## Known Differences From The Original Plan
 
-**Deferred from Wave 3 (post-MVP):**
+These are the meaningful differences or losses from the planning documents that may be worth addressing later.
 
-- Context-manager runtime API
-- Test generation, HTML/JUnit/Allure, ALM integrations
-- Config JSON-schema validation
-- Stable public SQLite schema guarantee
-- Parallel suite execution, GUI runner, retry policies
-- Rich CLI filtering
-- `summary.json`
-- SKIP-as-failure configuration
+| Area | Original plan | Implemented now | Follow-up consideration |
+|------|---------------|-----------------|-------------------------|
+| Package distribution | Separate `colosseum`, `colosseum-equipment`, and `colosseum-shared` distributions | One source project/package build with three import packages and optional extras | Split distributions before publishing if independent release/install boundaries matter |
+| Plugin collision policy | Later fail-fast or user-selected collision handling was considered | Duplicate namespaces/config specs log warnings and replace prior registrations | Decide whether collisions should be hard errors |
+| Config validation | Richer schema validation was deferred | Registered section specs, required/optional keys, and validators exist; no JSON schema | Add schema export/validation if config UX needs stronger guarantees |
+| Environment substitution | `${ENV}` style config substitution was mentioned as post-MVP | Not implemented | Add only if bench configs need portable secret/resource injection |
+| Suite test exceptions | Plans emphasized setup/teardown state and aggregate exit semantics | Setup/teardown failures fail the run; ordinary test script exceptions are logged and suite execution continues unless a verification or suite error affects the aggregate | Consider marking any test script exception as a required suite error |
+| Public SQLite schema | Stable public schema guarantee was deferred | SQLite schema and read helpers are usable, but schema stability is not promised | Add schema versioning before external tools depend on raw tables |
+| Offline database reads | Possible `read_from_path(sqlite_path)` was deferred | Read helpers require an active runtime context | Add offline readers for post-run analysis tools |
+| Reporting formats | HTML/JUnit/Allure and `summary.json` were deferred | Only `summary.txt`, `debug.log`, and SQLite are implemented | Add machine-readable summaries if CI/reporting needs them |
+| Parallel execution | Parallel suites and multiprocessing were deferred | Suite execution is serial; mutation tests are explicitly serialized | Keep serial unless bench resource isolation is designed |
+| Context manager API | `with col.run(...)` was a future idea | Not implemented; use CLI or explicit `load_config` plus `col.endex()` | Revisit if direct Python ergonomics need it |
+| Equipment breadth | Future architecture mentioned more lab protocols | Implemented DMM/PSU/SCPI with VISA, serial, sim, and two reference models | Add CAN/JTAG/DAQ/socket only when use cases require them |
+| Documentation polish | Full user docs and generated API reference were planned | Guide drafts and docgen pipeline exist; public docs are not published from CI | Add CI doc build/publish if this becomes a released package |
 
-**Related docs:** FFO F7; DDD D11–D13, D17 vendor sections; D20 outline.
+## Explicitly Deferred
 
-## Success scenarios
-
-### Wave 1 done
-
-1. **Direct Python:** User runs `python tests/test_stub.py` after `col.config.load_config("bench.toml")`. Script registers at least one measurement and one verification (may use core test doubles or minimal built-ins). `outputs/` contains `debug.log` and `execution.sqlite`. Process exit code reflects verification aggregate.
-2. **CLI:** `colosseum run tests/test_stub.py --config configs/bench.toml` produces the same output layout and exit semantics as (1).
-3. **Failure path:** Missing measurement key for a required verification yields ERROR in DB, overall FAIL, exit `1`.
-4. **Optional verify:** `optional=True` failure does not change exit code from pass.
-
-### Wave 2 done
-
-1. **Power rail check:** Config defines PSU and DMM; test enables output, measures voltage, verifies within tolerance; results in SQLite.
-2. **SSH version check:** `col.shared.ssh.measure_stdout` + `col.shared.regex.verify_match` on configured target.
-3. **Escape hatch:** User sends raw SCPI via `col.equipment.scpi.query` without bypassing logging/DB for wrapped calls.
-4. **Plugin parity:** Third-party extension can register `col.myvendor.*` using the same entry point as equipment/shared.
-
-### Wave 3 done
-
-1. **Suite run:** `colosseum run-suite suites/smoke.toml --config configs/bench.toml` runs setup → tests → teardown in order; single output directory and one `execution.sqlite` with phase metadata.
-2. **Summary:** `summary.txt` present after suite completes; reflects pass/fail counts and optional verifications.
-3. **Reference instruments:** Bench with EDU34450A or Genesys can use model-specific driver selection in config while test script API unchanged.
-4. **Read helpers:** `col.database.read_verifications()` returns typed list for inspection/tooling; exit code comes from `col.endex()`, not manual scans in test scripts.
-
-## Documentation index
-
-| Type | Location |
-|------|----------|
-| Architecture (source) | [scratchpad/colosseum_architecture_document.md](../../scratchpad/colosseum_architecture_document.md) |
-| ADRs | [docs/decisions/](../decisions/) |
-| Feature overviews | [docs/features/](../features/) |
-| Detailed design | [docs/design/](../design/) |
-| User guides (tracked, not yet written) | [mvp/user-documentation.md](user-documentation.md) |
-
-## User-facing documentation (explicitly tracked, not MVP implementation docs)
-
-Architecture §19 calls for Sphinx-generated **user** documentation: installation, quickstart, config syntax, running tests/suites, output layout, exit codes, API reference (autodoc), plugin development, Windows/Linux notes, and multiprocessing guidance.
-
-The current `docs/` tree is **implementation planning** (scope, ADRs, FFOs, DDDs). That is intentional for this phase. User-facing deliverables are tracked in [user-documentation.md](user-documentation.md) with target wave and status; they are not blockers for Wave 1 coding.
-
-`summary.txt` is deferred to Wave 3 per [ADR-007](../decisions/adr-007-summary-artifact.md) — not omitted from the product plan.
-
-## Post-MVP capabilities (architecture §21)
-
-The following are explicitly out of MVP scope but acknowledged in the architecture document:
-
-- Context-managed runtime (`with col.run(...)`)
-- Test generation and model-based testing
-- Requirement traceability and ALM exports
-- HTML reports, JUnit XML, Allure
-- Configuration schema validation
-- Stable public database schema versioning
-- Web/desktop testing plugins
-- Formal plugin collision handling (fail-fast / user selection)
-- Parallel suite execution and GUI runner
-
-## Deferred feature documentation
-
-No separate FFOs for these in MVP; mention only here:
-
-- Parallel DUTs and parallel test cases (§18.1) — separate output dirs per process
-- In-test multiprocessing verification (§18.2) — see [ddd-multiprocessing.md](../design/ddd-multiprocessing.md) outline
-- Context-manager runtime (§7)
+- Parallel suite execution.
+- Context-manager runtime API.
+- JSON-schema config validation.
+- Stable public SQLite schema guarantee.
+- Offline read helpers for existing SQLite files.
+- Rich CLI filtering/retries.
+- GUI runner.
+- HTML/JUnit/Allure reports.
+- `summary.json`.
+- Test generation, model-based testing, and ALM export.
+- Broader equipment families such as CAN, JTAG, DAQ, and socket transport.

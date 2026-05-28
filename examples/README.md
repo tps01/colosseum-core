@@ -1,37 +1,39 @@
-# Colosseum examples (implementation targets)
+# Colosseum Examples
 
-These scripts describe the user-facing API. For offline runs without bench hardware, use [configs/bench.sim.toml](configs/bench.sim.toml) (`driver = "sim"`).
+These scripts exercise the implemented user-facing API. For offline runs without bench hardware, use [configs/bench.sim.toml](configs/bench.sim.toml), which uses `driver = "sim"`.
 
-**Style:** Colosseum API calls in examples use a single line per invocation (all keyword arguments on one line), matching the architecture doc sketch.
+**Style:** Colosseum API calls in examples use a single line per invocation with keyword arguments inline.
 
 ## Scripts
 
-| Script | Target wave | What it exercises |
-|--------|-------------|-------------------|
-| [test_power_rails.py](test_power_rails.py) | Wave 2 | `load_config`, PSU/DMM measure+verify, optional verify, SCPI shorthand |
-| [test_ssh_health.py](test_ssh_health.py) | Wave 2 | SSH measure, regex verify, `endex()` for aggregation/exit |
+| Script | What it exercises |
+|--------|-------------------|
+| [test_power_rails.py](test_power_rails.py) | Config load, PSU/DMM measurement and verification, optional verification, raw SCPI helper |
+| [test_ssh_health.py](test_ssh_health.py) | SSH stdout measurement, regex verification, `col.endex()` aggregation/exit |
 
 ## Config
 
-[configs/bench.toml](configs/bench.toml) — example `equipment.*` and `shared.ssh` sections aligned with [docs/features/ffo-bench-configuration.md](../docs/features/ffo-bench-configuration.md).
+- [configs/bench.sim.toml](configs/bench.sim.toml): simulated PSU, DMM, serial, and SSH resources for local development and CI.
+- [configs/bench.toml](configs/bench.toml): real bench-style entries for VISA/serial/SSH usage. Adjust resources, credentials, and models for your lab.
 
 ## Commands
 
-```bash
-# Simulated bench (no hardware)
-set COLOSSEUM_BENCH_CONFIG=bench.sim.toml   # Windows
-export COLOSSEUM_BENCH_CONFIG=bench.sim.toml   # Linux
+```powershell
+# Simulated bench, no hardware
 colosseum run examples/test_power_rails.py --config examples/configs/bench.sim.toml
 
-# Real bench (VISA / SSH) — use examples/configs/bench.toml with drivers visa/ssh
+# Simulated SSH/regex flow
+colosseum run examples/test_ssh_health.py --config examples/configs/bench.sim.toml
+
+# Real bench, after editing examples/configs/bench.toml for your resources
 colosseum run examples/test_power_rails.py --config examples/configs/bench.toml
 ```
 
-Automated validation: `python scripts/run_tests.py` (from repo root).
+Suite orchestration is implemented through `colosseum run-suite`. The repository includes suite fixtures under `tests/fixtures/suites/`; production projects should keep suite TOML beside their own tests.
 
-Suite orchestration (Wave 3) would reference these from a `suites/*.toml` file; see [docs/features/ffo-test-suites.md](../docs/features/ffo-test-suites.md).
+## Related Documentation
 
-## Related documentation
-
-- [docs/mvp/scope.md](../docs/mvp/scope.md) — wave boundaries and success scenarios
-- [scratchpad/colosseum_architecture_document.md](../scratchpad/colosseum_architecture_document.md) — original API sketch
+- [Top-level README](../README.md)
+- [Implemented MVP status](../docs/mvp/scope.md)
+- [User guides](../docs/sphinx/source/guides/)
+- [Testing guide](../docs/testing/README.md)

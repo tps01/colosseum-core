@@ -1,18 +1,19 @@
 """
-Target example: bench power-rail acceptance test (Wave 2+).
+Example: bench power-rail acceptance test.
 
-Development goal:
+Exercises:
   - col.config.load_config initializes runtime
   - PSU/DMM high-level APIs persist measurements and verifications
   - Optional verification does not gate exit code
   - Raw SCPI escape hatch available alongside decorated APIs
 
-Run when implemented:
+Run:
+  set COLOSSEUM_BENCH_CONFIG=bench.sim.toml
   python examples/test_power_rails.py
-  colosseum run examples/test_power_rails.py --config examples/configs/bench.toml
+  colosseum run examples/test_power_rails.py --config examples/configs/bench.sim.toml
 
 Expected artifacts (under outputs/<timestamp>_test_power_rails/):
-  debug.log, execution.sqlite
+  debug.log, execution.sqlite, summary.txt
 """
 
 from __future__ import annotations

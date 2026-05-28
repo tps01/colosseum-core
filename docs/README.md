@@ -1,25 +1,46 @@
 # Colosseum Documentation
 
-Documentation for the Colosseum MVP, derived from [scratchpad/colosseum_architecture_document.md](../scratchpad/colosseum_architecture_document.md).
+This directory contains the current project documentation plus the design records that guided the MVP implementation.
 
-## Start here
+For the current product surface, start with:
 
-1. [MVP scope and success criteria](mvp/scope.md)
-2. [Architecture decisions](decisions/) (ADRs 001–009)
-3. [Feature functional overviews](features/) (FFOs)
-4. [Detailed design documents](design/) (DDDs)
-5. [User documentation tracker](mvp/user-documentation.md) — installation, quickstart, Sphinx guides
-6. [Sphinx user docs build](sphinx/README.md) — `scripts/docgen/` modular pipeline
-7. [Testing and regression](testing/README.md) — pytest tiers 1–3, extended procedure
+1. [Top-level README](../README.md)
+2. [Implemented MVP status and known gaps](mvp/scope.md)
+3. [Sphinx user guides](sphinx/source/guides/)
+4. [Testing and regression](testing/README.md)
+5. [Examples](../examples/)
 
-## Document map
+The ADR, FFO, and DDD documents remain design history and rationale. They are useful when changing behavior, but some wave-planning language in those documents predates the implemented MVP. When there is a conflict, prefer [mvp/scope.md](mvp/scope.md), the user guides, tests, and the current code.
 
-### MVP
+## Current Implementation
+
+Colosseum 0.3.0 implements the original Waves 1-3 MVP in a single source tree:
+
+- Core runtime, configuration load, context, decorators, result aggregation, `col.endex()`.
+- CLI commands: `colosseum run` and `colosseum run-suite`.
+- Suite TOML with setup, test, and teardown phases.
+- Local evidence: `debug.log`, `execution.sqlite`, and `summary.txt`.
+- Public database read helpers under `col.database`.
+- Runtime plugin registry and docgen entry points.
+- First-party `col.equipment.*` and `col.shared.*` namespaces.
+- Simulated bench mode for offline development and CI.
+- VISA, serial, and SSH paths through optional extras.
+- Generic DMM/PSU SCPI plus `keysight-edu34450a` and `tdk-genesys` model implementations.
+- Sphinx/docgen pipeline and regression scripts, including optional Cosmic Ray mutation testing.
+
+Known differences from the original plan are captured in [mvp/scope.md](mvp/scope.md#known-differences-from-the-original-plan).
+
+## Document Map
+
+### Status and User Docs
 
 | Document | Description |
 |----------|-------------|
-| [mvp/scope.md](mvp/scope.md) | Waves 1–3 boundaries and success scenarios |
-| [mvp/user-documentation.md](mvp/user-documentation.md) | User-facing Sphinx docs tracker (§19) |
+| [../README.md](../README.md) | Project overview, install, quickstart, development commands |
+| [mvp/scope.md](mvp/scope.md) | Implemented MVP status, current behavior, known gaps |
+| [mvp/user-documentation.md](mvp/user-documentation.md) | User documentation inventory |
+| [sphinx/README.md](sphinx/README.md) | Sphinx/docgen build notes |
+| [testing/README.md](testing/README.md) | Test tiers, profiling, mutation testing |
 
 ### Decisions
 
@@ -31,12 +52,12 @@ Documentation for the Colosseum MVP, derived from [scratchpad/colosseum_architec
 | [adr-004](decisions/adr-004-setup-teardown-state.md) | Setup/teardown state |
 | [adr-005](decisions/adr-005-database-read-api.md) | DB read API shape |
 | [adr-006](decisions/adr-006-vendor-instruments.md) | Vendor DMM/PSU |
-| [adr-007](decisions/adr-007-summary-artifact.md) | summary.txt |
+| [adr-007](decisions/adr-007-summary-artifact.md) | `summary.txt` |
 | [adr-008](decisions/adr-008-output-naming.md) | Output directory naming |
 | [adr-009](decisions/adr-009-plugin-namespace-collisions.md) | Namespace collisions |
 | [adr-010](decisions/adr-010-endex.md) | `endex()` end-of-run API |
 
-### Features (FFO)
+### Feature Overviews
 
 | FFO | Topic |
 |-----|--------|
@@ -49,7 +70,7 @@ Documentation for the Colosseum MVP, derived from [scratchpad/colosseum_architec
 | [ffo-test-suites](features/ffo-test-suites.md) | Suites and lifecycle |
 | [ffo-extensions-plugins](features/ffo-extensions-plugins.md) | Plugins |
 
-### Design (DDD)
+### Detailed Design
 
 | DDD | Topic |
 |-----|--------|
@@ -72,12 +93,8 @@ Documentation for the Colosseum MVP, derived from [scratchpad/colosseum_architec
 | [ddd-equipment-dmm-psu](design/ddd-equipment-dmm-psu.md) | DMM / PSU |
 | [ddd-shared-architecture](design/ddd-shared-architecture.md) | Shared architecture |
 | [ddd-shared-ssh-regex](design/ddd-shared-ssh-regex.md) | SSH / regex |
-| [ddd-multiprocessing](design/ddd-multiprocessing.md) | Multiprocessing (outline) |
+| [ddd-multiprocessing](design/ddd-multiprocessing.md) | Multiprocessing outline |
 
-## Suggested implementation order
+## Example Style
 
-See [mvp/scope.md](mvp/scope.md) and the MVP documentation plan: Wave 1 core DDDs (D1–D3, D5–D10) before Wave 2 equipment/shared, then Wave 3 suite and read API.
-
-## Code style in examples
-
-User-facing test scripts and documentation examples use **one line per `col.*` call** with keyword arguments inline (see [examples/](../examples/) and [examples/README.md](../examples/README.md)). Implementation signatures in DDDs may use multi-line `def` blocks; runnable test-style snippets should not wrap routine API calls across lines.
+User-facing test scripts and guide snippets use one line per `col.*` call with keyword arguments inline. See [examples/](../examples/).

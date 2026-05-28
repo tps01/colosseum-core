@@ -1,14 +1,15 @@
 """
-Target example: DUT software health via SSH (Wave 2+).
+Example: DUT software health via SSH.
 
-Development goal:
+Exercises:
   - col.shared.ssh.measure_stdout stores stdout under a measurement key
   - col.shared.regex.verify_match reads measure_stdout evidence (not verify_match rows)
   - col.endex() aggregates required/optional verifications and exits 0/1 (no manual result loop)
 
-Run when implemented:
+Run:
+  set COLOSSEUM_BENCH_CONFIG=bench.sim.toml
   python examples/test_ssh_health.py
-  colosseum run examples/test_ssh_health.py --config examples/configs/bench.toml
+  colosseum run examples/test_ssh_health.py --config examples/configs/bench.sim.toml
 """
 
 from __future__ import annotations
