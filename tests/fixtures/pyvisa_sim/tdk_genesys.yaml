@@ -1,0 +1,51 @@
+spec: "1.0"
+devices:
+  tdk_genesys:
+    eom:
+      GPIB INSTR:
+        q: "\n"
+        r: "\n"
+    error: ERROR
+    dialogues:
+      - q: "*IDN?"
+        r: "TDK-Lambda,GENESYS,Sim0001,1.0"
+      - q: "OUTP ON"
+        r: ""
+      - q: "OUTP OFF"
+        r: ""
+      - q: "VOLT:PROT 3.6"
+        r: ""
+      - q: "CURR:PROT 1.0"
+        r: ""
+    properties:
+      voltage:
+        default: 3.3
+        getter:
+          q: "VOLT?"
+          r: "{:.6f}"
+        setter:
+          q: "VOLT {:.6f}"
+        specs:
+          type: float
+      meas_voltage:
+        default: 3.3
+        getter:
+          q: "MEAS:VOLT?"
+          r: "{:.6f}"
+        setter:
+          q: "VOLT {:.6f}"
+        specs:
+          type: float
+      current_limit:
+        default: 1.0
+        getter:
+          q: "CURR?"
+          r: "{:.6f}"
+        setter:
+          q: "CURR {:.6f}"
+        specs:
+          type: float
+
+resources:
+  GPIB::4::INSTR:
+    device: tdk_genesys

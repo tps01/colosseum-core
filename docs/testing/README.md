@@ -51,9 +51,24 @@ The script runs `tests/unit` under `cProfile`, prints project-scoped `pstats` ta
 python scripts/run_tests.py --regression
 ```
 
+## PyVISA-sim (Python 3.10+)
+
+Semi-realistic SCPI mocks from YAML (optional ``equipment-sim`` extra):
+
+```bash
+pip install -e ".[test,equipment-sim]"
+pytest -m visa_sim -q
+```
+
+See [pyvisa-sim-fixtures.md](pyvisa-sim-fixtures.md).
+
+## Suite test script exceptions
+
+Documented v1 behavior when a test script raises: [suite-test-script-errors.md](suite-test-script-errors.md).
+
 ## Tier 4B — Hardware / QEMU procedure
 
-When a bench or QEMU guest exists, follow [regression-test-procedure.md](regression-test-procedure.md) and complete [templates/regression-signoff.md](templates/regression-signoff.md).
+When a bench or QEMU guest exists, copy [../configs/bench.local.toml.example](../configs/bench.local.toml.example) to ``configs/bench.local.toml``, follow [regression-test-procedure.md](regression-test-procedure.md), and complete [templates/regression-signoff.md](templates/regression-signoff.md).
 
 ## Environment
 

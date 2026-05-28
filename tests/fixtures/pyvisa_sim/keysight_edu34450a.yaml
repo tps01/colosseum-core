@@ -1,0 +1,25 @@
+spec: "1.0"
+devices:
+  keysight_edu34450a:
+    eom:
+      GPIB INSTR:
+        q: "\n"
+        r: "\n"
+    error: ERROR
+    dialogues:
+      - q: "*IDN?"
+        r: "Keysight Technologies,EDU34450A,Sim0001,1.0.0"
+      - q: "CONF:VOLT:DC CH1"
+      - q: "CONF:VOLT:DC CH2"
+    properties:
+      reading:
+        default: 3.3
+        getter:
+          q: "READ?"
+          r: "{:.6E}"
+        specs:
+          type: float
+
+resources:
+  GPIB::3::INSTR:
+    device: keysight_edu34450a

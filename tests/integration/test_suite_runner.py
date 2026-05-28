@@ -44,3 +44,16 @@ def test_teardown_failure_fails_run_even_when_tests_pass(fixtures_dir, bench_sim
     run_dir = latest_output_dir(isolated_cwd)
     meta = dict(query_db(run_dir, "SELECT key, value FROM run_metadata"))
     assert meta.get("exit_code") == "1"
+
+
+def test_test_script_exception_does_not_fail_suite_without_verification(
+    fixtures_dir, bench_sim, isolated_cwd
+) -> None:
+    """Documented v1 behavior: test ScriptRunError is logged; suite may still exit 0."""
+    suite = fixtures_dir / "suites" / "test_script_crash.toml"
+    _run_suite_expect_exit(suite, bench_sim, isolated_cwd, 0)
+    run_dir = latest_output_dir(isolated_cwd)
+    errors = query_db(run_dir, "SELECT message FROM events WHERE message LIKE 'script_fail:%'")
+    assert errors, "expected script_fail event for crashed test"
+    summary = (run_dir / "summary.txt").read_text(encoding="utf-8")
+    assert "Overall result: PASS" in summary

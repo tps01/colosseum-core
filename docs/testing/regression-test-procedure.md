@@ -43,7 +43,7 @@ Run 4B after plugin/transport changes, vendor driver changes, or before a releas
 
 ## 4. Configuration
 
-1. Copy [examples/configs/bench.toml](../../examples/configs/bench.toml) to a **gitignored** local file, e.g. `configs/bench.local.toml`.
+1. Copy [configs/bench.local.toml.example](../../configs/bench.local.toml.example) (or [examples/configs/bench.toml](../../examples/configs/bench.toml)) to a **gitignored** local file, e.g. `configs/bench.local.toml`.
 2. Set real `resource`, `port`, `host`, `key_filename` / `password`. Never commit secrets.
 3. For QEMU SSH, start from [templates/bench.qemu.toml.example](templates/bench.qemu.toml.example).
 4. Optional vendor models (Wave 3):

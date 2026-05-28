@@ -13,6 +13,7 @@ dependencies = [
 
 [project.optional-dependencies]
 equipment = ["pyvisa", "pyserial"]
+equipment-sim = ["pyvisa>=1.15", "pyvisa-sim>=0.7,<0.8"]
 shared = ["paramiko"]
 bench = ["pyvisa", "pyserial", "paramiko"]
 docs = ["sphinx>=7.0"]
@@ -26,6 +27,7 @@ testpaths = ["tests/unit", "tests/integration", "tests/e2e"]
 pythonpath = ["."]
 markers = [
     "requirement(id): traceability to test-plan requirement ID",
+    "visa_sim: requires pyvisa-sim (Python 3.10+); install .[equipment-sim]",
 ]
 
 [project.entry-points."colosseum.docgen"]

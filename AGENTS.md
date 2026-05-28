@@ -9,9 +9,9 @@ Baseline expectations for AI agents in this repository.
 
 ## API and examples
 
-- User import: `import colosseum as col`. End-of-run: **`col.endex()`** only (flush logs/DB, `summary.txt`, exit `0`/`1`). Do not gate exit via `read_verifications()` loops.
+- User import: `import colosseum as col`. End-of-run: **`col.endex()`** only (flush logs/DB, `summary.txt`, `summary.json`, exit `0`/`1`). Do not gate exit via `read_verifications()` loops.
 - Example/test scripts: **one line per `col.*` call** with inline keyword args (see `examples/`).
-- Offline/CI bench: `examples/configs/bench.sim.toml` (`driver = "sim"`) or `COLOSSEUM_BENCH_CONFIG=bench.sim.toml`.
+- Offline/CI bench: `examples/configs/bench.sim.toml` (`driver = "sim"`) or `COLOSSEUM_BENCH_CONFIG=bench.sim.toml`. PyVISA-sim: `examples/configs/bench.visa-sim.toml` with `.[equipment-sim]` and `pytest -m visa_sim` (Python 3.10+).
 
 ## Repository layout
 
@@ -22,7 +22,7 @@ Baseline expectations for AI agents in this repository.
 | `colosseum_shared/` | Plugin → `col.shared.*` (SSH, regex, parsing; `sim`/paramiko) |
 | `docs/` | Planning (FFO/DDD/ADR); user guides are **not** here |
 | `docs/sphinx/source/guides/` | Hand-written Sphinx RST |
-| `outputs/` | Run artifacts (`debug.log`, `execution.sqlite`, `summary.txt`) — gitignored |
+| `outputs/` | Run artifacts (`debug.log`, `execution.sqlite`, `summary.txt`, `summary.json`) — gitignored |
 | `build/` | Docgen staging + HTML — gitignored |
 
 **Entry points:** `colosseum.plugins` (runtime `register(registry)`), `colosseum.docgen` (`docgen_entry:spec` → `DocgenModuleSpec`). Monorepo dev works without install via built-in fallbacks in `plugins/loader.py` and `docgen/discover.py`.
