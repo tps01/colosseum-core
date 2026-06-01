@@ -44,7 +44,7 @@ class VISATransport(Transport):
             import pyvisa
         except ImportError as exc:  # pragma: no cover
             raise EquipmentConnectionError(
-                "pyvisa is required for driver=visa. Install colosseum with the equipment extra."
+                "pyvisa is required for driver=visa. Reinstall colosseum."
             ) from exc
 
         self._timeout = timeout
@@ -86,6 +86,18 @@ class VISATransport(Transport):
     def query(self, data: str) -> str:
         try:
             return str(self._inst.query(data))
+        except Exception as exc:
+            raise EquipmentTimeoutError(str(exc)) from exc
+
+    def write_raw(self, data: bytes) -> None:
+        try:
+            self._inst.write_raw(data)
+        except Exception as exc:
+            raise EquipmentTimeoutError(str(exc)) from exc
+
+    def read_raw(self, size: int = 655360) -> bytes:
+        try:
+            return bytes(self._inst.read_raw(size))
         except Exception as exc:
             raise EquipmentTimeoutError(str(exc)) from exc
 

@@ -1,3 +1,5 @@
+"""Persist decorated call results as SQLite measurement rows."""
+
 from __future__ import annotations
 
 from functools import wraps
@@ -9,7 +11,7 @@ from ..output import ensure_output_dir
 
 
 class MeasurementKeyError(RuntimeError):
-    pass
+    """Raised when a measurement is missing ``key=`` or duplicates an existing key."""
 
 
 def _resolve_domain(func: Callable) -> str:
@@ -29,6 +31,11 @@ def _ensure_ctx_for_call():
 
 
 def measurement(_func: Callable | None = None, *, multi_row: bool = False):
+    """Decorator that records return values in ``execution.sqlite``.
+
+    Wrapped functions must accept ``key=`` (and ``row_index=`` when ``multi_row=True``).
+    Domain and command names are inferred from the defining module.
+    """
     def decorate(func: Callable):
         domain = _resolve_domain(func)
         command = func.__name__

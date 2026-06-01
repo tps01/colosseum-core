@@ -74,6 +74,10 @@ No changes to Colosseum scripts are required when the entry point is present.
 
 Hand-written RST lives in ``docs/sphinx/source/guides/``. The stitch step copies them into the site source tree; API reference comes from autodoc staging.
 
+After ``sphinx-apidoc``, ``build_module.py`` patches ``colosseum.decorators.rst`` with
+``:exclude-members: measurement, verification`` so package re-exports do not duplicate
+submodule doc targets (``colosseum.decorators.measurement`` module vs function name).
+
 ## Entry point group
 
 | Group | Purpose |

@@ -24,22 +24,13 @@ Linux/macOS shell:
 . ./scripts/start_environment.sh
 ```
 
-These scripts create `.venv`, install the project in editable mode with test and mutation extras, and activate the environment. The POSIX shell version should be sourced with `.` if you want activation to remain in the current shell.
+These scripts create `.venv`, install the editable project (full runtime), install dev tools from `requirements-dev.txt`, and activate the environment. The POSIX shell version should be sourced with `.` if you want activation to remain in the current shell.
 
-Override defaults as needed:
+Runtime-only install (skip pytest, Sphinx, mutation tools):
 
 ```powershell
-$env:EXTRAS = "bench,test,docs,mutation"
+$env:SKIP_DEV = "1"
 .\scripts\start_environment.ps1
-```
-
-```bat
-set EXTRAS=bench,test,docs,mutation
-scripts\start_environment.bat
-```
-
-```sh
-EXTRAS=bench,test,docs,mutation . ./scripts/start_environment.sh
 ```
 
 Manual install:
@@ -48,13 +39,14 @@ Manual install:
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -U pip setuptools wheel
-python -m pip install -e ".[bench,test,docs,mutation]"
+python -m pip install -e .
+python -m pip install -r requirements-dev.txt
 ```
 
-Core-only installs need only:
+End-user install (when published to PyPI):
 
 ```powershell
-python -m pip install -e .
+pip install colosseum
 ```
 
 ## Quickstart
@@ -100,14 +92,17 @@ Each run writes `outputs/<timestamp>_<name>/debug.log`, `execution.sqlite`, `sum
 - Public database read helpers: `col.database.read_measurements()`, `read_verifications()`, `read_run_metadata()`, and guarded `read_table(...)`.
 - Plugin entry points for runtime namespaces and doc generation.
 - First-party `col.equipment.*` and `col.shared.*` namespaces.
-- Simulated, VISA, serial, and SSH-backed bench paths depending on installed extras.
+- Simulated, VISA, serial, and SSH-backed bench paths (included in the default install).
 - Generic DMM/PSU SCPI support plus `keysight-edu34450a` and `tdk-genesys` model selection.
+- RF VSG and spectrum analyzer APIs (`col.equipment.vsg`, `col.equipment.speca`) with models `keysight-esg`, `keysight-e4407b`, and `tektronix-rsa5100b`; offline bench via `examples/configs/bench.rf.visa-sim.toml`.
 - Sphinx/docgen scripts under `scripts/docgen/`.
 - Test tiers and optional Cosmic Ray mutation driver under `scripts/` and `tests/regression/`.
 
 ## Continuous integration
 
-GitHub Actions runs pytest tiers 1–3 on Windows and Ubuntu (Python 3.9 and 3.11), PyVISA-sim tests on Python 3.10+, and docgen on pushes to `main`. Documentation is published to GitHub Pages from the `Documentation` workflow (enable Pages from workflow artifacts in repository settings).
+GitHub Actions runs pytest tiers 1–3 on Windows and Ubuntu (Python 3.9 and 3.11), PyVISA-sim tests on Python 3.10+, and generates a documentation PDF artifact in CI.
+
+The GitHub Pages `Documentation` workflow remains available but is manual-only (`workflow_dispatch`) and is not part of the standard CI path.
 
 ## Development
 
@@ -123,11 +118,16 @@ Run all default pytest tiers:
 python scripts/run_tests.py
 ```
 
-PyVISA-sim driver tests (Python 3.10+, ``equipment-sim`` extra):
+PyVISA-sim driver tests (Python 3.10+):
 
 ```powershell
-pip install -e ".[test,equipment-sim]"
 pytest -m visa_sim -q
+```
+
+RF instrument integration tests (PyVISA-sim, Python 3.10+):
+
+```powershell
+pytest -m visa_sim tests/integration/test_equipment_rf_visa_sim.py -q
 ```
 
 Profile unit tests:
@@ -153,11 +153,15 @@ python scripts/cleanup.py
 
 - [Implemented MVP status](docs/mvp/scope.md)
 - [Project documentation map](docs/README.md)
-- [User guides](docs/sphinx/source/guides/) — built HTML is published via GitHub Pages when the Documentation workflow runs on `main`
+- [User guides](docs/sphinx/source/guides/)
 - [Testing guide](docs/testing/README.md)
 - [PyVISA-sim fixtures](docs/testing/pyvisa-sim-fixtures.md)
 - [Original architecture sketch](scratchpad/colosseum_architecture_document.md)
 
-Local doc build: ``pip install -e ".[docs]"`` then ``python scripts/docgen/build_all.py`` (output under ``build/docgen/site/html/``).
+Local doc build: ``pip install -r requirements-dev.txt`` then ``python scripts/docgen/build_all.py`` (output under ``build/docgen/site/html/``).
 
 The FFO, DDD, and ADR documents remain useful design history. The current implementation status and known gaps are summarized in `docs/mvp/scope.md`.
+
+## License
+
+This project is licensed under the MIT License. See `LICENSE`.

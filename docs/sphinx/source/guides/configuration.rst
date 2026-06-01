@@ -11,6 +11,31 @@ Example PSU entry::
    resource = "USB0::0x1234::0x5678::INSTR"
    voltage = 3.3
 
-Plugins register repeatable sections at load time (for example ``equipment.psu``, ``shared.ssh``). Unknown keys in a section log a warning; missing required keys fail when the resource is first used.
+Example VSG and spectrum analyzer entries::
 
-For offline development and CI, use ``examples/configs/bench.sim.toml`` with ``driver = "sim"``.
+   [[equipment.vsg]]
+   vsg_id = 1
+   driver = "visa"
+   model = "keysight-esg"
+   resource = "GPIB0::19::INSTR"
+   frequency = 1e9
+   power_dbm = -10.0
+
+   [[equipment.speca]]
+   speca_id = 1
+   driver = "visa"
+   model = "keysight-e4407b"
+   resource = "GPIB0::18::INSTR"
+   center_freq = 1e9
+   span = 10e6
+   rbw = 100e3
+
+Plugins register repeatable sections at load time (for example ``equipment.psu``, ``equipment.vsg``, ``equipment.speca``, ``shared.ssh``). Unknown keys in a section log a warning; missing required keys fail when the resource is first used.
+
+For offline development and CI:
+
+* ``examples/configs/bench.sim.toml`` — ``driver = "sim"`` (PSU/DMM cooperative sim)
+* ``examples/configs/bench.visa-sim.toml`` — PyVISA-sim for DMM/PSU SCPI
+* ``examples/configs/bench.rf.visa-sim.toml`` — PyVISA-sim for VSG and speca (Python 3.10+)
+
+See :doc:`rf_equipment` for RF workflow examples.

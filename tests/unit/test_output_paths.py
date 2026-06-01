@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import re
 
-from colosseum.output.paths import _sanitize, allocate_run_directory
+from colosseum.output.paths import allocate_run_directory, sanitize_logical_name
 
 
 def test_sanitize_strips_unsafe_characters() -> None:
-    assert _sanitize("my test!") == "my_test"
-    assert _sanitize("") == "run"
+    assert sanitize_logical_name("my test!") == "my_test"
+    assert sanitize_logical_name("") == "run"
 
 
 def test_allocate_run_directory_format_and_collision(isolated_cwd) -> None:

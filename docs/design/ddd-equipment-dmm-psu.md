@@ -129,3 +129,4 @@ sequenceDiagram
 
 - [ADR-006](../decisions/adr-006-vendor-instruments.md)
 - [ffo-laboratory-equipment.md](../features/ffo-laboratory-equipment.md)
+- [ddd-equipment-vsg-speca.md](ddd-equipment-vsg-speca.md) — RF VSG and spectrum analyzer APIs

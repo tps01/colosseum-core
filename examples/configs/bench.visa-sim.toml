@@ -1,5 +1,5 @@
 # PyVISA-sim bench: driver=visa with visa_backend=sim and per-instrument YAML definitions.
-# Requires: pip install -e ".[equipment-sim]"  (Python 3.10+)
+# Simulated bench with PyVISA-sim (visa_backend = "sim"). Python 3.10+.
 # Run tests: pytest -m visa_sim
 # Paths are relative to the repository root when running from a checkout.
 

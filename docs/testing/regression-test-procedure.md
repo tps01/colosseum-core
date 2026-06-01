@@ -13,6 +13,7 @@ Manual and semi-automated regression for **hardware benches** and **QEMU embedde
 | Tiers 1–3 (pytest) | Core logic, sim bench, CLI | Every change; before tagging |
 | Tier 4A (scripts) | Soak stability, docgen build | Before release candidate |
 | Tier 4B (this doc) | Real VISA/serial/SSH, QEMU DUT, vendor models | When bench or QEMU is available |
+| Tier 4C (manual) | Offline pip install on Yocto/Poky QEMU guest | Before claiming embedded offline support |
 
 Run 4B after plugin/transport changes, vendor driver changes, or before a release that claims hardware compatibility.
 
@@ -20,7 +21,7 @@ Run 4B after plugin/transport changes, vendor driver changes, or before a releas
 
 ## 2. Prerequisites
 
-1. Install Colosseum with bench extras: `pip install -e ".[bench,test]"`.
+1. Install Colosseum: `pip install -e .` and `pip install -r requirements-dev.txt`.
 2. Python 3.9+ on Windows or Linux (match your supported matrix).
 3. Complete automated tiers: `python scripts/run_tests.py` must pass.
 4. **Safety:** confirm current limits, OVP/OCP, and emergency off for PSUs; no unattended high-power tests.
@@ -116,26 +117,22 @@ Each case lists **objective**, **preconditions**, **steps**, **expected results*
 
 ### R-EMU-01 — QEMU / Poky SSH version check
 
-**Objective:** Wave 2 SSH on a real Linux guest (Raspberry Pi class + Poky/Yocto or similar).
+**Objective:** SSH on the Yocto `colosseum-qemu-image` guest (qemux86-64).
 
-**Preconditions:** QEMU guest running; SSH port forwarded to host (e.g. host `127.0.0.1:2222`).
+**Preconditions:** Guest running via `infra/yocto/scripts/qemu-up.sh`; SSH on `127.0.0.1:2222`.
 
 **Steps:**
 
-1. Start guest (example — adjust image/path):
-   ```bash
-   qemu-system-aarch64 -machine virt -cpu cortex-a57 -m 1024 \
-     -kernel <path>/Image -append "root=/dev/vda console=ttyAMA0" \
-     -drive file=<path>/rootfs.ext4,if=virtio,format=raw \
-     -netdev user,id=net0,hostfwd=tcp::2222-:22 -device virtio-net-pci,netdev=net0
-   ```
-2. Wait for SSH: `ssh -p 2222 root@127.0.0.1 true`
-3. Configure `configs/bench.qemu.local.toml` from template.
-4. `colosseum run examples/test_ssh_health.py --config configs/bench.qemu.local.toml`
+1. `./infra/yocto/scripts/qemu-wait-ssh.sh`
+2. `./infra/yocto/run_ssh_regression.sh`
 
-**Expected:** Exit `0`; `uut_version` verify `PASS` (pattern may need adjustment for real `/etc/version` output).
+Or manually: `colosseum run examples/test_ssh_health.py --config infra/yocto/conf/bench.qemu.toml` with `COLOSSEUM_BENCH_CONFIG=bench.qemu.toml`.
 
-**Evidence:** Save raw `measure_stdout` value from SQLite for pattern tuning.
+**Expected:** Exit `0`; `uut_version` verify `PASS` against guest `/etc/version` (`v0.1.0-colosseum-qemu`).
+
+**Evidence:** Save raw `measure_stdout` value from SQLite; log in `infra/yocto/artifacts/ssh-regression-*.log`.
+
+See also [qemu-yocto-regression.md](qemu-yocto-regression.md).
 
 ---
 
@@ -147,8 +144,9 @@ Each case lists **objective**, **preconditions**, **steps**, **expected results*
 
 **Steps:**
 
-1. Run a script that measures a command whose output includes prompts or timestamps.
-2. Use a regex anchored on stable content (e.g. kernel release token), not full line equality.
+1. `./infra/yocto/run_ssh_regression.sh --extended`
+
+Or: `colosseum run infra/yocto/examples/regex_noisy_stdout.py --config infra/yocto/conf/bench.qemu.toml`
 
 **Expected:** Required verifications `PASS` when DUT is healthy; `FAIL` when pattern deliberately wrong (negative check once).
 
@@ -162,11 +160,56 @@ Each case lists **objective**, **preconditions**, **steps**, **expected results*
 
 **Steps:**
 
-1. Create or use a suite under `suites/` referencing `examples/test_ssh_health.py` and hardware scripts as needed.
-2. `colosseum run-suite suites/embedded_smoke.toml --config configs/bench.qemu.local.toml`
-3. Inspect single `execution.sqlite` for setup/test/teardown phases in `events` and `run_metadata`.
+1. `./infra/yocto/run_ssh_regression.sh --suite`
+
+Or: `colosseum run-suite infra/yocto/suites/embedded_smoke.toml --config infra/yocto/conf/bench.qemu.toml`
+2. Inspect single `execution.sqlite` for test phases in `events` and `run_metadata`.
 
 **Expected:** Exit `0` on success; `summary.txt` present; setup failure case (dry run) exits `1` and skips tests (see automated `setup_fail` fixture behavior).
+
+---
+
+### R-OFFLINE-01 — Yocto Poky offline pip install (manual)
+
+**Objective:** Prove the offline wheel bundle installs and runs on a minimal embedded Linux with no PyPI access.
+
+**Preconditions:** Linux host with Yocto build dependencies; ~100 GB free disk for first Poky build; `colosseum-qemu-image` built per [`infra/yocto/README.md`](../../infra/yocto/README.md).
+
+**Steps:**
+
+1. On a connected host: `python scripts/package_offline.py`
+2. Build image: follow `infra/yocto/README.md` (`bitbake colosseum-qemu-image`)
+3. Boot QEMU: `runqemu colosseum-qemu-image nographic` (SSH forwarded to host port 2222)
+4. Run driver: `./infra/yocto/run_offline_regression.sh`
+5. Collect log from `infra/yocto/artifacts/offline-regression-*.log`
+
+**Expected:**
+
+- `colosseum --help` exits `0` on the guest
+- Smoke run exits `0`; guest `outputs/*/summary.txt` shows `Overall result: PASS`
+- No GitHub Actions workflow is required for sign-off (manual Tier 4C only)
+
+**Evidence:** Attach regression log and guest `summary.txt` path to sign-off.
+
+---
+
+### R-GUI-QEMU-01 — X11 GUI on QEMU guest (manual)
+
+**Objective:** `colosseum --gui` on guest after offline install, forwarded to host via `ssh -X`.
+
+**Preconditions:** Guest running; offline bundle installed (`install-offline-bundle.sh` or `run_gui_regression.sh`); host X server running (`DISPLAY` set).
+
+**Steps:**
+
+1. `./infra/yocto/run_gui_regression.sh`
+2. Confirm GUI window appears on host; run smoke script from GUI (optional)
+3. Optional automated headless probe: `./infra/yocto/run_gui_regression.sh --headless` (R-GUI-QEMU-01b; does not validate X11 forward)
+
+**Expected:** Interactive GUI usable on host display; manual sign-off with screenshot or notes.
+
+**Evidence:** `infra/yocto/artifacts/gui-regression-*.log`
+
+See [qemu-yocto-regression.md](qemu-yocto-regression.md) for Windows VcXsrv / WSLg setup.
 
 ---
 
@@ -212,5 +255,6 @@ Copy [templates/regression-signoff.md](templates/regression-signoff.md), complet
 | ID | Command |
 |----|---------|
 | R-SOAK-01 | `python tests/regression/run_soak_sim.py` (default 50 iterations; use `--count 5` for a quick check) |
-| R-DOC-01 | `python tests/regression/run_docgen_check.py` (requires `pip install -e ".[docs]"`) |
-| R-MUT-01 | `python tests/regression/run_mutation.py` (instructions only); install `.[mutation]`, then run `python tests/regression/run_mutation.py --run` |
+| R-DOC-01 | `python tests/regression/run_docgen_check.py` (requires `requirements-dev.txt`) |
+| R-OFFLINE-00 | `python tests/regression/run_offline_install_check.py` |
+| R-MUT-01 | `python tests/regression/run_mutation.py` (instructions only); install `requirements-dev.txt`, then run `python tests/regression/run_mutation.py --run` |

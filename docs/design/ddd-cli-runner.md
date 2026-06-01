@@ -7,6 +7,7 @@ Provide `colosseum` console script: `run` (Wave 1), `run-suite` (Wave 3), argume
 ## Public API surface
 
 ```bash
+colosseum --gui
 colosseum run <test.py> [--config PATH] [--verbose]
 colosseum run-suite <suite.toml> [--config PATH] [--verbose]  # Wave 3
 ```
@@ -23,8 +24,16 @@ def main(argv: Optional[List[str]] = None) -> None:
 2. If `--config`: `load_config(path)` (initializes context internally per [ddd-runtime-context.md](ddd-runtime-context.md))
 3. Else: internal `init_context(test_case_name=stem, config_path=None)` only
 4. Lazy `setup_logging` when output dir is first ensured (on first persist)
-5. Load test module via `runpy.run_path` or importlib (preserve `__name__ == "__main__"` block if present)
-6. `endex()` in `finally` (same as direct-Python tests)
+5. Ensure the output directory and execute the test module with `runpy.run_path(..., run_name="colosseum.test_run")`
+6. Require a callable `main()` and call it; the script's `if __name__ == "__main__"` block is not executed by the CLI
+7. Mark uncaught script exceptions as suite errors and call `endex()` in `finally`
+
+## `--gui`
+
+1. Parse `--gui` on the root parser (subcommands optional when `--gui` is set)
+2. Lazy-import `colosseum.gui.app` (requires optional `colosseum[gui]` extra)
+3. Launch CustomTkinter desktop runner; subprocesses to `run` / `run-suite` unchanged
+4. Default bench config in GUI: file picker and `COLOSSEUM_BENCH_CONFIG` env var
 
 ## Direct Python parity
 

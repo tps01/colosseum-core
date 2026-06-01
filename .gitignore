@@ -68,3 +68,22 @@ Desktop.ini
 # Optional local bench overrides (keep examples/configs/ tracked)
 **/bench.local.toml
 **/bench.*.local.toml
+
+# Offline packaging (see scripts/package_offline.py)
+wheelhouse/
+offline-bundle/
+colosseum-*-offline-*.tar.gz
+
+# Yocto / Poky / QEMU regression (see infra/yocto/README.md)
+infra/yocto/build/
+infra/yocto/cache/
+infra/yocto/poky/
+infra/yocto/artifacts/*.wic
+infra/yocto/artifacts/*.ext4
+infra/yocto/artifacts/*.img
+infra/yocto/artifacts/*.iso
+infra/yocto/artifacts/qemu/
+infra/yocto/artifacts/**
+!infra/yocto/artifacts/.gitkeep
+!infra/yocto/artifacts/**/*.log
+!infra/yocto/artifacts/**/summary.txt

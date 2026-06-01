@@ -1,4 +1,4 @@
-"""PyVISA-sim transport (requires Python 3.10+ and equipment-sim extra)."""
+"""PyVISA-sim transport (requires Python 3.10+; pyvisa-sim included in default install)."""
 
 from __future__ import annotations
 

@@ -16,6 +16,7 @@
 | Tiers 1–3 | `python scripts/run_tests.py` | [ ] |
 | Sim soak (optional) | `python tests/regression/run_soak_sim.py --count 10` | [ ] |
 | Docgen (optional) | `python tests/regression/run_docgen_check.py` | [ ] |
+| Offline bundle (optional) | `python tests/regression/run_offline_install_check.py` | [ ] |
 
 ## Manual procedure cases
 
@@ -28,6 +29,8 @@
 | R-EMU-02 | Regex on live stdout | [ ] | |
 | R-EMU-03 | Full suite on DUT | [ ] | |
 | R-SOAK-HW-01 | Long-run hardware/QEMU | [ ] | |
+| R-OFFLINE-01 | Yocto offline pip install (manual) | [ ] | |
+| R-GUI-QEMU-01 | X11 GUI on QEMU guest | [ ] | |
 
 **Overall:** PASS / FAIL
 

@@ -1,0 +1,65 @@
+spec: "1.0"
+devices:
+  keysight_esg:
+    eom:
+      GPIB INSTR:
+        q: "\n"
+        r: "\n"
+    error: ERROR
+    dialogues:
+      - q: "*IDN?"
+        r: "Agilent Technologies,E4438C,MY00000002,A.15.00"
+      - q: "*RST"
+      - q: "*CLS"
+      - q: "*OPC?"
+        r: "1"
+      - q: "SYST:ERR?"
+        r: "0,No error"
+      - q: "RAD:ARB:STAT 1"
+      - q: "RAD:ARB:STAT 0"
+      - q: "OUTP ON"
+      - q: "OUTP OFF"
+      - q: "OUTP:STAT?"
+        r: "1"
+    properties:
+      cw_freq:
+        default: 1000000000.0
+        getter:
+          q: "FREQ:CW?"
+          r: "{:.6f}"
+        setter:
+          q: "FREQ:CW {:.6f}"
+        specs:
+          type: float
+      power_dbm:
+        default: -10.0
+        getter:
+          q: "POW:AMPL?"
+          r: "{:.3f}"
+        setter:
+          q: "POW:AMPL {:.3f}"
+        specs:
+          type: float
+      alc_state:
+        default: 1
+        getter:
+          q: "POW:ALC?"
+          r: "{:.0f}"
+        setter:
+          q: "POW:ALC {:.0f}"
+        specs:
+          type: int
+          valid: [0, 1]
+      arb_state:
+        default: 0
+        getter:
+          q: "RAD:ARB:STAT?"
+          r: "{:.0f}"
+        setter:
+          q: "RAD:ARB:STAT {:.0f}"
+        specs:
+          type: int
+          valid: [0, 1]
+resources:
+  GPIB::19::INSTR:
+    device: keysight_esg

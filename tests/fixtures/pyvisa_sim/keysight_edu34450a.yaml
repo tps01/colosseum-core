@@ -7,15 +7,45 @@ devices:
         r: "\n"
     error: ERROR
     dialogues:
+      # IEEE-488.2 common commands from programming guide
       - q: "*IDN?"
         r: "Keysight Technologies,EDU34450A,Sim0001,1.0.0"
+      - q: "*RST"
+      - q: "*CLS"
+      - q: "*OPC?"
+        r: "1"
+      - q: "*ESR?"
+        r: "0"
+      - q: "*STB?"
+        r: "0"
+      - q: "*TST?"
+        r: "0"
+      - q: "ABOR"
+      - q: "INIT"
+      - q: "CONF:VOLT:DC"
       - q: "CONF:VOLT:DC CH1"
       - q: "CONF:VOLT:DC CH2"
+      - q: "SYST:ERR?"
+        r: "0,No error"
     properties:
       reading:
         default: 3.3
         getter:
           q: "READ?"
+          r: "{:.6E}"
+        specs:
+          type: float
+      fetch_reading:
+        default: 3.3
+        getter:
+          q: "FETCh?"
+          r: "{:.6E}"
+        specs:
+          type: float
+      meas_dc_voltage:
+        default: 3.3
+        getter:
+          q: "MEAS:VOLT:DC?"
           r: "{:.6E}"
         specs:
           type: float

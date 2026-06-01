@@ -49,12 +49,36 @@ driver = "visa"
 resource = "GPIB::5::INSTR"
 ```
 
-**Interface vs model:**
+**RF instruments (VSG + spectrum analyzer):**
 
 ```toml
-[equipment.spectrum_analyzer]
-sa_id = 1
-model = "example-sa"
+[[equipment.vsg]]
+vsg_id = 1
+driver = "visa"
+model = "keysight-esg"
+resource = "GPIB0::19::INSTR"
+frequency = 1e9
+power_dbm = -10.0
+
+[[equipment.speca]]
+speca_id = 1
+driver = "visa"
+model = "keysight-e4407b"
+resource = "GPIB0::18::INSTR"
+center_freq = 1e9
+span = 10e6
+rbw = 100e3
+timeout = 10.0
+```
+
+Legacy planning docs may refer to `equipment.spectrum_analyzer` / `sa_id`; implemented sections use **`equipment.speca` / `speca_id`**.
+
+**Interface vs model (historical SA example):**
+
+```toml
+[equipment.speca]
+speca_id = 1
+model = "keysight-e4407b"
 interface = "ethernet"
 resource = "TCPIP0::192.168.1.25::INSTR"
 timeout = 10.0

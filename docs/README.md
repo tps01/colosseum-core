@@ -19,13 +19,14 @@ Colosseum 0.3.0 implements the original Waves 1-3 MVP in a single source tree:
 - Core runtime, configuration load, context, decorators, result aggregation, `col.endex()`.
 - CLI commands: `colosseum run` and `colosseum run-suite`.
 - Suite TOML with setup, test, and teardown phases.
-- Local evidence: `debug.log`, `execution.sqlite`, and `summary.txt`.
+- Local evidence: `debug.log`, `execution.sqlite`, `summary.txt`, and `summary.json`.
 - Public database read helpers under `col.database`.
 - Runtime plugin registry and docgen entry points.
 - First-party `col.equipment.*` and `col.shared.*` namespaces.
 - Simulated bench mode for offline development and CI.
 - VISA, serial, and SSH paths through optional extras.
 - Generic DMM/PSU SCPI plus `keysight-edu34450a` and `tdk-genesys` model implementations.
+- RF VSG and spectrum analyzer APIs (`col.equipment.vsg`, `col.equipment.speca`) with vendor models `keysight-esg`, `keysight-e4407b`, and `tektronix-rsa5100b`.
 - Sphinx/docgen pipeline and regression scripts, including optional Cosmic Ray mutation testing.
 
 Known differences from the original plan are captured in [mvp/scope.md](mvp/scope.md#known-differences-from-the-original-plan).
@@ -91,6 +92,7 @@ Known differences from the original plan are captured in [mvp/scope.md](mvp/scop
 | [ddd-equipment-transports](design/ddd-equipment-transports.md) | VISA / serial |
 | [ddd-equipment-scpi](design/ddd-equipment-scpi.md) | SCPI |
 | [ddd-equipment-dmm-psu](design/ddd-equipment-dmm-psu.md) | DMM / PSU |
+| [ddd-equipment-vsg-speca](design/ddd-equipment-vsg-speca.md) | VSG / spectrum analyzer |
 | [ddd-shared-architecture](design/ddd-shared-architecture.md) | Shared architecture |
 | [ddd-shared-ssh-regex](design/ddd-shared-ssh-regex.md) | SSH / regex |
 | [ddd-multiprocessing](design/ddd-multiprocessing.md) | Multiprocessing outline |
@@ -98,3 +100,8 @@ Known differences from the original plan are captured in [mvp/scope.md](mvp/scop
 ## Example Style
 
 User-facing test scripts and guide snippets use one line per `col.*` call with keyword arguments inline. See [examples/](../examples/).
+
+## CI Documentation Outputs
+
+- Standard CI builds and uploads a documentation **PDF artifact**.
+- The GitHub Pages workflow is kept in-repo for publishing HTML, but it is manual-only and not part of routine CI.

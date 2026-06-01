@@ -51,6 +51,16 @@ class DatabaseManager:
         self._conn.executescript(SCHEMA_SQL)
         self._conn.commit()
 
+    def open_readonly(self, db_path: Path) -> None:
+        if self._conn is not None:
+            raise RuntimeError("Database connection already open")
+        resolved = db_path.resolve()
+        if not resolved.is_file():
+            raise FileNotFoundError(f"Database not found: {resolved}")
+        uri = f"file:{resolved.as_posix()}?mode=ro"
+        self._conn = sqlite3.connect(uri, uri=True)
+        self._conn.execute("PRAGMA query_only = ON")
+
     def is_initialized(self) -> bool:
         return self._conn is not None
 

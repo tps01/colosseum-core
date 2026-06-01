@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from colosseum.config.loader import ConfigError, ConfigStore
+from colosseum.config.loader import ConfigError, ConfigStore, load_config
 from colosseum.config.sections import ConfigSectionSpec
 
 
@@ -42,3 +42,21 @@ def test_require_item_checks_required_keys() -> None:
     )
     with pytest.raises(ConfigError, match="missing required keys"):
         store.require_item("equipment.psu", 1)
+
+
+def test_load_config_wraps_normalization_errors(tmp_path) -> None:
+    config_path = tmp_path / "bad.toml"
+    config_path.write_text(
+        "[[equipment.psu]]\n"
+        "psu_id = 1\n"
+        "driver = \"sim\"\n"
+        "resource = \"A\"\n"
+        "\n"
+        "[[equipment.psu]]\n"
+        "psu_id = 1\n"
+        "driver = \"sim\"\n"
+        "resource = \"B\"\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ConfigError, match="Duplicate id"):
+        load_config(config_path)

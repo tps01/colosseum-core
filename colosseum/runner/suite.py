@@ -74,7 +74,7 @@ def _set_phase(phase: str) -> None:
 
 
 def run_suite(suite_path: Path, config_path: Optional[Path] = None, *, verbose: bool = False) -> int:
-    from ..config import ConfigError, load_config
+    from ..config import load_config
     from ..context import init_context, require_context
     from ..output import ensure_output_dir
     from ..results import endex
@@ -89,10 +89,7 @@ def run_suite(suite_path: Path, config_path: Optional[Path] = None, *, verbose: 
     ctx = require_context()
     ctx.verbose_logging = verbose
     if config_path:
-        try:
-            load_config(config_path)
-        except ConfigError:
-            return 1
+        load_config(config_path)
 
     logical = ctx.suite_name or ctx.test_case_name
     ensure_output_dir(ctx, logical_name=logical)
@@ -115,6 +112,7 @@ def run_suite(suite_path: Path, config_path: Optional[Path] = None, *, verbose: 
             try:
                 run_script(test_path)
             except ScriptRunError:
+                ctx.result_aggregator.mark_suite_error("test script failed")
                 if ctx.logger is not None:
                     ctx.logger.error("Test script failed (continuing suite): %s", test_path)
 

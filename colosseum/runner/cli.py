@@ -2,18 +2,20 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-import runpy
 import sys
 
 from ..config import ConfigError, load_config
 from ..context import init_context
+from ..output import ensure_output_dir
 from ..results import endex
+from .single_test import ScriptRunError, run_script
 from .suite import SuiteError, run_suite
 
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="colosseum")
-    sub = parser.add_subparsers(dest="command", required=True)
+    parser.add_argument("--gui", action="store_true", help="Launch the desktop GUI runner")
+    sub = parser.add_subparsers(dest="command", required=False)
 
     run_parser = sub.add_parser("run", help="Run a single Python test file")
     run_parser.add_argument("test_file")
@@ -35,18 +37,27 @@ def _run_single_test(test_path: Path, config_path: str | None, verbose: bool) ->
     ctx.verbose_logging = verbose
     if config_path:
         load_config(config_path)
-
-    module_globals = runpy.run_path(str(test_path), run_name="colosseum.test_run")
-    main_fn = module_globals.get("main")
-    if not callable(main_fn):
-        raise SystemExit(1)
-    main_fn()
-    endex()
+    ensure_output_dir(ctx)
+    try:
+        run_script(test_path)
+    except ScriptRunError:
+        ctx.result_aggregator.mark_suite_error("test script failed")
+    finally:
+        endex()
 
 
 def run_cli(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
+
+    if args.gui:
+        from ..gui.app import main as gui_main
+
+        gui_main()
+        return 0
+
+    if args.command is None:
+        parser.error("command required unless --gui")
 
     if args.command == "run":
         test_path = Path(args.test_file).resolve()

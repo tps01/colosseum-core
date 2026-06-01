@@ -7,14 +7,14 @@ rem
 rem Environment overrides:
 rem   set PYTHON=python
 rem   set VENV_PATH=C:\path\to\.venv
-rem   set EXTRAS=bench,test,docs,mutation
+rem   set SKIP_DEV=1
 
 set "COLOSSEUM_SCRIPT_DIR=%~dp0"
 for %%I in ("%COLOSSEUM_SCRIPT_DIR%..") do set "COLOSSEUM_REPO_ROOT=%%~fI"
 
 if not defined PYTHON set "PYTHON=python"
 if not defined VENV_PATH set "VENV_PATH=%COLOSSEUM_REPO_ROOT%\.venv"
-if not defined EXTRAS set "EXTRAS=test,mutation"
+if not defined SKIP_DEV set "SKIP_DEV=0"
 
 pushd "%COLOSSEUM_REPO_ROOT%" >nul
 if errorlevel 1 (
@@ -56,12 +56,15 @@ echo Installing/updating build tooling...
 "%COLOSSEUM_VENV_PYTHON%" -m pip install --upgrade pip setuptools wheel
 if errorlevel 1 goto fail_tooling
 
-set "COLOSSEUM_INSTALL_TARGET=."
-if not "%EXTRAS%"=="" set "COLOSSEUM_INSTALL_TARGET=.[%EXTRAS%]"
-
-echo Installing editable project: %COLOSSEUM_INSTALL_TARGET%
-"%COLOSSEUM_VENV_PYTHON%" -m pip install --editable "%COLOSSEUM_INSTALL_TARGET%"
+echo Installing editable project: .
+"%COLOSSEUM_VENV_PYTHON%" -m pip install --editable .
 if errorlevel 1 goto fail_project
+
+if not "%SKIP_DEV%"=="1" (
+    echo Installing dev requirements: requirements-dev.txt
+    "%COLOSSEUM_VENV_PYTHON%" -m pip install -r "%COLOSSEUM_REPO_ROOT%\requirements-dev.txt"
+    if errorlevel 1 goto fail_dev
+)
 
 call "%COLOSSEUM_ACTIVATE_SCRIPT%"
 
@@ -84,5 +87,10 @@ exit /b 1
 
 :fail_project
 echo Failed to install editable project. 1>&2
+popd >nul
+exit /b 1
+
+:fail_dev
+echo Failed to install dev requirements. 1>&2
 popd >nul
 exit /b 1

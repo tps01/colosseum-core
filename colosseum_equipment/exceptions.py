@@ -12,3 +12,7 @@ class EquipmentTimeoutError(EquipmentError):
 
 class EquipmentResponseError(EquipmentError):
     pass
+
+
+class EquipmentCapabilityError(EquipmentError):
+    """Raised when a high-level API is not supported by the configured model."""

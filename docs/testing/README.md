@@ -3,11 +3,13 @@
 ## Prerequisites
 
 ```bash
-pip install -e ".[test,mutation]"
+pip install -e .
+pip install -r requirements-dev.txt
 ```
 
-For docgen regression: `pip install -e ".[docs]"`. For hardware procedure: `.[bench]`.
-The standard `scripts/start_environment.ps1` setup installs both `test` and `mutation`.
+For docgen regression only: ensure `requirements-dev.txt` is installed (includes Sphinx).
+For hardware procedure: runtime is included in `pip install -e .`; add `requirements-dev.txt` for pytest helpers.
+The standard `scripts/start_environment.ps1` setup installs runtime plus dev requirements.
 
 ## Tiers 1–3 (pytest, sim bench)
 
@@ -53,10 +55,9 @@ python scripts/run_tests.py --regression
 
 ## PyVISA-sim (Python 3.10+)
 
-Semi-realistic SCPI mocks from YAML (optional ``equipment-sim`` extra):
+Semi-realistic SCPI mocks from YAML (PyVISA-sim is included in the default install):
 
 ```bash
-pip install -e ".[test,equipment-sim]"
 pytest -m visa_sim -q
 ```
 
@@ -64,11 +65,22 @@ See [pyvisa-sim-fixtures.md](pyvisa-sim-fixtures.md).
 
 ## Suite test script exceptions
 
-Documented v1 behavior when a test script raises: [suite-test-script-errors.md](suite-test-script-errors.md).
+Documented behavior when a test script raises: [suite-test-script-errors.md](suite-test-script-errors.md).
 
-## Tier 4B — Hardware / QEMU procedure
+## Tier 4B — Hardware procedure
 
-When a bench or QEMU guest exists, copy [../configs/bench.local.toml.example](../configs/bench.local.toml.example) to ``configs/bench.local.toml``, follow [regression-test-procedure.md](regression-test-procedure.md), and complete [templates/regression-signoff.md](templates/regression-signoff.md).
+When a bench exists, copy [../configs/bench.local.toml.example](../configs/bench.local.toml.example) to ``configs/bench.local.toml``, follow [regression-test-procedure.md](regression-test-procedure.md), and complete [templates/regression-signoff.md](templates/regression-signoff.md).
+
+## Tier 4C — QEMU / Yocto lab (manual)
+
+Poky ``qemux86-64`` image for offline install, SSH DUT endpoint, and X11 GUI regression. **Not** in GitHub Actions CI.
+
+See [qemu-yocto-regression.md](qemu-yocto-regression.md) and [infra/yocto/README.md](../../infra/yocto/README.md).
+
+```bash
+./infra/yocto/scripts/qemu-up.sh
+./infra/yocto/run_all_regression.sh --skip-gui-interactive
+```
 
 ## Environment
 

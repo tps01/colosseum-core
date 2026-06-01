@@ -9,11 +9,7 @@ Colosseum supports two offline instrument simulation layers:
 
 ## Install
 
-```bash
-pip install -e ".[equipment-sim]"
-```
-
-Requires **Python 3.10+** (`pyvisa-sim` 0.7.x). Core Colosseum still supports 3.9 without this extra.
+PyVISA-sim is included in the default Colosseum install. Requires **Python 3.10+** (`pyvisa-sim` 0.7.x).
 
 ## Run tests
 
@@ -31,9 +27,12 @@ tests/fixtures/pyvisa_sim/
   generic_dmm.yaml
   keysight_edu34450a.yaml
   tdk_genesys.yaml
+  keysight_esg.yaml
+  keysight_e4407b_sa.yaml
+  tektronix_rsa5100b_sa.yaml
 ```
 
-Example bench file: [`examples/configs/bench.visa-sim.toml`](../../examples/configs/bench.visa-sim.toml).
+Example bench files: [`examples/configs/bench.visa-sim.toml`](../../examples/configs/bench.visa-sim.toml), [`examples/configs/bench.rf.visa-sim.toml`](../../examples/configs/bench.rf.visa-sim.toml).
 
 The `resource` string in TOML must match a key under `resources:` in the YAML (PyVISA normalizes addresses, e.g. `GPIB::1::INSTR` → `GPIB0::1::INSTR`).
 

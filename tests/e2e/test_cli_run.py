@@ -59,6 +59,20 @@ def test_cli_run_missing_measurement_exits_one(bench_sim, isolated_cwd, subproce
     assert row is not None and row[0] == "ERROR"
 
 
+def test_cli_run_script_crash_exits_one_and_finalizes(bench_sim, isolated_cwd, subprocess_env) -> None:
+    script = REPO / "tests" / "fixtures" / "scripts" / "crash_test.py"
+    proc = _cli_run(script, bench_sim, isolated_cwd, subprocess_env)
+    assert proc.returncode == 1
+    run_dir = latest_output_dir(isolated_cwd)
+    assert (run_dir / "debug.log").is_file()
+    assert (run_dir / "execution.sqlite").is_file()
+    assert (run_dir / "summary.txt").is_file()
+    assert (run_dir / "summary.json").is_file()
+    meta = dict(query_db(run_dir, "SELECT key, value FROM run_metadata"))
+    assert meta.get("overall_status") == "FAIL"
+    assert meta.get("exit_code") == "1"
+
+
 @pytest.mark.requirement("E2E-W1-04")
 def test_cli_optional_fail_exits_zero(bench_sim, isolated_cwd, subprocess_env) -> None:
     script = REPO / "tests" / "fixtures" / "scripts" / "optional_fail_test.py"
