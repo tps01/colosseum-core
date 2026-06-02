@@ -84,15 +84,11 @@ offline-bundle/
 colosseum-*-offline-*.tar.gz
 
 # Yocto / Poky / QEMU regression (see infra/yocto/README.md)
+# BitBake tree + downloads/sstate (local.conf.sample points DL_DIR/SSTATE_DIR here)
 infra/yocto/build/
 infra/yocto/cache/
+# Optional in-repo Poky clone; README recommends cloning outside the repo instead
 infra/yocto/poky/
-infra/yocto/artifacts/*.wic
-infra/yocto/artifacts/*.ext4
-infra/yocto/artifacts/*.img
-infra/yocto/artifacts/*.iso
-infra/yocto/artifacts/qemu/
+# Local regression outputs only (wic/ext4/img, qemu.pid, *.log); not for CI
 infra/yocto/artifacts/**
 !infra/yocto/artifacts/.gitkeep
-!infra/yocto/artifacts/**/*.log
-!infra/yocto/artifacts/**/summary.txt
