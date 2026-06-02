@@ -1,5 +1,8 @@
 # DDD: Equipment VSG and SpecA
 
+> **Documentation note:** Normative behavior is in [mvp/scope.md](../mvp/scope.md), Sphinx user guides, and the codebase. Wave 1/2/3 references below are historical sequencing only.
+
+
 ## Responsibilities
 
 High-level RF bench APIs for vector/signal generators and spectrum analyzers (including Tektronix RTSA), with generic SCPI drivers and vendor reference implementations per [ADR-006](../decisions/adr-006-vendor-instruments.md).
@@ -26,8 +29,12 @@ def set_center_frequency(*, speca_id: int, frequency: float) -> None
 def set_span(*, speca_id: int, span: float) -> None
 def set_rbw(*, speca_id: int, rbw: float) -> None
 def peak_search(*, speca_id: int, marker: int = 1) -> None
+def set_marker_frequency(*, speca_id: int, marker: int, frequency_hz: float) -> None
 def measure_marker_power(*, speca_id: int, marker: int = 1, key: str) -> float  # @measurement
+def verify_marker_power(*, key: str, expected_val: float, tolerance: float = 0.5, optional: bool = False) -> VerificationResult
 def measure_marker_frequency(*, speca_id: int, marker: int = 1, key: str) -> float  # @measurement
+def measure_trace_power_at_frequency(*, speca_id: int, frequency_hz: float, key: str, trace_path: str | None = None) -> float  # @measurement
+def verify_trace_power_at_frequency(*, key: str, expected_val: float, tolerance: float = 0.5, optional: bool = False) -> VerificationResult
 def save_trace_data(*, speca_id: int, path: str, trace: int = 1, include_frequency: bool = True) -> None
 def preset(*, speca_id: int) -> None
 def set_reference_level(*, speca_id: int, level_dbm: float) -> None

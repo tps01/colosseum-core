@@ -68,6 +68,7 @@ class TektronixRSA5100BSpecA(GenericSpecA):
             include_frequency=include_frequency,
         )
         register_artifact("speca_trace", artifact_path, description=f"trace {trace}")
+        self._last_trace_path = artifact_path
         return artifact_path
 
     def configure_trigger(self, source: str = "IMM") -> None:

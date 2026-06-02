@@ -51,6 +51,7 @@ htmlcov/
 # Editors and IDEs
 .idea/
 .vscode/
+.cursor/
 *.swp
 *.swo
 *~
@@ -68,6 +69,14 @@ Desktop.ini
 # Optional local bench overrides (keep examples/configs/ tracked)
 **/bench.local.toml
 **/bench.*.local.toml
+
+# Local notes and agent scratch (normative docs: docs/, examples/)
+scratchpad/
+
+# Local historical doc copies (recover from tag in docs/archive/README.md)
+docs/archive/*
+!docs/archive/README.md
+!docs/archive/MANIFEST.md
 
 # Offline packaging (see scripts/package_offline.py)
 wheelhouse/

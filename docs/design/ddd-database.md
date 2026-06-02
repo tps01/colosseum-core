@@ -1,5 +1,8 @@
 # DDD: SQLite Persistence
 
+> **Documentation note:** Normative behavior is in [mvp/scope.md](../mvp/scope.md), Sphinx user guides, and the codebase. Wave 1/2/3 references below are historical sequencing only.
+
+
 ## Responsibilities
 
 Create schema, manage connection lifecycle, insert/query measurements and verifications, support plugin table creation.

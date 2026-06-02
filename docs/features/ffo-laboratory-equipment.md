@@ -1,5 +1,8 @@
 # FFO: Laboratory Equipment Control
 
+> **Documentation note:** Normative behavior is in [mvp/scope.md](../mvp/scope.md), Sphinx user guides, and the codebase. Wave 1/2/3 references below are historical sequencing only.
+
+
 ## Summary
 
 Users control bench instruments (PSU, DMM, VSG, spectrum analyzer, serial devices) through high-level Colosseum APIs. Transport (VISA, serial) and protocol (SCPI) are configuration concerns; tests use stable `col.equipment.*` calls with optional raw escape hatches.
@@ -12,7 +15,7 @@ Users control bench instruments (PSU, DMM, VSG, spectrum analyzer, serial device
 ## Preconditions
 
 - `colosseum-equipment` installed
-- Bench config defines instruments with `*_id`, `driver`, `resource`, optional `model`, `interface`
+- Bench config defines instruments with `*_id`, `resource`, optional `driver` (defaults to `visa`), `model`, `interface`
 - Runtime and config loaded
 
 ## Main flow

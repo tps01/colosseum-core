@@ -3,7 +3,6 @@
 
 [[equipment.psu]]
 psu_id = 1
-driver = "visa"
 model = "generic"  # or "tdk-genesys"
 interface = "usb"
 resource = "USB0::0x1234::0x5678::INSTR"
@@ -13,7 +12,6 @@ ocp = 1.0
 
 [[equipment.psu]]
 psu_id = 2
-driver = "visa"
 model = "generic"  # or "tdk-genesys"
 interface = "serial"
 resource = "COM5"
@@ -23,7 +21,6 @@ ocp = 3.0
 
 [equipment.dmm]
 dmm_id = 1
-driver = "visa"
 model = "generic"  # or "keysight-edu34450a"
 interface = "usb"
 resource = "USB0::0x2A8D::0x8F01::INSTR"

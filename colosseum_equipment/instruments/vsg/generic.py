@@ -64,5 +64,11 @@ class GenericVSG:
     def measure_output_state(self) -> bool:
         return bool(int(float(self._scpi.query("OUTP:STAT?"))))
 
+    def measure_frequency(self) -> float:
+        return self._scpi.query_float("FREQ:CW?")
+
+    def measure_power_dbm(self) -> float:
+        return self._scpi.query_float("POW:AMPL?")
+
     def close(self) -> None:
         self._scpi._transport.close()

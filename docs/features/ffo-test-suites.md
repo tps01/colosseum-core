@@ -1,5 +1,8 @@
 # FFO: Test Suites and Lifecycle
 
+> **Documentation note:** Normative behavior is in [mvp/scope.md](../mvp/scope.md), Sphinx user guides, and the codebase. Wave 1/2/3 references below are historical sequencing only.
+
+
 ## Summary
 
 Users define ordered collections of test case files with optional setup and teardown scripts in TOML. The `colosseum run-suite` CLI runs them in sequence, sharing one output directory and one execution database per suite invocation.

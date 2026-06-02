@@ -11,10 +11,13 @@ colosseum.docgen entry points
   build_module.py  ──►  build/docgen/<module_id>/rst/ + manifest.json
         │                    (one run per package)
         ▼
+build_config_reference.py ──► build/docgen/config_reference.rst
+        │                    (from plugin ConfigSectionSpec; SSOT for bench keys)
+        ▼
     stitch.py      ──►  build/docgen/site/source/  (+ docs/sphinx/source guides)
         │
-        ▼
-  sphinx-build     ──►  build/docgen/site/html/
+        ├─► sphinx-build -b html  ──► build/docgen/site/html/
+        └─► sphinx-build -b latex + latexmk ──► build/docgen/site/latex/colosseum.pdf
 ```
 
 ## Commands
@@ -22,21 +25,32 @@ colosseum.docgen entry points
 From the repository root (with ``pip install -e ".[docs]"``):
 
 ```bash
-# Full site
+# Full site (HTML + PDF; requires latexmk and a LaTeX distribution)
 python scripts/docgen/build_all.py
+
+# HTML only (no LaTeX)
+python scripts/docgen/build_all.py --skip-pdf
+
+# PDF only (after staging)
+python scripts/docgen/build_all.py --skip-html
 
 # One module only
 python scripts/docgen/build_module.py --module-id colosseum
 python scripts/docgen/build_module.py --module-id colosseum_equipment
 
-# Stitch only (after modular runs)
-python scripts/docgen/stitch.py
+# Bench config reference only (from registered plugins)
+python scripts/docgen/build_config_reference.py
 
-# RST source without HTML
-python scripts/docgen/build_all.py --skip-html
+# Stitch only (after modular runs + config reference)
+python scripts/docgen/stitch.py
 ```
 
-HTML output: `build/docgen/site/html/index.html`
+Outputs:
+
+- HTML: `build/docgen/site/html/index.html`
+- PDF: `build/docgen/site/latex/colosseum.pdf`
+
+**LaTeX prerequisites (default build):** `latexmk` on `PATH`, plus a TeX distribution (Ubuntu: `latexmk texlive-latex-recommended texlive-fonts-recommended texlive-latex-extra`; Windows: MiKTeX or TeX Live).
 
 Remove generated files: `python scripts/cleanup.py` (use `--dry-run` first).
 

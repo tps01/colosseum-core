@@ -5,7 +5,6 @@
 
 [[equipment.psu]]
 psu_id = 1
-driver = "visa"
 visa_backend = "sim"
 sim_definition = "tests/fixtures/pyvisa_sim/generic_psu.yaml"
 resource = "GPIB::1::INSTR"
@@ -16,7 +15,6 @@ ocp = 1.0
 
 [equipment.dmm]
 dmm_id = 1
-driver = "visa"
 visa_backend = "sim"
 sim_definition = "tests/fixtures/pyvisa_sim/generic_dmm.yaml"
 resource = "GPIB::2::INSTR"

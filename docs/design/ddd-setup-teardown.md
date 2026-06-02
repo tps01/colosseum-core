@@ -1,5 +1,8 @@
 # DDD: Setup and Teardown Execution
 
+> **Documentation note:** Normative behavior is in [mvp/scope.md](../mvp/scope.md), Sphinx user guides, and the codebase. Wave 1/2/3 references below are historical sequencing only.
+
+
 ## Responsibilities
 
 Execute suite setup/teardown Python scripts with same runtime APIs as tests; record phase in metadata; define failure propagation.

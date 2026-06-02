@@ -1,14 +1,15 @@
 """High-level vector/signal generator APIs exposed as ``col.equipment.vsg``.
 
-Configure instruments with ``[[equipment.vsg]]`` in bench TOML (``vsg_id``, ``driver``,
-``resource``, optional ``model``). Unsupported operations on a given ``model`` raise
+Configure instruments with ``[[equipment.vsg]]`` in bench TOML (``vsg_id``, ``resource``,
+optional ``model`` and ``driver``; default driver is VISA/SCPI). Unsupported operations on a given ``model`` raise
 :class:`~colosseum_equipment.exceptions.EquipmentCapabilityError`.
 """
 
 from __future__ import annotations
 
-from colosseum.decorators import measurement
+from colosseum.decorators import MeasurementSource, VerificationResult, measurement, verification
 
+from colosseum_equipment.api._verify import verify_tolerance
 from colosseum_equipment.connections import get_cached_instrument
 
 
@@ -95,3 +96,67 @@ def measure_output_state(*, vsg_id: int, key: str) -> float:
     """Record whether RF output is enabled (1.0) or disabled (0.0)."""
     enabled = get_cached_instrument("vsg", vsg_id).measure_output_state()
     return 1.0 if enabled else 0.0
+
+
+@verification(sources=[MeasurementSource(domain="equipment", command="measure_output_state")])
+def verify_output_state(
+    *,
+    key: str,
+    expected_val: float,
+    tolerance: float = 0.0,
+    optional: bool = False,
+) -> VerificationResult:
+    return verify_tolerance(
+        domain="equipment",
+        command="measure_output_state",
+        key=key,
+        expected_val=expected_val,
+        tolerance=tolerance,
+        optional=optional,
+    )
+
+
+@measurement
+def measure_frequency(*, vsg_id: int, key: str) -> float:
+    return get_cached_instrument("vsg", vsg_id).measure_frequency()
+
+
+@verification(sources=[MeasurementSource(domain="equipment", command="measure_frequency")])
+def verify_frequency(
+    *,
+    key: str,
+    expected_val: float,
+    tolerance: float = 1.0,
+    optional: bool = False,
+) -> VerificationResult:
+    return verify_tolerance(
+        domain="equipment",
+        command="measure_frequency",
+        key=key,
+        expected_val=expected_val,
+        tolerance=tolerance,
+        optional=optional,
+    )
+
+
+@measurement
+def measure_power_dbm(*, vsg_id: int, key: str) -> float:
+    return get_cached_instrument("vsg", vsg_id).measure_power_dbm()
+
+
+@verification(sources=[MeasurementSource(domain="equipment", command="measure_power_dbm")])
+def verify_power_dbm(
+    *,
+    key: str,
+    expected_val: float,
+    tolerance: float = 0.5,
+    optional: bool = False,
+) -> VerificationResult:
+    return verify_tolerance(
+        domain="equipment",
+        command="measure_power_dbm",
+        key=key,
+        expected_val=expected_val,
+        tolerance=tolerance,
+        optional=optional,
+    )

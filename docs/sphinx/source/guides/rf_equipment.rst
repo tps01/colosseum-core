@@ -27,7 +27,20 @@ Example (one ``col.*`` call per line, matching ``examples/test_rf_sweep.py``)::
    col.equipment.speca.measure_marker_power(speca_id=1, marker=1, key="carrier_power")
    col.equipment.speca.save_trace_data(speca_id=1, path="traces/carrier.csv")
 
-Offline CI without hardware uses ``examples/configs/bench.rf.visa-sim.toml`` and ``pytest -m visa_sim``.
+Marker at a fixed frequency and verification::
+
+   col.equipment.speca.set_marker_frequency(speca_id=1, marker=1, frequency_hz=1e9)
+   col.equipment.speca.measure_marker_power(speca_id=1, marker=1, key="marker_power_1ghz")
+   col.equipment.speca.verify_marker_power(key="marker_power_1ghz", expected_val=-42.5, tolerance=0.5)
+
+Trace CSV lookup (nearest frequency bin) after ``save_trace_data``::
+
+   col.equipment.speca.measure_trace_power_at_frequency(speca_id=1, frequency_hz=1e9, key="trace_power_1ghz")
+   col.equipment.speca.verify_trace_power_at_frequency(key="trace_power_1ghz", expected_val=-42.5, tolerance=0.5)
+
+Max-hold example: ``set_trace_mode(speca_id=1, trace=1, mode="MAXH")`` with continuous sweep and a dwell before ``save_trace_data``. See ``examples/test_rf_bench_integration.py``.
+
+Offline CI without hardware uses ``examples/configs/bench.rf.visa-sim.toml`` and ``pytest -m visa_sim``. Hardware template: ``examples/configs/bench.rf.hardware.toml.example``.
 
 Trace and capture artifacts
 ---------------------------

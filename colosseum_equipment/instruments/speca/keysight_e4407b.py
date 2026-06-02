@@ -66,6 +66,7 @@ class KeysightE4407BSpecA(GenericSpecA):
             include_frequency=include_frequency,
         )
         register_artifact("speca_trace", artifact_path, description=f"trace {trace}")
+        self._last_trace_path = artifact_path
         return artifact_path
 
     def save_screenshot(self, path: str) -> Path:

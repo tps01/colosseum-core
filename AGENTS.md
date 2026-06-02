@@ -4,7 +4,7 @@ Baseline expectations for AI agents in this repository.
 
 ## Purpose
 
-- Align with `docs/`, `scratchpad/`, and `examples/`; treat ADRs/DDDs as source-of-truth unless the user overrides.
+- Normative docs: `docs/mvp/scope.md`, `docs/sphinx/source/guides/`, `examples/`, and code. Bench config keys: run `python scripts/docgen/build_all.py` (generated **Bench configuration reference**). ADRs/FFOs/DDDs are design history (see `docs/archive/README.md` for removed files).
 - Small, reviewable diffs. No commits unless asked. Read `RULES.md` at task start (user-owned; do not edit unless asked).
 
 ## API and examples
@@ -18,7 +18,7 @@ Baseline expectations for AI agents in this repository.
 | Path | Role |
 |------|------|
 | `colosseum/` | Core: config, context, decorators, DB, runner (`run`, `run-suite`), plugins registry |
-| `colosseum_equipment/` | Plugin → `col.equipment.*` (PSU/DMM/VSG/speca/SCPI; `visa`/`serial`/`sim`) |
+| `colosseum_equipment/` | Plugin → `col.equipment.*` and `col.io.*` (PSU/DMM/VSG/speca/SCPI; DIO/I2C/SPI stubs; `visa`/`serial`/`sim`) |
 | `colosseum_shared/` | Plugin → `col.shared.*` (SSH, regex, parsing; `sim`/paramiko) |
 | `docs/` | Planning (FFO/DDD/ADR); user guides are **not** here |
 | `docs/sphinx/source/guides/` | Hand-written Sphinx RST |

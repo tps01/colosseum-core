@@ -70,6 +70,12 @@ class KeysightESGVSG(GenericVSG):
             power_values = ",".join(str(value) for value in powers)
             self._scpi.write(f"LIST:POW {power_values}")
 
+    def measure_frequency(self) -> float:
+        return self._scpi.query_float(":FREQ:CW?")
+
+    def measure_power_dbm(self) -> float:
+        return self._scpi.query_float(":POW:AMPL?")
+
     def set_modulation(self, enabled: bool, modulation_type: str = "none") -> None:
         if self._is_vector:
             self._scpi.write(f"DM:STAT {1 if enabled else 0}")

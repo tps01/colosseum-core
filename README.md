@@ -1,69 +1,108 @@
 # Colosseum
 
-Colosseum is a Python test automation framework for embedded and bench-style system testing. Test scripts import `colosseum as col`, call high-level measurement and verification APIs, and finish with `col.endex()` so logs, SQLite evidence, `summary.txt`, resource cleanup, and process exit status are handled consistently.
+Python test automation for embedded and bench system testing. Scripts use `import colosseum as col`, call measurement and verification APIs, and finish with **`col.endex()`** so logs, SQLite evidence, summaries, cleanup, and exit status are consistent.
 
-The current implementation includes the core runtime, CLI runner, suite runner, plugin registry, simulated bench support, equipment/shared plugins, reference DMM/PSU models, SQLite read helpers, Sphinx doc generation, regression scripts, and optional Cosmic Ray mutation testing.
+**Python:** 3.9+ (3.11 recommended for new Windows/Linux benches). **Status:** [MVP scope](docs/mvp/scope.md).
 
-## Install From This Checkout
+---
 
-Windows PowerShell:
+## Get started
 
-```powershell
-.\scripts\start_environment.ps1
-```
+Pick one path below. All paths install the same runtime (`colosseum` CLI, equipment/shared plugins, sim and PyVISA-sim support).
 
-Windows `cmd.exe`, including systems where PowerShell script execution is disabled:
-
-```bat
-scripts\start_environment.bat
-```
-
-Linux/macOS shell:
+### 1. Clone from Git (development)
 
 ```sh
-. ./scripts/start_environment.sh
+git clone https://github.com/tps01/colosseum.git
+cd colosseum
 ```
 
-These scripts create `.venv`, install the editable project (full runtime), install dev tools from `requirements-dev.txt`, and activate the environment. The POSIX shell version should be sourced with `.` if you want activation to remain in the current shell.
+Create a virtual environment and install (editable runtime + dev tools):
 
-Runtime-only install (skip pytest, Sphinx, mutation tools):
+| Shell | Command |
+|-------|---------|
+| Windows PowerShell | `.\scripts\start_environment.ps1` |
+| Windows `cmd.exe` | `scripts\start_environment.bat` |
+| Linux / macOS | `. ./scripts/start_environment.sh` |
 
-```powershell
-$env:SKIP_DEV = "1"
-.\scripts\start_environment.ps1
-```
+Runtime only (no pytest, Sphinx, mutation tools): set `SKIP_DEV=1` before the script, or:
 
-Manual install:
-
-```powershell
+```sh
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+# activate .venv, then:
 python -m pip install -U pip setuptools wheel
 python -m pip install -e .
-python -m pip install -r requirements-dev.txt
+python -m pip install -r requirements-dev.txt   # omit for runtime-only
 ```
 
-End-user install (when published to PyPI):
+**First run (no hardware):**
 
-```powershell
-pip install colosseum
-```
-
-## Quickstart
-
-Run the simulated power-rail example without bench hardware:
-
-```powershell
+```sh
 colosseum run examples/test_power_rails.py --config examples/configs/bench.sim.toml
 ```
 
-Run a suite:
+Each run writes `outputs/<timestamp>_<name>/` with `debug.log`, `execution.sqlite`, `summary.txt`, and `summary.json`.
 
-```powershell
-colosseum run-suite tests/fixtures/suites/smoke.toml --config examples/configs/bench.sim.toml
+### 2. Install from a tagged GitHub release
+
+Pushing a tag `v*` (for example `v0.3.0`) runs the [Release workflow](.github/workflows/release.yml), which builds the files below. Download them from **[Releases](https://github.com/tps01/colloseum/releases)** for that tag when published, or from the workflow run **Artifacts** until they are attached to the release. CI also produces a documentation PDF on each main-branch run ([docgen job](.github/workflows/ci.yml)); attach `colosseum.pdf` to the release when publishing.
+
+| Asset | Use |
+|-------|-----|
+| `colosseum-<ver>-py3-none-any.whl` | Online install: `pip install colosseum-<ver>-py3-none-any.whl` |
+| `colosseum-<ver>.tar.gz` (sdist) | `pip install colosseum-<ver>.tar.gz` or build wheels on another platform |
+| `colosseum-<ver>-offline-<os>-<arch>-pyXY.tar.gz` | Air-gapped bench: extract, venv, `pip install --no-index --find-links=wheels colosseum==<ver>` |
+| `colosseum.pdf` (when published on the release) | Offline user / API reference; same content as CI docgen PDF |
+
+Offline bundles are built per OS and Python minor (`py39`, `py311`, etc.). The `pyXY` in the filename **must match** the interpreter in your venv. After install, smoke-test with the files inside the bundle:
+
+```sh
+colosseum run smoke/run_sim.py --config smoke/bench.sim.toml
 ```
 
-Direct Python scripts are also supported. In direct mode, the script owns finalization:
+Full steps (Windows/Linux, Docker check, regression): [offline install guide](docs/sphinx/source/guides/offline_install.rst) (also in generated HTML under **Guides → Offline install**).
+
+To build a bundle yourself from a connected checkout:
+
+```sh
+py -3.11 scripts/package_offline.py          # Linux/Windows bundle for that interpreter
+py -3.11 scripts/package_offline.py --include-dev   # optional: pytest, Sphinx, Cosmic Ray wheels
+```
+
+### 3. PyPI (when published)
+
+```sh
+pip install colosseum
+```
+
+PyPI may lag GitHub releases; use **Releases** for offline tarballs and version-pinned wheels.
+
+---
+
+## Host dependencies by capability
+
+Pip installs Python packages; the host still needs OS/runtime pieces for some features.
+
+| What you want | Colosseum install | Host / OS (not from pip) |
+|---------------|-------------------|---------------------------|
+| Simulated bench, CI, examples with `bench.sim.toml` | Default `colosseum` package | None beyond Python |
+| VISA instruments (`driver` omitted or `visa` in bench TOML) | `pyvisa` (included) | IVI-compatible VISA (NI, Keysight, Tek, R&S, …) or `pyvisa-py`; optional `visa_library` per instrument — see [platform notes](docs/sphinx/source/guides/platform_notes.rst) |
+| Serial instruments (`driver = "serial"`) | `pyserial` (included) | Correct `COM*` (Windows) or `/dev/ttyUSB*` (Linux); Linux: `dialout` or udev |
+| SSH / remote shell (`col.shared`) | `paramiko` (included) | Network reachability; keys/credentials in bench config |
+| GUI runner (`colosseum --gui`) | `customtkinter` (included) | Display; Linux: `python3-tk` |
+| PyVISA-sim tests (`pytest -m visa_sim`) | `pyvisa-sim` (included) | **Python 3.10+**; no lab VISA |
+| RF examples offline | `examples/configs/bench.rf.visa-sim.toml` | Python 3.10+ for visa_sim marker tests |
+| Build HTML docs | `pip install -r requirements-dev.txt` | None |
+| Build PDF docs (`build_all.py` default) | Dev requirements + Sphinx | `latexmk` + TeX (MiKTeX/TeX Live on Windows; `texlive-*` on Ubuntu — see [CI docgen job](.github/workflows/ci.yml)) |
+| Build offline release bundle | Source checkout + `scripts/package_offline.py` | Network; same Python **minor** as target bench |
+
+Verify VISA after install: `python -m pyvisa info` inside your venv.
+
+---
+
+## Direct Python scripts
+
+CLI (`colosseum run` / `run-suite`) is preferred for suites and shared bench config. Direct scripts must call `col.endex()` themselves:
 
 ```python
 import colosseum as col
@@ -78,90 +117,41 @@ if __name__ == "__main__":
     col.endex()
 ```
 
-Each run writes `outputs/<timestamp>_<name>/debug.log`, `execution.sqlite`, `summary.txt`, and `summary.json`.
+**Suite example:**
 
-## Implemented Capabilities
-
-- Runtime context initialized by `col.config.load_config(...)`, `colosseum run`, or `colosseum run-suite`.
-- TOML bench configuration with normalized single-table and array-of-table sections.
-- `@measurement` and `@verification` decorators with required and optional verification aggregation.
-- `col.endex()` as the only supported end-of-run API.
-- CLI commands: `colosseum run` and `colosseum run-suite`.
-- Suite TOML with `name`, `setup`, `tests`, and `teardown` lists.
-- Local evidence: `debug.log`, `execution.sqlite`, `summary.txt`, and machine-readable `summary.json`.
-- Public database read helpers: `col.database.read_measurements()`, `read_verifications()`, `read_run_metadata()`, and guarded `read_table(...)`.
-- Plugin entry points for runtime namespaces and doc generation.
-- First-party `col.equipment.*` and `col.shared.*` namespaces.
-- Simulated, VISA, serial, and SSH-backed bench paths (included in the default install).
-- Generic DMM/PSU SCPI support plus `keysight-edu34450a` and `tdk-genesys` model selection.
-- RF VSG and spectrum analyzer APIs (`col.equipment.vsg`, `col.equipment.speca`) with models `keysight-esg`, `keysight-e4407b`, and `tektronix-rsa5100b`; offline bench via `examples/configs/bench.rf.visa-sim.toml`.
-- Sphinx/docgen scripts under `scripts/docgen/`.
-- Test tiers and optional Cosmic Ray mutation driver under `scripts/` and `tests/regression/`.
-
-## Continuous integration
-
-GitHub Actions runs pytest tiers 1–3 on Windows and Ubuntu (Python 3.9 and 3.11), PyVISA-sim tests on Python 3.10+, and generates a documentation PDF artifact in CI.
-
-The GitHub Pages `Documentation` workflow remains available but is manual-only (`workflow_dispatch`) and is not part of the standard CI path.
-
-## Development
-
-Run unit tests:
-
-```powershell
-python -m pytest tests/unit
+```sh
+colosseum run-suite tests/fixtures/suites/smoke.toml --config examples/configs/bench.sim.toml
 ```
 
-Run all default pytest tiers:
+---
 
-```powershell
-python scripts/run_tests.py
+## Development and CI
+
+```sh
+python -m pytest tests/unit              # unit tests only
+python scripts/run_tests.py              # default tiers 1–3
+pytest -m visa_sim -q                      # PyVISA-sim (Python 3.10+)
+python scripts/docgen/build_all.py       # HTML + PDF; --skip-pdf without LaTeX
+python scripts/cleanup.py --dry-run      # remove outputs/, build/, caches
 ```
 
-PyVISA-sim driver tests (Python 3.10+):
+GitHub Actions: pytest on Windows and Ubuntu (3.9, 3.11), `visa_sim` on 3.10+, docgen PDF artifact, offline bundle smoke, packaging smoke. Pages docs: manual [Documentation workflow](.github/workflows/docs.yml) (`workflow_dispatch`).
 
-```powershell
-pytest -m visa_sim -q
-```
+Details: [testing guide](docs/testing/README.md), [regression procedure](docs/testing/regression-test-procedure.md).
 
-RF instrument integration tests (PyVISA-sim, Python 3.10+):
-
-```powershell
-pytest -m visa_sim tests/integration/test_equipment_rf_visa_sim.py -q
-```
-
-Profile unit tests:
-
-```powershell
-python scripts/profile_unit_tests.py
-```
-
-Run one mutation target:
-
-```powershell
-python tests/regression/run_mutation.py --run --target colosseum/results/aggregation.py
-```
-
-Clean generated artifacts:
-
-```powershell
-python scripts/cleanup.py --dry-run
-python scripts/cleanup.py
-```
+---
 
 ## Documentation
 
-- [Implemented MVP status](docs/mvp/scope.md)
-- [Project documentation map](docs/README.md)
-- [User guides](docs/sphinx/source/guides/)
-- [Testing guide](docs/testing/README.md)
-- [PyVISA-sim fixtures](docs/testing/pyvisa-sim-fixtures.md)
-- [Original architecture sketch](scratchpad/colosseum_architecture_document.md)
+| Topic | Location |
+|-------|----------|
+| User guides (install, config, RF, offline) | [docs/sphinx/source/guides/](docs/sphinx/source/guides/) |
+| Local HTML/PDF build | `python scripts/docgen/build_all.py` → `build/docgen/site/html/`, `build/docgen/site/latex/colosseum.pdf` |
+| Docgen pipeline | [scripts/docgen/README.md](scripts/docgen/README.md) |
+| Design / MVP / archive | [docs/README.md](docs/README.md), [docs/mvp/scope.md](docs/mvp/scope.md), [docs/archive/README.md](docs/archive/README.md) |
 
-Local doc build: ``pip install -r requirements-dev.txt`` then ``python scripts/docgen/build_all.py`` (output under ``build/docgen/site/html/``).
-
-The FFO, DDD, and ADR documents remain useful design history. The current implementation status and known gaps are summarized in `docs/mvp/scope.md`.
+---
 
 ## License
 
-This project is licensed under the MIT License. See `LICENSE`.
+MIT — see [LICENSE](LICENSE).

@@ -39,6 +39,7 @@ class VISATransport(Transport):
         *,
         visa_backend: str | None = None,
         sim_definition: str | None = None,
+        visa_library: str | None = None,
     ) -> None:
         try:
             import pyvisa
@@ -56,7 +57,11 @@ class VISATransport(Transport):
                 sim_path = resolve_sim_definition(sim_definition)
                 self._rm = pyvisa.ResourceManager(f"{sim_path}@sim")
             else:
-                self._rm = pyvisa.ResourceManager()
+                self._rm = (
+                    pyvisa.ResourceManager(visa_library)
+                    if visa_library
+                    else pyvisa.ResourceManager()
+                )
             if backend == "sim":
                 self._inst = self._rm.open_resource(
                     resource,

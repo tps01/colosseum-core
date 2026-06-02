@@ -1,5 +1,8 @@
 # FFO: Execution Evidence
 
+> **Documentation note:** Normative behavior is in [mvp/scope.md](../mvp/scope.md), Sphinx user guides, and the codebase. Wave 1/2/3 references below are historical sequencing only.
+
+
 ## Summary
 
 Every test or suite run produces local, offline artifacts for debugging and audit: structured logs, SQLite execution database, and (Wave 3) human-readable summary. Users and tools can inspect results without re-running the bench.

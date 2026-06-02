@@ -29,8 +29,9 @@ Some capabilities need OS packages that pip cannot install:
 
 - **Linux GUI:** ``python3-tk`` (stdlib ``tkinter`` for ``colosseum --gui``)
 - **Linux serial:** ``dialout`` group membership or udev rules for ``/dev/ttyUSB*``
-- **VISA hardware:** vendor runtime (e.g. NI-VISA); not required for ``driver = "sim"``
-  or PyVISA-sim
+- **VISA hardware:** a VISA implementation PyVISA can load (NI-VISA, Keysight IO Libraries,
+  Tektronix VISA, Rohde & Schwarz, etc., or pure-Python ``pyvisa-py``). Not required for
+  ``driver = "sim"`` or PyVISA-sim. Use ``python -m pyvisa info`` to see the active backend.
 
 Example (Debian/Ubuntu)::
 

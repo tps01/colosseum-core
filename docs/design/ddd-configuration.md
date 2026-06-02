@@ -1,5 +1,7 @@
 # DDD: Configuration System
 
+> **Documentation note:** Normative behavior is in [mvp/scope.md](../mvp/scope.md), Sphinx guides, and code. Bench section keys are listed in the docgen output **Bench configuration reference** (`python scripts/docgen/build_all.py`).
+
 ## Responsibilities
 
 Load TOML bench files, normalize repeatable sections (core and plugin-registered), validate IDs, expose read API to core and extensions, and preserve project-specific extension config without hard-coding every prefix in core.
@@ -36,7 +38,7 @@ class ConfigSectionSpec:
 
 # In plugin register():
 registry.register_config_section(
-    ConfigSectionSpec("equipment.psu", "psu_id", required_keys=("driver", "resource"))
+    ConfigSectionSpec("equipment.psu", "psu_id", required_keys=("resource",))  # driver defaults to visa
 )
 registry.register_config_section(
     ConfigSectionSpec("shared.ssh", "ssh_id", required_keys=("host", "username"))

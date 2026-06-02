@@ -1,5 +1,8 @@
 # DDD: Suite Orchestration
 
+> **Documentation note:** Normative behavior is in [mvp/scope.md](../mvp/scope.md), Sphinx user guides, and the codebase. Wave 1/2/3 references below are historical sequencing only.
+
+
 ## Responsibilities
 
 Parse suite TOML, drive setup → tests → teardown sequence, maintain phase metadata, invoke summary writer, return exit code.

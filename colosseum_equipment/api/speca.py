@@ -1,15 +1,17 @@
 """High-level spectrum analyzer APIs exposed as ``col.equipment.speca``.
 
-Configure instruments with ``[[equipment.speca]]`` in bench TOML (``speca_id``, ``driver``,
-``resource``, optional ``model``). Trace and capture files are written under the active run
+Configure instruments with ``[[equipment.speca]]`` in bench TOML (``speca_id``, ``resource``,
+optional ``model`` and ``driver``; default driver is VISA/SCPI). Trace and capture files are written under the active run
 output directory and registered as artifacts. Unsupported operations raise
 :class:`~colosseum_equipment.exceptions.EquipmentCapabilityError`.
 """
 
 from __future__ import annotations
 
-from colosseum.decorators import measurement
+from colosseum.decorators import MeasurementSource, VerificationResult, measurement, verification
+from colosseum.context import require_context
 
+from colosseum_equipment.api._verify import verify_tolerance
 from colosseum_equipment.connections import get_cached_instrument
 
 
@@ -33,6 +35,11 @@ def peak_search(*, speca_id: int, marker: int = 1) -> None:
     get_cached_instrument("speca", speca_id).peak_search(marker)
 
 
+def set_marker_frequency(*, speca_id: int, marker: int, frequency_hz: float) -> None:
+    """Place a marker at the given frequency in hertz."""
+    get_cached_instrument("speca", speca_id).set_marker_frequency(marker, frequency_hz)
+
+
 @measurement
 def measure_marker_power(*, speca_id: int, marker: int = 1, key: str) -> float:
     """Read marker amplitude in dBm and persist a measurement row."""
@@ -43,6 +50,89 @@ def measure_marker_power(*, speca_id: int, marker: int = 1, key: str) -> float:
 def measure_marker_frequency(*, speca_id: int, marker: int = 1, key: str) -> float:
     """Read marker frequency in hertz and persist a measurement row."""
     return get_cached_instrument("speca", speca_id).measure_marker_frequency(marker)
+
+
+@verification(sources=[MeasurementSource(domain="equipment", command="measure_marker_frequency")])
+def verify_marker_frequency(
+    *,
+    key: str,
+    expected_val: float,
+    tolerance: float = 1000.0,
+    optional: bool = False,
+) -> VerificationResult:
+    return verify_tolerance(
+        domain="equipment",
+        command="measure_marker_frequency",
+        key=key,
+        expected_val=expected_val,
+        tolerance=tolerance,
+        optional=optional,
+    )
+
+
+@verification(sources=[MeasurementSource(domain="equipment", command="measure_marker_power")])
+def verify_marker_power(
+    *,
+    key: str,
+    expected_val: float,
+    tolerance: float = 0.5,
+    optional: bool = False,
+) -> VerificationResult:
+    """Verify a prior ``measure_marker_power`` result against expected dBm."""
+    row = require_context().db.get_measurement("equipment", "measure_marker_power", key, row_index=0)
+    if row is None or row.value is None:
+        return VerificationResult(status="ERROR", message=f"no measurement for key={key}", optional=optional)
+    actual = float(row.value)
+    if abs(actual - expected_val) <= tolerance:
+        return VerificationResult(status="PASS", message="", optional=optional)
+    return VerificationResult(
+        status="FAIL",
+        message=f"expected {expected_val} +/- {tolerance} dBm, got {actual}",
+        optional=optional,
+    )
+
+
+@measurement
+def measure_trace_power_at_frequency(
+    *,
+    speca_id: int,
+    frequency_hz: float,
+    key: str,
+    trace_path: str | None = None,
+) -> float:
+    """Read trace power (dBm) at ``frequency_hz`` using the nearest CSV frequency bin."""
+    power_dbm, _actual_hz = get_cached_instrument("speca", speca_id).measure_trace_power_at_frequency(
+        frequency_hz,
+        trace_path=trace_path,
+    )
+    return power_dbm
+
+
+@verification(sources=[MeasurementSource(domain="equipment", command="measure_trace_power_at_frequency")])
+def verify_trace_power_at_frequency(
+    *,
+    key: str,
+    expected_val: float,
+    tolerance: float = 0.5,
+    optional: bool = False,
+) -> VerificationResult:
+    """Verify a prior ``measure_trace_power_at_frequency`` result against expected dBm."""
+    row = require_context().db.get_measurement(
+        "equipment",
+        "measure_trace_power_at_frequency",
+        key,
+        row_index=0,
+    )
+    if row is None or row.value is None:
+        return VerificationResult(status="ERROR", message=f"no measurement for key={key}", optional=optional)
+    actual = float(row.value)
+    if abs(actual - expected_val) <= tolerance:
+        return VerificationResult(status="PASS", message="", optional=optional)
+    return VerificationResult(
+        status="FAIL",
+        message=f"expected {expected_val} +/- {tolerance} dBm, got {actual}",
+        optional=optional,
+    )
 
 
 def save_trace_data(

@@ -1,5 +1,8 @@
 # FFO: Measurements and Verifications
 
+> **Documentation note:** Normative behavior is in [mvp/scope.md](../mvp/scope.md), Sphinx user guides, and the codebase. Wave 1/2/3 references below are historical sequencing only.
+
+
 ## Summary
 
 Measurements collect evidence from equipment, the DUT, or host utilities and persist results. Verifications compare evidence to expectations. Both use framework decorators for logging, timing, persistence, and aggregation.

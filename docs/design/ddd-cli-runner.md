@@ -1,5 +1,8 @@
 # DDD: CLI Runner
 
+> **Documentation note:** Normative behavior is in [mvp/scope.md](../mvp/scope.md), Sphinx user guides, and the codebase. Wave 1/2/3 references below are historical sequencing only.
+
+
 ## Responsibilities
 
 Provide `colosseum` console script: `run` (Wave 1), `run-suite` (Wave 3), argument parsing, context init, test module execution, exit code propagation.

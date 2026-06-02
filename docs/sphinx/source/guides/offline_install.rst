@@ -6,9 +6,10 @@ Use a pre-built wheel bundle when the target machine has no PyPI or internet acc
 Building a bundle (connected machine)
 -------------------------------------
 
-From a source checkout with network access::
+From a source checkout with network access, use the **same Python minor** you will run on the air-gapped bench (Colosseum supports Python 3.9+; **3.11 is recommended** for new Windows/Linux benches)::
 
-   python scripts/package_offline.py
+   py -3.11 scripts/package_offline.py
+   # or: py -3.9 scripts/package_offline.py
 
 This produces:
 
@@ -35,7 +36,21 @@ Copy the tarball to the target, then::
    pip install --no-index --find-links=wheels colosseum==0.3.0
    colosseum run smoke/run_sim.py --config smoke/bench.sim.toml
 
-Replace the version and archive name with your bundle.
+Replace the version and archive name with your bundle. The ``pyXY`` segment in the archive name (for example ``py311``) must match the Python used on the target host.
+
+Windows 11 (air-gapped)
+-----------------------
+
+On a connected Windows machine, build the bundle with the target interpreter (for example ``py -3.11``). Copy ``colosseum-*-offline-windows-amd64-py311.tar.gz`` to the bench PC, then in PowerShell::
+
+   tar -xzf colosseum-0.3.0-offline-windows-amd64-py311.tar.gz
+   cd offline-bundle
+   py -3.11 -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   pip install --no-index --find-links=wheels colosseum==0.3.0
+   colosseum run smoke\run_sim.py --config smoke\bench.sim.toml
+
+Install **NI-VISA** (or your vendor VISA runtime) before using ``driver = "visa"`` instruments. Verify with ``python -m pyvisa info`` inside the venv. For Python 3.9-only benches, build and install a ``py39`` bundle the same way.
 
 Docker validation (optional)
 ----------------------------

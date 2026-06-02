@@ -4,7 +4,7 @@
 
 This document is the current implementation summary for the Colosseum MVP. It replaces the earlier wave-planning view with what is actually present in the repository as of version `0.3.0`.
 
-The original feature overviews, detailed design documents, ADRs, and scratchpad architecture remain useful design history. When they still use "Wave 1/2/3" language, read that as historical sequencing unless this document says otherwise.
+The original feature overviews, detailed design documents, and ADRs remain useful design history; some pre-MVP files were removed from the tree (see [docs/archive/README.md](../archive/README.md) and git tag `doc-snapshot-pre-archive`). When documents still use "Wave 1/2/3" language, read that as historical sequencing unless this document says otherwise.
 
 ## Product Summary
 
@@ -39,7 +39,7 @@ The supported end-of-run API is `col.endex()`. It writes final metadata, writes 
 
 - TOML loading uses `tomllib` on Python 3.11+ and `tomli` on older Python.
 - Plugin-registered config sections are normalized from either a single table or an array of tables.
-- Implemented first-party sections include `equipment.psu`, `equipment.dmm`, `equipment.serial`, and `shared.ssh`.
+- Implemented first-party sections include `equipment.psu`, `equipment.dmm`, `equipment.serial`, `equipment.vsg`, `equipment.speca`, and `shared.ssh`. Lab entries omit `driver` to use default VISA/SCPI.
 - Required keys are enforced when resources are required.
 - Unknown keys are collected as warnings on the runtime context.
 
@@ -137,7 +137,7 @@ These are the meaningful differences or losses from the planning documents that 
 | Reporting formats | HTML/JUnit/Allure were deferred | `summary.txt`, `summary.json`, `debug.log`, and SQLite are implemented | Add richer CI/reporting formats if needed |
 | Parallel execution | Parallel suites and multiprocessing were deferred | Suite execution is serial; mutation tests are explicitly serialized | Keep serial unless bench resource isolation is designed |
 | Context manager API | `with col.run(...)` was a future idea | Not implemented; use CLI or explicit `load_config` plus `col.endex()` | Revisit if direct Python ergonomics need it |
-| Equipment breadth | Future architecture mentioned more lab protocols | Implemented DMM/PSU/SCPI with VISA, serial, sim, and two reference models | Add CAN/JTAG/DAQ/socket only when use cases require them |
+| Equipment breadth | Future architecture mentioned more lab protocols | Core DMM/PSU/VSG/speca plus stub kinds: ``attn``, ``pwrmeter``, ``rfswitch``, ``oscope``, ``eload``, ``freqcounter``, ``vna``, ``sdr``; ``col.io`` (DIO/I2C/SPI) stubs for NI drivers | Vendor ``model`` drivers and NI/UHD SDK bindings need host manuals |
 | Documentation polish | Full user docs and generated API reference were planned | Guide drafts and docgen pipeline exist; public docs are not published from CI | Add CI doc build/publish if this becomes a released package |
 
 ## Explicitly Deferred
@@ -149,4 +149,4 @@ These are the meaningful differences or losses from the planning documents that 
 - Rich CLI filtering/retries.
 - HTML/JUnit/Allure reports.
 - Test generation, model-based testing, and ALM export.
-- Broader equipment families such as CAN, JTAG, DAQ, and socket transport.
+- Broader equipment families such as CAN, JTAG, DAQ, and socket transport (stub APIs exist for RF path, oscope, e-load, VNA phase-1, SDR; NI 845x/6501 via ``col.io`` pending documentation).

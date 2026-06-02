@@ -30,6 +30,7 @@ def test_load_config_rf_bench(bench_rf, isolated_cwd) -> None:
     vsg = store.list_items("equipment.vsg")
     speca = store.list_items("equipment.speca")
     assert vsg and vsg[0].get("model") == "keysight-esg"
+    assert "driver" not in vsg[0]
     assert len(speca) == 2
 
 
@@ -54,6 +55,28 @@ def test_speca_peak_and_marker_power(bench_rf, isolated_cwd) -> None:
     speca.peak_search(speca_id=1, marker=1)
     power = speca.measure_marker_power(speca_id=1, marker=1, key="carrier")
     assert power == pytest.approx(-42.5, rel=1e-3)
+
+
+def test_speca_marker_at_frequency_and_verify(bench_rf, isolated_cwd) -> None:
+    pytest.importorskip("pyvisa_sim")
+    from colosseum_equipment.api import speca
+
+    load_config(bench_rf)
+    speca.set_marker_frequency(speca_id=1, marker=1, frequency_hz=1e9)
+    speca.measure_marker_power(speca_id=1, marker=1, key="marker_1ghz")
+    result = speca.verify_marker_power(key="marker_1ghz", expected_val=-42.5, tolerance=0.5)
+    assert result.status == "PASS"
+
+
+def test_speca_trace_power_at_frequency_and_verify(bench_rf, isolated_cwd) -> None:
+    pytest.importorskip("pyvisa_sim")
+    from colosseum_equipment.api import speca
+
+    load_config(bench_rf)
+    speca.save_trace_data(speca_id=1, path="traces/verify.csv")
+    speca.measure_trace_power_at_frequency(speca_id=1, frequency_hz=1e9, key="trace_1ghz")
+    result = speca.verify_trace_power_at_frequency(key="trace_1ghz", expected_val=-41.0, tolerance=0.5)
+    assert result.status == "PASS"
 
 
 def test_speca_save_trace_data(bench_rf, isolated_cwd) -> None:

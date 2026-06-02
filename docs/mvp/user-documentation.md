@@ -21,7 +21,7 @@ This file tracks user-facing documentation for test engineers and plugin authors
 | Windows / Linux notes | All users | usable | `docs/sphinx/source/guides/platform_notes.rst` |
 | Equipment API reference | Test engineers | usable | Generated through `scripts/docgen`; RF modules have per-function docstrings |
 | Shared utility API reference | Test engineers | draft | Generated through `scripts/docgen` |
-| Multiprocessing guidance | Advanced users | missing | Deferred; see `docs/design/ddd-multiprocessing.md` |
+| Multiprocessing guidance | Advanced users | missing | Deferred (not in MVP); recover design sketch from tag `doc-snapshot-pre-archive` per `docs/archive/README.md` |
 
 ## Source Of Truth For API Text
 

@@ -10,6 +10,7 @@ __version__ = "0.3.0"
 
 equipment = LazyNamespaceProxy("equipment")
 shared = LazyNamespaceProxy("shared")
+io = LazyNamespaceProxy("io")
 
 __all__ = [
     "__version__",
@@ -22,4 +23,5 @@ __all__ = [
     "endex",
     "equipment",
     "shared",
+    "io",
 ]

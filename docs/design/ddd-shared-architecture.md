@@ -1,5 +1,8 @@
 # DDD: Shared Package Architecture
 
+> **Documentation note:** Normative behavior is in [mvp/scope.md](../mvp/scope.md), Sphinx user guides, and the codebase. Wave 1/2/3 references below are historical sequencing only.
+
+
 ## Responsibilities
 
 Structure `colosseum-shared` plugin: SSH, regex, filesystem, subprocess, and **common parsing utilities** under `col.shared` namespace (architecture §15).

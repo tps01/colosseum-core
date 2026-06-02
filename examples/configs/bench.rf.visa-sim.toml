@@ -3,7 +3,6 @@
 
 [[equipment.vsg]]
 vsg_id = 1
-driver = "visa"
 visa_backend = "sim"
 sim_definition = "tests/fixtures/pyvisa_sim/keysight_esg.yaml"
 resource = "GPIB::19::INSTR"
@@ -14,7 +13,6 @@ output = false
 
 [[equipment.speca]]
 speca_id = 1
-driver = "visa"
 visa_backend = "sim"
 sim_definition = "tests/fixtures/pyvisa_sim/keysight_e4407b_sa.yaml"
 resource = "GPIB::18::INSTR"
@@ -26,7 +24,6 @@ timeout = 5.0
 
 [[equipment.speca]]
 speca_id = 2
-driver = "visa"
 visa_backend = "sim"
 sim_definition = "tests/fixtures/pyvisa_sim/tektronix_rsa5100b_sa.yaml"
 resource = "GPIB::20::INSTR"

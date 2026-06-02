@@ -5,7 +5,7 @@ Colosseum supports two offline instrument simulation layers:
 | Layer | Bench config | Use |
 |-------|----------------|-----|
 | **Colosseum `SimTransport`** | `driver = "sim"` ([`examples/configs/bench.sim.toml`](../../examples/configs/bench.sim.toml)) | Fast CI/e2e; cooperative multi-instrument behavior (e.g. DMM reads PSU 1). |
-| **PyVISA-sim** | `driver = "visa"`, `visa_backend = "sim"`, `sim_definition = "..."` | SCPI fidelity from YAML; per-instrument definitions. |
+| **PyVISA-sim** | `visa_backend = "sim"`, `sim_definition = "..."` (`driver` defaults to `visa`) | SCPI fidelity from YAML; per-instrument definitions. |
 
 ## Install
 

@@ -13,5 +13,15 @@ class GenericDMM:
         self._scpi.write("CONF:VOLT:DC")
         return self._scpi.query_float("READ?")
 
+    def measure_current(self, channel: int) -> float:
+        _ = channel
+        self._scpi.write("CONF:CURR:DC")
+        return self._scpi.query_float("READ?")
+
+    def measure_resistance(self, channel: int) -> float:
+        _ = channel
+        self._scpi.write("CONF:RES")
+        return self._scpi.query_float("READ?")
+
     def close(self) -> None:
         self._scpi._transport.close()

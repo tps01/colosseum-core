@@ -11,6 +11,30 @@ def parse_trace_amplitudes(response: str) -> list[float]:
     return [float(part.strip()) for part in text.split(",") if part.strip()]
 
 
+def nearest_trace_bin(frequencies: list[float], target_hz: float) -> int:
+    if not frequencies:
+        raise ValueError("trace has no frequency points")
+    return min(range(len(frequencies)), key=lambda index: abs(frequencies[index] - target_hz))
+
+
+def read_trace_power_at_frequency(path: Path, target_hz: float) -> tuple[float, float]:
+    """Return (amplitude_dbm, actual_frequency_hz) using nearest trace bin."""
+    frequencies: list[float] = []
+    amplitudes: list[float] = []
+    with path.open(encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            if "frequency_hz" in row and row["frequency_hz"]:
+                frequencies.append(float(row["frequency_hz"]))
+            amplitudes.append(float(row["amplitude_dbm"]))
+    if not amplitudes:
+        raise ValueError(f"trace CSV is empty: {path}")
+    if not frequencies:
+        raise ValueError(f"trace CSV has no frequency_hz column: {path}")
+    index = nearest_trace_bin(frequencies, target_hz)
+    return amplitudes[index], frequencies[index]
+
+
 def frequency_axis(center_hz: float, span_hz: float, count: int) -> list[float]:
     if count <= 0:
         return []

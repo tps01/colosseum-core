@@ -5,7 +5,11 @@ from pathlib import Path
 from colosseum.output.artifacts import register_artifact, resolve_artifact_path
 
 from colosseum_equipment.instruments._capabilities import unsupported
-from colosseum_equipment.instruments.speca.trace_csv import parse_trace_amplitudes, write_trace_csv
+from colosseum_equipment.instruments.speca.trace_csv import (
+    parse_trace_amplitudes,
+    read_trace_power_at_frequency,
+    write_trace_csv,
+)
 from colosseum_equipment.protocols.scpi import SCPIHelper, prepare_fast_sweep, wait_opc
 from colosseum_equipment.transports.base import Transport
 
@@ -36,6 +40,9 @@ class GenericSpecA:
     def peak_search(self, marker: int = 1) -> None:
         self._scpi.write(f"CALC:MARK{marker}:MAX")
 
+    def set_marker_frequency(self, marker: int, frequency_hz: float) -> None:
+        self._scpi.write(f"CALC:MARK{marker}:X {frequency_hz:.6f}")
+
     def measure_marker_power(self, marker: int = 1) -> float:
         return self._scpi.query_float(f"CALC:MARK{marker}:Y?")
 
@@ -64,7 +71,19 @@ class GenericSpecA:
             include_frequency=include_frequency,
         )
         register_artifact("speca_trace", artifact_path, description=f"trace {trace}")
+        self._last_trace_path = artifact_path
         return artifact_path
+
+    def measure_trace_power_at_frequency(
+        self,
+        frequency_hz: float,
+        *,
+        trace_path: str | Path | None = None,
+    ) -> tuple[float, float]:
+        path = Path(trace_path) if trace_path is not None else getattr(self, "_last_trace_path", None)
+        if path is None:
+            raise ValueError("no trace CSV; call save_trace_data first or pass trace_path=")
+        return read_trace_power_at_frequency(path, frequency_hz)
 
     def preset(self) -> None:
         self._scpi.write("*RST")

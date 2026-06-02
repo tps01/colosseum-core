@@ -1,5 +1,8 @@
 # DDD: Core Package Layout and Public API
 
+> **Documentation note:** Normative behavior is in [mvp/scope.md](../mvp/scope.md), Sphinx user guides, and the codebase. Wave 1/2/3 references below are historical sequencing only.
+
+
 ## Responsibilities
 
 Define the `colosseum` Python package structure, public exports, and import conventions for core and CLI.

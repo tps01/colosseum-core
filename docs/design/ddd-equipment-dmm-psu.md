@@ -1,5 +1,8 @@
 # DDD: Equipment DMM and PSU Instrument Modules
 
+> **Documentation note:** Normative behavior is in [mvp/scope.md](../mvp/scope.md), Sphinx user guides, and the codebase. Wave 1/2/3 references below are historical sequencing only.
+
+
 ## Responsibilities
 
 Implement high-level DMM and PSU APIs with `@measurement` / `@verification`, generic SCPI (Wave 2), vendor reference drivers (Wave 3).
@@ -63,7 +66,6 @@ Config:
 [equipment.dmm]
 dmm_id = 1
 model = "keysight-edu34450a"
-driver = "visa"
 resource = "USB0::..."
 ```
 
@@ -81,7 +83,6 @@ Config:
 [equipment.psu]
 psu_id = 1
 model = "tdk-genesys"
-driver = "visa"
 resource = "GPIB0::5::INSTR"
 voltage = 3.3
 ovp = 3.6
