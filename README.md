@@ -45,14 +45,15 @@ Each run writes `outputs/<timestamp>_<name>/` with `debug.log`, `execution.sqlit
 
 ### 2. Install from a tagged GitHub release
 
-Pushing a tag `v*` (for example `v0.3.0`) runs the [Release workflow](.github/workflows/release.yml), which builds the files below. Download them from **[Releases](https://github.com/tps01/colloseum/releases)** for that tag when published, or from the workflow run **Artifacts** until they are attached to the release. CI also produces a documentation PDF on each main-branch run ([docgen job](.github/workflows/ci.yml)); attach `colosseum.pdf` to the release when publishing.
+Pushing a tag `v*` (for example `v0.3.0`) runs the [Release workflow](.github/workflows/release.yml), which builds and **uploads** the assets below to **[Releases](https://github.com/tps01/colloseum/releases)**. See [docs/releasing.md](docs/releasing.md) for the cut list. Main-branch CI also builds a PDF on each push ([docgen job](.github/workflows/ci.yml)).
 
 | Asset | Use |
 |-------|-----|
 | `colosseum-<ver>-py3-none-any.whl` | Online install: `pip install colosseum-<ver>-py3-none-any.whl` |
 | `colosseum-<ver>.tar.gz` (sdist) | `pip install colosseum-<ver>.tar.gz` or build wheels on another platform |
 | `colosseum-<ver>-offline-<os>-<arch>-pyXY.tar.gz` | Air-gapped **bench** (runtime wheels only; no pytest/Sphinx/docgen) |
-| `colosseum.pdf` (when published on the release) | End-user API reference (built by project CI; not inside offline tarballs) |
+| `colosseum.pdf` | End-user API reference (on each release; not inside offline tarballs) |
+| `colosseum-docs-html.zip` | Same documentation as browsable HTML (on each release) |
 
 Offline bundles are built per OS and Python minor (`py39`, `py311`, etc.). The `pyXY` in the filename **must match** the interpreter in your venv. After install, smoke-test with the files inside the bundle:
 
