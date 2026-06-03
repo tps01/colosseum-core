@@ -1,5 +1,8 @@
 # DDD: Measurement and Verification Framework
 
+> **Documentation note:** Normative behavior is in [mvp/scope.md](../mvp/scope.md), Sphinx user guides, and the codebase. Wave 1/2/3 references below are historical sequencing only.
+
+
 ## Responsibilities
 
 Provide `@measurement` and `@verification` decorators, wire logging/DB/aggregation, enforce per-command key rules, support `optional` on verifications, and resolve verification evidence via **explicit measurement sources** (not implicit command-name matching).
@@ -70,6 +73,8 @@ def verify_voltage(key: str, expected_val: float, tolerance: float, optional: bo
 | Verification command | Measurement source(s) |
 |----------------------|------------------------|
 | `verify_voltage` (DMM) | `("equipment", "measure_voltage")` |
+| `verify_marker_power` (speca) | `("equipment", "measure_marker_power")` |
+| `verify_trace_power_at_frequency` (speca) | `("equipment", "measure_trace_power_at_frequency")` |
 | `verify_match` (regex) | `("shared", "measure_stdout")` default; overridable via `sources=` on call |
 | `verify_file_exists` | `("shared", "measure_file_exists")` |
 

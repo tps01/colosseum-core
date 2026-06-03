@@ -1,5 +1,8 @@
 # DDD: Equipment SCPI Protocol Helpers
 
+> **Documentation note:** Normative behavior is in [mvp/scope.md](../mvp/scope.md), Sphinx user guides, and the codebase. Wave 1/2/3 references below are historical sequencing only.
+
+
 ## Responsibilities
 
 Thin SCPI layer on top of transports: command formatting, response stripping, optional error-queue check. User-facing API resolves transport from bench config by instrument id.

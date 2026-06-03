@@ -1,5 +1,8 @@
 # DDD: Plugin Registry and Namespace
 
+> **Documentation note:** Normative behavior is in [mvp/scope.md](../mvp/scope.md), Sphinx user guides, and the codebase. Wave 1/2/3 references below are historical sequencing only.
+
+
 ## Responsibilities
 
 Discover entry points, invoke `register(registry)`, expose lazy `col.<namespace>` proxies, track measurement/verification registry for docs, and collect config section declarations from extensions.
@@ -30,10 +33,10 @@ def register(registry: PluginRegistry) -> None:
     import colosseum_equipment as pkg
     registry.register_namespace("equipment", pkg)
     registry.register_config_section(
-        ConfigSectionSpec("equipment.psu", "psu_id", required_keys=("driver", "resource"))
+        ConfigSectionSpec("equipment.psu", "psu_id", required_keys=("resource",))
     )
     registry.register_config_section(
-        ConfigSectionSpec("equipment.dmm", "dmm_id", required_keys=("driver", "resource"))
+        ConfigSectionSpec("equipment.dmm", "dmm_id", required_keys=("resource",))
     )
     # ... serial, etc.
 ```

@@ -1,0 +1,35 @@
+=== SSH regression (host -> QEMU guest) ===
+Log: /mnt/c/Users/tomlocal/colloseum/infra/yocto/artifacts/ssh-regression-20260531T232002Z.log
+Config: /mnt/c/Users/tomlocal/colloseum/infra/yocto/conf/bench.qemu.toml
+--- R-EMU-01 ---
+Traceback (most recent call last):
+  File "/home/tomlocal/colosseum-venv/bin/colosseum", line 6, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/mnt/c/Users/tomlocal/colloseum/colosseum/runner/cli.py", line 88, in main
+    sys.exit(run_cli(argv))
+             ^^^^^^^^^^^^^
+  File "/mnt/c/Users/tomlocal/colloseum/colosseum/runner/cli.py", line 66, in run_cli
+    _run_single_test(test_path, args.config_path, bool(args.verbose))
+  File "/mnt/c/Users/tomlocal/colloseum/colosseum/runner/cli.py", line 44, in _run_single_test
+    main_fn()
+  File "/mnt/c/Users/tomlocal/colloseum/examples/test_ssh_health.py", line 28, in main
+    col.shared.ssh.measure_stdout(ssh_id=1, command="cat /etc/version", key="uut_version")
+  File "/mnt/c/Users/tomlocal/colloseum/colosseum/decorators/measurement.py", line 57, in wrapper
+    value = func(*args, **kwargs)
+            ^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/Users/tomlocal/colloseum/colosseum_shared/ssh/api.py", line 10, in measure_stdout
+    return get_ssh_client(ssh_id).exec_stdout(command, timeout=timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/Users/tomlocal/colloseum/colosseum_shared/connections.py", line 13, in get_ssh_client
+    ctx.resource_cache[key] = SSHClientWrapper(cfg)
+                              ^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/Users/tomlocal/colloseum/colosseum_shared/ssh/client.py", line 15, in __init__
+    self._connect_paramiko()
+  File "/mnt/c/Users/tomlocal/colloseum/colosseum_shared/ssh/client.py", line 39, in _connect_paramiko
+    client.connect(**connect_kwargs)
+  File "/home/tomlocal/colosseum-venv/lib/python3.12/site-packages/paramiko/client.py", line 477, in connect
+    self._auth(
+  File "/home/tomlocal/colosseum-venv/lib/python3.12/site-packages/paramiko/client.py", line 780, in _auth
+    raise SSHException("No authentication methods available")
+paramiko.ssh_exception.SSHException: No authentication methods available

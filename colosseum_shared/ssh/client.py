@@ -19,7 +19,7 @@ class SSHClientWrapper:
             import paramiko
         except ImportError as exc:  # pragma: no cover
             raise RuntimeError(
-                "paramiko is required for SSH. Install colosseum with the shared extra."
+                "paramiko is required for SSH. Reinstall colosseum."
             ) from exc
 
         client = paramiko.SSHClient()
@@ -30,12 +30,14 @@ class SSHClientWrapper:
             "username": self._config["username"],
             "timeout": float(self._config.get("timeout", 30.0)),
         }
-        password = self._config.get("password") or ""
+        password = self._config.get("password")
         key_filename = self._config.get("key_filename") or ""
         if key_filename:
             connect_kwargs["key_filename"] = key_filename
-        elif password:
+        elif password is not None:
             connect_kwargs["password"] = password
+            connect_kwargs["allow_agent"] = False
+            connect_kwargs["look_for_keys"] = False
         client.connect(**connect_kwargs)
         self._client = client
 

@@ -1,21 +1,21 @@
 # Suite behavior when a test script raises
 
-## Current behavior (v1)
+## Current behavior
 
 When a script in the suite **`tests`** list raises an uncaught exception:
 
 1. The runner logs a `script_fail:...` event and continues with remaining tests.
 2. Teardown still runs.
-3. The aggregate result **does not** automatically fail unless a required verification recorded `FAIL`/`ERROR`, or setup/teardown failed.
+3. The aggregate result is marked failed through a suite error.
 
-Therefore a suite can exit **`0`** even when a test script crashed without recording verifications.
+Therefore a suite exits **`1`** when a test script crashes without recording verifications.
 
-This is covered by `tests/integration/test_suite_runner.py::test_test_script_exception_does_not_fail_suite_without_verification`.
+This is covered by `tests/integration/test_suite_runner.py::test_test_script_exception_fails_suite_without_verification`.
 
 ## Rationale
 
-Historical MVP choice: treat script exceptions like logged faults while keeping suite throughput; setup/teardown and verification evidence remain the primary pass/fail signals. See [docs/mvp/scope.md](../mvp/scope.md) (“Suite test exceptions”).
+The runner preserves suite throughput and teardown execution, but an uncaught test exception is still a failed run because the script did not complete its evidence path. See [docs/mvp/scope.md](../mvp/scope.md) ("Suite test exceptions").
 
-## Post-MVP option
+## Future option
 
-A suite flag such as `continue_on_test_failure = false` could mark any test `ScriptRunError` as a required suite error. See [ddd-setup-teardown.md](../design/ddd-setup-teardown.md).
+A future suite flag could choose fail-fast behavior or opt into best-effort continuation semantics. See [ddd-setup-teardown.md](../design/ddd-setup-teardown.md).

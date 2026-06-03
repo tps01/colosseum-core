@@ -9,7 +9,7 @@ from ..database import initialize_database_if_needed
 from ..logging import setup_logging
 
 
-def _sanitize(logical_name: str) -> str:
+def sanitize_logical_name(logical_name: str) -> str:
     value = re.sub(r"[^a-zA-Z0-9_-]", "_", logical_name).strip("_")
     if not value:
         value = "run"
@@ -20,7 +20,7 @@ def allocate_run_directory(cwd: Path, logical_name: str) -> Path:
     outputs_root = cwd / "outputs"
     outputs_root.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-    run_name = f"{stamp}_{_sanitize(logical_name)}"
+    run_name = f"{stamp}_{sanitize_logical_name(logical_name)}"
     candidate = outputs_root / run_name
     suffix = 1
     while candidate.exists():

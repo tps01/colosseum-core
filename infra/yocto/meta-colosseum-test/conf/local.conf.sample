@@ -1,0 +1,18 @@
+# Copy to conf/local.conf when using:
+#   source poky/oe-init-build-env infra/yocto/build
+
+MACHINE ??= "qemux86-64"
+DISTRO ??= "poky"
+
+# Keep downloads and sstate inside the repo tree (gitignored).
+DL_DIR ?= "${TOPDIR}/../cache/downloads"
+SSTATE_DIR ?= "${TOPDIR}/../cache/sstate"
+
+# Serial console for runqemu nographic
+SERIAL_CONSOLES = "115200;ttyS0 115200;ttyAMA0 115200;ttyAMA1"
+
+# Forward host TCP 2222 to guest SSH (standard Colosseum QEMU contract).
+QB_SLIRP_OPT = "-netdev user,id=net0,hostfwd=tcp::2222-:22"
+
+# Image formats for runqemu / scp testing
+IMAGE_FSTYPES += "wic ext4"

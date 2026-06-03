@@ -1,26 +1,55 @@
 Installation
 ============
 
-Colosseum ships as the ``colosseum`` package with optional bench extras.
+Colosseum ships as a single ``colosseum`` package. A normal install includes the full
+runtime stack: VISA/serial equipment transports, SSH (``col.shared``), and the
+GUI runner (``customtkinter``). PyVISA-sim is for repository tests only (``.[test]`` extra; install via ``pip install -e ".[test]"``).
 
-Core only (config, decorators, runner, SQLite evidence)::
+End users (when published to PyPI)::
 
    pip install colosseum
 
-Bench stack (equipment, shared, VISA/serial/SSH dependencies)::
+From a source checkout::
 
-   pip install "colosseum[bench]"
+   pip install -e .
 
-Documentation build tools::
+Development tools (pytest, Sphinx, Cosmic Ray) are not included by default. Install
+them with ``requirements-dev.txt``::
 
-   pip install "colosseum[docs]"
+   pip install -r requirements-dev.txt
 
-From a source checkout, install in editable mode with ``PYTHONPATH`` or ``pip install -e ".[bench,docs]"``.
+Or in one step from a checkout::
+
+   pip install -e . && pip install -r requirements-dev.txt
+
+System prerequisites
+--------------------
+
+Some capabilities need OS packages that pip cannot install:
+
+- **Linux GUI:** ``python3-tk`` (stdlib ``tkinter`` for ``colosseum --gui``)
+- **Linux serial:** ``dialout`` group membership or udev rules for ``/dev/ttyUSB*``
+- **VISA hardware:** a VISA implementation PyVISA can load (NI-VISA, Keysight IO Libraries,
+  Tektronix VISA, Rohde & Schwarz, etc., or pure-Python ``pyvisa-py``). Not required for
+  ``driver = "sim"``. PyVISA-sim is optional for developers (``.[test]`` extra). Use
+  ``python -m pyvisa info`` to see the active VISA backend.
+
+Example (Debian/Ubuntu)::
+
+   sudo apt-get install python3-tk
+
+Offline / air-gapped install
+----------------------------
+
+See :doc:`offline_install` for building and installing from a pre-downloaded wheel
+bundle without network access. Tarballs are for **bench end users** (runtime only).
+Tests, docgen, and PyVISA-sim require a git clone and ``requirements-dev.txt``.
 
 Source checkout helpers
 -----------------------
 
-The repository includes setup scripts for common shells. They create ``.venv``, install the editable project with the default development extras, and activate the environment.
+The repository includes setup scripts for common shells. They create ``.venv``,
+install the editable project with dev dependencies, and activate the environment.
 
 Windows PowerShell::
 
@@ -36,6 +65,15 @@ Linux/macOS shell::
 
 The shell script should be sourced with ``.`` if activation should remain in the current shell.
 
-Set ``EXTRAS`` to override the default editable install extras::
+Set ``SKIP_DEV=1`` to install runtime only (no ``requirements-dev.txt``)::
 
-   EXTRAS=bench,test,docs,mutation . ./scripts/start_environment.sh
+   SKIP_DEV=1 . ./scripts/start_environment.sh
+
+Deprecated extras
+-----------------
+
+Prior releases used optional extras such as ``colosseum[bench]``, ``[gui]``, and
+``[equipment-sim]``. Runtime dependencies are now installed by default. Those extras
+remain as empty aliases for one release cycle and will be removed in 0.4.0.
+
+Dev-only extras: ``test``, ``docs``, ``mutation`` (or use ``requirements-dev.txt``).

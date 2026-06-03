@@ -39,14 +39,13 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
       - name: Install
-        run: python -m pip install -U pip setuptools wheel && python -m pip install -e ".[test,equipment-sim]"
+        run: python -m pip install -U pip setuptools wheel && python -m pip install -e ".[test]"
       - name: PyVISA-sim tests
         run: python -m pytest -m visa_sim -q
 
   docgen:
-    name: docgen regression
+    name: documentation pdf artifact
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -55,5 +54,46 @@ jobs:
           cache: pip
       - name: Install
         run: python -m pip install -U pip setuptools wheel && python -m pip install -e ".[docs,test]"
-      - name: Build documentation
-        run: python tests/regression/run_docgen_check.py
+      - name: Install LaTeX toolchain
+        run: sudo apt-get update && sudo apt-get install -y latexmk texlive-latex-recommended texlive-fonts-recommended texlive-latex-extra
+      - name: Build documentation (HTML + PDF)
+        run: python scripts/docgen/build_all.py
+      - name: Upload PDF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: colosseum-docs-pdf
+          path: build/docgen/site/latex/*.pdf
+
+  packaging:
+    name: packaging smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install build tooling
+        run: python -m pip install -U pip setuptools wheel build
+      - name: Build sdist and wheel
+        run: python -m build
+      - name: Smoke install wheel in fresh venv
+        run: |
+          python -m venv /tmp/colosseum-packaging-venv
+          /tmp/colosseum-packaging-venv/bin/pip install dist/*.whl
+          /tmp/colosseum-packaging-venv/bin/python -c "import pyvisa, paramiko, customtkinter"
+          /tmp/colosseum-packaging-venv/bin/colosseum --help
+
+  offline-install:
+    name: offline bundle smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install project for packaging script
+        run: python -m pip install -U pip setuptools wheel && python -m pip install -e .
+      - name: Offline bundle regression
+        run: python tests/regression/run_offline_install_check.py

@@ -21,8 +21,9 @@ def run_script(path: Path) -> None:
     try:
         module_globals = runpy.run_path(str(resolved), run_name="colosseum.test_run")
         main_fn = module_globals.get("main")
-        if callable(main_fn):
-            main_fn()
+        if not callable(main_fn):
+            raise ScriptRunError(f"Script does not define callable main(): {resolved}")
+        main_fn()
     except Exception as exc:
         ctx.db.insert_event("ERROR", "runner", f"script_fail:{resolved}: {exc}")
         if ctx.logger is not None:

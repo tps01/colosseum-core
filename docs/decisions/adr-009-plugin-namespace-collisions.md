@@ -1,5 +1,8 @@
 # ADR-009: Plugin Namespace Collisions (v1)
 
+> **Documentation note:** Normative behavior is in [mvp/scope.md](../mvp/scope.md), Sphinx user guides, and the codebase. Wave 1/2/3 references below are historical sequencing only.
+
+
 ## Status
 
 Accepted

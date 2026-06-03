@@ -70,3 +70,22 @@ def test_run_suite_setup_fail_exits_one(bench_sim, fixtures_dir, isolated_cwd, s
     assert (run_dir / "summary.txt").is_file()
     starts = "\n".join(m[0] for m in query_db(run_dir, "SELECT message FROM events WHERE message LIKE 'script_start:%'"))
     assert "pass_test.py" not in starts
+
+
+def test_run_suite_bad_config_exits_one(fixtures_dir, isolated_cwd, subprocess_env) -> None:
+    config = isolated_cwd / "bad.toml"
+    config.write_text(
+        "[[equipment.psu]]\n"
+        "psu_id = 1\n"
+        "driver = \"sim\"\n"
+        "resource = \"A\"\n"
+        "\n"
+        "[[equipment.psu]]\n"
+        "psu_id = 1\n"
+        "driver = \"sim\"\n"
+        "resource = \"B\"\n",
+        encoding="utf-8",
+    )
+    suite = fixtures_dir / "suites" / "happy.toml"
+    proc = _cli_run_suite(suite, config, isolated_cwd, subprocess_env)
+    assert proc.returncode == 1

@@ -7,17 +7,32 @@ devices:
         r: "\n"
     error: ERROR
     dialogues:
+      # Manual uses IDN? over serial command set; keep *IDN? alias too.
+      - q: "IDN?"
+        r: "TDK-Lambda,GENESYS,Sim0001,1.0"
       - q: "*IDN?"
         r: "TDK-Lambda,GENESYS,Sim0001,1.0"
+      - q: "CLS"
+      - q: "RST"
+      - q: "RMT REM"
+      - q: "RMT LOC"
+      - q: "RMT?"
+        r: "REM"
+      - q: "REV?"
+        r: "1.0"
+      - q: "SN?"
+        r: "GENSIM0001"
+      - q: "DATE?"
+        r: "2026/05/27"
+      - q: "STT?"
+        r: "MV(3.3000),PV(3.3000),MC(1.0000),PC(1.0000),SR(00),FR(00)"
+      # SCPI-compatible aliases used by current Colosseum PSU drivers
       - q: "OUTP ON"
-        r: ""
       - q: "OUTP OFF"
-        r: ""
       - q: "VOLT:PROT 3.6"
-        r: ""
       - q: "CURR:PROT 1.0"
-        r: ""
     properties:
+      # SCPI-like interface used by GenericPSU
       voltage:
         default: 3.3
         getter:
@@ -45,6 +60,53 @@ devices:
           q: "CURR {:.6f}"
         specs:
           type: float
+      # Native Genesys digital command set (PV/PC/MV/MC/OUT)
+      pv:
+        default: 3.3
+        getter:
+          q: "PV?"
+          r: "{:.4f}"
+        setter:
+          q: "PV {:.4f}"
+        specs:
+          type: float
+      pc:
+        default: 1.0
+        getter:
+          q: "PC?"
+          r: "{:.4f}"
+        setter:
+          q: "PC {:.4f}"
+        specs:
+          type: float
+      mv:
+        default: 3.3
+        getter:
+          q: "MV?"
+          r: "{:.4f}"
+        setter:
+          q: "PV {:.4f}"
+        specs:
+          type: float
+      mc:
+        default: 1.0
+        getter:
+          q: "MC?"
+          r: "{:.4f}"
+        setter:
+          q: "PC {:.4f}"
+        specs:
+          type: float
+      output:
+        default: 0
+        getter:
+          q: "OUT?"
+          r: "{:d}"
+        setter:
+          q: "OUT {:d}"
+        specs:
+          type: int
+          valid: [0, 1]
 
 resources:
   GPIB::4::INSTR:

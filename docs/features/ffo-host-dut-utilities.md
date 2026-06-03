@@ -1,5 +1,8 @@
 # FFO: Host and DUT Utilities
 
+> **Documentation note:** Normative behavior is in [mvp/scope.md](../mvp/scope.md), Sphinx user guides, and the codebase. Wave 1/2/3 references below are historical sequencing only.
+
+
 ## Summary
 
 The shared extension provides cross-domain helpers: SSH command execution and stdout capture, regex verification against stored measurements, minimal file and subprocess utilities—all using the same measurement/verification model as equipment.

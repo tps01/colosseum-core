@@ -1,5 +1,8 @@
 # DDD: Result Aggregation and Exit Codes
 
+> **Documentation note:** Normative behavior is in [mvp/scope.md](../mvp/scope.md), Sphinx user guides, and the codebase. Wave 1/2/3 references below are historical sequencing only.
+
+
 ## Responsibilities
 
 Track verification outcomes during run, compute overall pass/fail, map to process exit code `0`/`1`, and drive end-of-run reporting via `endex()`. Test scripts **must not** manually scan `read_verifications()` to decide pass/fail or exit code.

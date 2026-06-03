@@ -9,7 +9,7 @@ except ImportError:  # pragma: no cover
 
 
 def entry_points_for_group(group: str) -> List[object]:
-    """Return entry points for *group* on Python 3.9 and 3.10+."""
+    """Return entry points for *group* (importlib.metadata compat shim)."""
     discovered = entry_points()
     select = getattr(discovered, "select", None)
     if select is not None:

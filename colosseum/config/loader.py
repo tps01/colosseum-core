@@ -99,7 +99,10 @@ def load_config(path: str | Path) -> ConfigStore:
     ensure_plugins_loaded(ctx.plugin_registry)
     specs = list(ctx.plugin_registry.config_section_specs())
     spec_map = {s.dotted_path: s for s in specs}
-    normalized = normalize_sections(raw, specs)
+    try:
+        normalized = normalize_sections(raw, specs)
+    except ValueError as exc:
+        raise ConfigError(str(exc)) from exc
     ctx.config_warnings = collect_unknown_key_warnings(normalized, spec_map)
     validator_map = {
         spec.dotted_path: ctx.plugin_registry.validators_for(spec.dotted_path) for spec in specs

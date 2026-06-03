@@ -1,4 +1,4 @@
-"""Python 3.9-compatible entry point discovery."""
+"""Entry point discovery via compat shim."""
 
 from __future__ import annotations
 

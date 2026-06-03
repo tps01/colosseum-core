@@ -1,0 +1,98 @@
+spec: "1.0"
+devices:
+  keysight_e4407b_sa:
+    eom:
+      GPIB INSTR:
+        q: "\n"
+        r: "\n"
+    error: ERROR
+    dialogues:
+      - q: "*IDN?"
+        r: "Agilent Technologies,E4407B,MY00000001,A.14.00"
+      - q: "*RST"
+      - q: "*CLS"
+      - q: "*OPC?"
+        r: "1"
+      - q: "INIT:CONT OFF"
+      - q: "INIT:IMM"
+      - q: "DISP:UPD OFF"
+      - q: "DISP:UPD ON"
+      - q: "CALC:MARK1:MAX"
+      - q: "TRAC:DATA? TRACE1"
+        r: "-42.5,-41.0,-40.5,-41.5,-43.0"
+      - q: "SYST:ERR?"
+        r: "0,No error"
+    properties:
+      center_freq:
+        default: 1000000000.0
+        getter:
+          q: "FREQ:CENT?"
+          r: "{:.6f}"
+        setter:
+          q: "FREQ:CENT {:.6f}"
+        specs:
+          type: float
+      center_freq_sens:
+        default: 1000000000.0
+        getter:
+          q: "SENS:FREQ:CENT?"
+          r: "{:.6f}"
+        setter:
+          q: "SENS:FREQ:CENT {:.6f}"
+        specs:
+          type: float
+      span:
+        default: 10000000.0
+        getter:
+          q: "FREQ:SPAN?"
+          r: "{:.6f}"
+        setter:
+          q: "FREQ:SPAN {:.6f}"
+        specs:
+          type: float
+      span_sens:
+        default: 10000000.0
+        getter:
+          q: "SENS:FREQ:SPAN?"
+          r: "{:.6f}"
+        setter:
+          q: "SENS:FREQ:SPAN {:.6f}"
+        specs:
+          type: float
+      rbw:
+        default: 100000.0
+        getter:
+          q: "BAND:RES?"
+          r: "{:.6f}"
+        setter:
+          q: "BAND:RES {:.6f}"
+        specs:
+          type: float
+      rbw_sens:
+        default: 100000.0
+        getter:
+          q: "SENS:BAND:RES?"
+          r: "{:.6f}"
+        setter:
+          q: "SENS:BAND:RES {:.6f}"
+        specs:
+          type: float
+      marker_x:
+        default: 1000000000.0
+        getter:
+          q: "CALC:MARK1:X?"
+          r: "{:.6f}"
+        setter:
+          q: "CALC:MARK1:X {:.6f}"
+        specs:
+          type: float
+      marker_y:
+        default: -42.5
+        getter:
+          q: "CALC:MARK1:Y?"
+          r: "{:.3f}"
+        specs:
+          type: float
+resources:
+  GPIB::18::INSTR:
+    device: keysight_e4407b_sa

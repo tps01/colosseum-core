@@ -12,6 +12,7 @@ Writes ``build/docgen/<module_id>/rst/`` and ``manifest.json``.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import shutil
 import subprocess
 import sys
@@ -69,8 +70,19 @@ def _write_module_index(rst_dir: Path, spec: DocgenModuleSpec) -> None:
     (rst_dir / "index.rst").write_text("\n".join(lines), encoding="utf-8")
 
 
-def _run_apidoc(rst_dir: Path, repo_root: Path, module: str) -> None:
-    args = ["-f", "-e", "-M", "-o", str(rst_dir), str(repo_root), module]
+def _module_source_path(module: str) -> Path:
+    spec = importlib.util.find_spec(module)
+    if spec is None:
+        raise SystemExit(f"Cannot locate module for docgen: {module}")
+    if spec.submodule_search_locations:
+        return Path(next(iter(spec.submodule_search_locations))).resolve()
+    if spec.origin:
+        return Path(spec.origin).resolve()
+    raise SystemExit(f"Cannot locate source path for docgen module: {module}")
+
+
+def _run_apidoc(rst_dir: Path, module: str) -> None:
+    args = ["-f", "-e", "-M", "-o", str(rst_dir), str(_module_source_path(module))]
     try:
         from sphinx.ext.apidoc import main as apidoc_main
 
@@ -79,6 +91,21 @@ def _run_apidoc(rst_dir: Path, repo_root: Path, module: str) -> None:
         return
     except ImportError as exc:
         raise SystemExit("sphinx is required for docgen (pip install colosseum[docs])") from exc
+
+
+def _patch_decorator_package_autodoc(rst_dir: Path) -> None:
+    """Drop package-level re-exports that collide with submodule doc targets."""
+    path = rst_dir / "colosseum.decorators.rst"
+    if not path.is_file():
+        return
+    text = path.read_text(encoding="utf-8")
+    marker = "   :exclude-members: measurement, verification\n"
+    if marker in text:
+        return
+    needle = "   :undoc-members:\n"
+    if needle not in text:
+        return
+    path.write_text(text.replace(needle, needle + marker, 1), encoding="utf-8")
 
 
 def build_module(
@@ -92,6 +119,8 @@ def build_module(
     if clean and staging.exists():
         shutil.rmtree(staging)
     rst_dir.mkdir(parents=True, exist_ok=True)
+    for old_rst in rst_dir.glob("*.rst"):
+        old_rst.unlink()
 
     repo_root = _repo_root()
     if str(repo_root) not in sys.path:
@@ -109,7 +138,9 @@ def build_module(
                 shutil.copy2(rst_file, rst_dir / rst_file.name)
 
     for module in spec.autodoc_modules:
-        _run_apidoc(rst_dir, repo_root, module)
+        _run_apidoc(rst_dir, module)
+
+    _patch_decorator_package_autodoc(rst_dir)
 
     _write_module_index(rst_dir, spec)
     write_manifest(spec, staging, rst_subdir="rst")

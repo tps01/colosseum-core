@@ -1,5 +1,8 @@
 # FFO: Extensions and Plugins
 
+> **Documentation note:** Normative behavior is in [mvp/scope.md](../mvp/scope.md), Sphinx user guides, and the codebase. Wave 1/2/3 references below are historical sequencing only.
+
+
 ## Summary
 
 Third-party and first-party packages extend Colosseum by registering namespaces, measurements, and verifications through the same entry-point mechanism. Extensions persist data via core database APIs and write artifacts into the active output directory.

@@ -1,7 +1,7 @@
 param(
     [string]$Python = "python",
     [string]$VenvPath = "",
-    [string[]]$Extras = @("test", "mutation")
+    [switch]$SkipDev
 )
 
 $ErrorActionPreference = "Stop"
@@ -43,14 +43,20 @@ Write-Host "Using Python $PythonVersion"
 Write-Host "Installing/updating build tooling..."
 & $VenvPython -m pip install --upgrade pip setuptools wheel
 
-$SelectedExtras = @($Extras | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+$SelectedSkipDev = $SkipDev.IsPresent -or ($env:SKIP_DEV -eq "1")
 $InstallTarget = "."
-if ($SelectedExtras.Count -gt 0) {
-    $InstallTarget = ".[{0}]" -f ($SelectedExtras -join ",")
-}
 
 Write-Host "Installing editable project: $InstallTarget"
 & $VenvPython -m pip install --editable $InstallTarget
+
+if (-not $SelectedSkipDev) {
+    $DevRequirements = Join-Path $RepoRoot "requirements-dev.txt"
+    if (-not (Test-Path $DevRequirements)) {
+        throw "Dev requirements file was not found: $DevRequirements"
+    }
+    Write-Host "Installing dev requirements: requirements-dev.txt"
+    & $VenvPython -m pip install -r $DevRequirements
+}
 
 . $ActivateScript
 

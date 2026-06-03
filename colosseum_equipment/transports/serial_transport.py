@@ -10,7 +10,7 @@ class SerialTransport(Transport):
             import serial
         except ImportError as exc:  # pragma: no cover
             raise EquipmentConnectionError(
-                "pyserial is required for driver=serial. Install colosseum with the equipment extra."
+                "pyserial is required for driver=serial. Reinstall colosseum."
             ) from exc
 
         try:

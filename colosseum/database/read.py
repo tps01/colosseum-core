@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import json
-from typing import Any, List
+from pathlib import Path
+from typing import List
 
 from .records import MeasurementRecord, RunMetadataRecord, VerificationRecord
 
@@ -12,6 +12,10 @@ def _ctx():
     return require_context()
 
 _ALLOWED_TABLES = frozenset({"measurements", "verifications", "events", "artifacts", "run_metadata"})
+
+
+def is_allowed_table(name: str) -> bool:
+    return name in _ALLOWED_TABLES or name.startswith("plugin_")
 
 
 def read_measurements() -> List[MeasurementRecord]:
@@ -39,8 +43,6 @@ def read_table(name: str) -> List[dict]:
     ctx = _ctx()
     if not ctx.db.is_initialized():
         raise RuntimeError("Database is not initialized for this run")
-    if name in _ALLOWED_TABLES:
-        return ctx.db.fetch_table_rows(name)
-    if name.startswith("plugin_"):
+    if is_allowed_table(name):
         return ctx.db.fetch_table_rows(name)
     raise ValueError(f"Unknown or disallowed table: {name}")

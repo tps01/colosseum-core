@@ -1,0 +1,6 @@
+name = "embedded_smoke"
+
+tests = [
+  "../../../examples/test_ssh_health.py",
+  "../examples/regex_noisy_stdout.py",
+]

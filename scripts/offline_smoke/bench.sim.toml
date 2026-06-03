@@ -1,0 +1,19 @@
+# Simulated bench for offline install smoke tests.
+
+[[equipment.psu]]
+psu_id = 1
+driver = "sim"
+resource = "SIM::PSU1"
+model = "generic"
+interface = "sim"
+voltage = 3.3
+ovp = 3.6
+ocp = 1.0
+
+[equipment.dmm]
+dmm_id = 1
+driver = "sim"
+resource = "SIM::DMM1"
+model = "generic"
+interface = "sim"
+timeout = 5.0

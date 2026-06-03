@@ -1,5 +1,8 @@
 # FFO: Single Test Execution
 
+> **Documentation note:** Normative behavior is in [mvp/scope.md](../mvp/scope.md), Sphinx user guides, and the codebase. Wave 1/2/3 references below are historical sequencing only.
+
+
 ## Summary
 
 Users run one Python test case file—either directly with the Python interpreter or via the `colosseum run` CLI—and Colosseum initializes runtime state, executes user code, aggregates verification results, and exits with `0` or `1`.

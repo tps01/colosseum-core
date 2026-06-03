@@ -6,7 +6,7 @@
 #   . ./scripts/start_environment.sh
 #
 # Environment overrides:
-#   PYTHON=python3.12 VENV_PATH=/path/to/.venv EXTRAS=bench,test,docs,mutation
+#   PYTHON=python3.12 VENV_PATH=/path/to/.venv SKIP_DEV=1
 
 SCRIPT_PATH=${BASH_SOURCE:-$0}
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$SCRIPT_PATH")" && pwd)
@@ -16,7 +16,7 @@ fi
 REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 PYTHON_BIN=${PYTHON:-python3}
 VENV_ROOT=${VENV_PATH:-"$REPO_ROOT/.venv"}
-SELECTED_EXTRAS=${EXTRAS:-test,mutation}
+SKIP_DEV=${SKIP_DEV:-0}
 
 if ! cd "$REPO_ROOT"; then
     echo "Failed to change to repository root: $REPO_ROOT" >&2
@@ -57,15 +57,18 @@ if ! "$VENV_PYTHON" -m pip install --upgrade pip setuptools wheel; then
     return 1 2>/dev/null || exit 1
 fi
 
-INSTALL_TARGET="."
-if [ -n "$SELECTED_EXTRAS" ]; then
-    INSTALL_TARGET=".[${SELECTED_EXTRAS}]"
-fi
-
-echo "Installing editable project: $INSTALL_TARGET"
-if ! "$VENV_PYTHON" -m pip install --editable "$INSTALL_TARGET"; then
+echo "Installing editable project: ."
+if ! "$VENV_PYTHON" -m pip install --editable .; then
     echo "Failed to install editable project." >&2
     return 1 2>/dev/null || exit 1
+fi
+
+if [ "$SKIP_DEV" != "1" ]; then
+    echo "Installing dev requirements: requirements-dev.txt"
+    if ! "$VENV_PYTHON" -m pip install -r "$REPO_ROOT/requirements-dev.txt"; then
+        echo "Failed to install dev requirements." >&2
+        return 1 2>/dev/null || exit 1
+    fi
 fi
 
 # shellcheck source=/dev/null

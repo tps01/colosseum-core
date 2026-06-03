@@ -1,0 +1,72 @@
+﻿spec: "1.0"
+devices:
+  keysight_xseries_sa:
+    eom:
+      GPIB INSTR:
+        q: "\n"
+        r: "\n"
+    error: ERROR
+    dialogues:
+      - q: "*IDN?"
+        r: "Keysight Technologies,N9030A,MY00000001,A.14.00"
+      - q: "*RST"
+      - q: "*CLS"
+      - q: "*OPC?"
+        r: "1"
+      - q: "*ESR?"
+        r: "0"
+      - q: "*STB?"
+        r: "0"
+      - q: "*TST?"
+        r: "0"
+      - q: "INIT:CONT OFF"
+      - q: "INIT:IMM"
+      - q: "SYST:ERR?"
+        r: "0,No error"
+    properties:
+      center_freq:
+        default: 1000000000.0
+        getter:
+          q: "FREQ:CENT?"
+          r: "{:.6f}"
+        setter:
+          q: "FREQ:CENT {:.6f}"
+        specs:
+          type: float
+      span:
+        default: 10000000.0
+        getter:
+          q: "FREQ:SPAN?"
+          r: "{:.6f}"
+        setter:
+          q: "FREQ:SPAN {:.6f}"
+        specs:
+          type: float
+      rbw:
+        default: 100000.0
+        getter:
+          q: "BAND:RES?"
+          r: "{:.6f}"
+        setter:
+          q: "BAND:RES {:.6f}"
+        specs:
+          type: float
+      marker_x:
+        default: 1000000000.0
+        getter:
+          q: "CALC:MARK1:X?"
+          r: "{:.6f}"
+        setter:
+          q: "CALC:MARK1:X {:.6f}"
+        specs:
+          type: float
+      marker_y:
+        default: -42.5
+        getter:
+          q: "CALC:MARK1:Y?"
+          r: "{:.3f}"
+        specs:
+          type: float
+resources:
+  GPIB::11::INSTR:
+    device: keysight_xseries_sa

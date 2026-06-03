@@ -9,8 +9,8 @@ def spec() -> DocgenModuleSpec:
     return DocgenModuleSpec(
         module_id="colosseum_equipment",
         title="Colosseum Equipment",
-        import_packages=["colosseum_equipment"],
-        autodoc_modules=["colosseum_equipment"],
+        import_packages=["colosseum_equipment", "colosseum_equipment.io"],
+        autodoc_modules=["colosseum_equipment", "colosseum_equipment.io"],
         order=20,
         namespace="equipment",
     )

@@ -1,0 +1,10 @@
+# Committed bench config for Yocto QEMU regression (host runs colosseum, SSH to guest).
+# See infra/yocto/README.md and docs/testing/qemu-yocto-regression.md.
+
+[shared.ssh]
+ssh_id = 1
+host = "127.0.0.1"
+port = 2222
+username = "root"
+password = ""
+timeout = 60.0

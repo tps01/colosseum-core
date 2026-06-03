@@ -69,6 +69,8 @@ def _write_conf_py(target: Path, repo_root: Path) -> None:
         intersphinx_mapping = {{
             "python": ("https://docs.python.org/3", None),
         }}
+
+        latex_engine = "pdflatex"
         '''
     ).strip() + "\n"
     (target / "conf.py").write_text(conf, encoding="utf-8")
@@ -105,8 +107,11 @@ def _write_site_index(site_source: Path, manifests: List[dict]) -> None:
         "   :caption: User guide",
         "",
         "   guides/installation",
+        "   guides/offline_install",
         "   guides/quickstart",
         "   guides/configuration",
+        "   guides/bench_config_reference",
+        "   guides/rf_equipment",
         "   guides/running_tests",
         "   guides/running_suites",
         "   guides/output_artifacts",
@@ -154,6 +159,11 @@ def stitch(
         if guides_dest.exists():
             shutil.rmtree(guides_dest)
         shutil.copytree(guides_src, guides_dest)
+
+    config_ref_src = docgen_root / "config_reference.rst"
+    if config_ref_src.is_file():
+        guides_dest.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(config_ref_src, guides_dest / "bench_config_reference.rst")
 
     api_root = site_source / "api"
     api_root.mkdir(parents=True, exist_ok=True)

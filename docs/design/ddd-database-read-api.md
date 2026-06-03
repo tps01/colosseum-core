@@ -1,5 +1,8 @@
 # DDD: Database Read API
 
+> **Documentation note:** Normative behavior is in [mvp/scope.md](../mvp/scope.md), Sphinx user guides, and the codebase. Wave 1/2/3 references below are historical sequencing only.
+
+
 ## Responsibilities
 
 Expose typed read helpers for **inspection and tooling** during or after a run without raw SQL ([ADR-005](../decisions/adr-005-database-read-api.md)). Pass/fail and process exit are handled by `col.endex()` ([ddd-results-exit-codes.md](ddd-results-exit-codes.md)); tests must not use read helpers to gate exit.

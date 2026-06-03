@@ -1,5 +1,8 @@
 # DDD: Logging
 
+> **Documentation note:** Normative behavior is in [mvp/scope.md](../mvp/scope.md), Sphinx user guides, and the codebase. Wave 1/2/3 references below are historical sequencing only.
+
+
 ## Responsibilities
 
 Configure Python `logging` for Colosseum runs: file handler to `debug.log`, console handler optional (CLI `--verbose`), header metadata, namespaced loggers for plugins.

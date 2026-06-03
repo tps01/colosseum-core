@@ -1,5 +1,8 @@
 # DDD: Runtime Context
 
+> **Documentation note:** Normative behavior is in [mvp/scope.md](../mvp/scope.md), Sphinx user guides, and the codebase. Wave 1/2/3 references below are historical sequencing only.
+
+
 ## Responsibilities
 
 Own global active runtime state for v1: configuration, paths, DB manager, logger, plugin registry, aggregation, active test/suite names.

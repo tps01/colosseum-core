@@ -1,0 +1,73 @@
+﻿spec: "1.0"
+devices:
+  tektronix_tds_tbs_scope:
+    eom:
+      GPIB INSTR:
+        q: "\n"
+        r: "\n"
+    error: ERROR
+    dialogues:
+      - q: "*IDN?"
+        r: "TEKTRONIX,TDS2002C,C000000,CF:91.1CT FV:v22.10"
+      - q: "*RST"
+      - q: "*CLS"
+      - q: "*OPC?"
+        r: "1"
+      - q: "*ESR?"
+        r: "0"
+      - q: "*STB?"
+        r: "0"
+      - q: "ALLEV?"
+        r: "0"
+      - q: "BUSY?"
+        r: "0"
+      - q: "TRIG FORC"
+      - q: "TRIG:MAIN SETL"
+    properties:
+      acq_state:
+        default: 0
+        getter:
+          q: "ACQ:STATE?"
+          r: "{:.0f}"
+        setter:
+          q: "ACQ:STATE {:.0f}"
+        specs:
+          type: int
+          valid: [0, 1]
+      ch1_scale:
+        default: 0.5
+        getter:
+          q: "CH1:SCA?"
+          r: "{:.6f}"
+        setter:
+          q: "CH1:SCA {:.6f}"
+        specs:
+          type: float
+      h_scale:
+        default: 0.001
+        getter:
+          q: "HOR:MAI:SCA?"
+          r: "{:.9f}"
+        setter:
+          q: "HOR:MAI:SCA {:.9f}"
+        specs:
+          type: float
+      trig_level:
+        default: 0.0
+        getter:
+          q: "TRIG:MAI:LEV?"
+          r: "{:.6f}"
+        setter:
+          q: "TRIG:MAI:LEV {:.6f}"
+        specs:
+          type: float
+      meas_value:
+        default: 1.234
+        getter:
+          q: "MEASU:IMM:VAL?"
+          r: "{:.6f}"
+        specs:
+          type: float
+resources:
+  GPIB::12::INSTR:
+    device: tektronix_tds_tbs_scope

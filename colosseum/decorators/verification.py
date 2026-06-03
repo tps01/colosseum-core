@@ -1,3 +1,5 @@
+"""Persist decorated verification results and feed the run result aggregator."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -11,12 +13,16 @@ from ..output import ensure_output_dir
 
 @dataclass(frozen=True)
 class MeasurementSource:
+    """Link a verification to a prior measurement ``domain`` and ``command``."""
+
     domain: str
     command: str
 
 
 @dataclass
 class VerificationResult:
+    """Outcome returned by ``@verification`` functions (``PASS``, ``FAIL``, or ``ERROR``)."""
+
     status: str
     message: str = ""
     optional: bool = False
@@ -43,6 +49,11 @@ def verification(
     *,
     sources: Optional[Iterable[MeasurementSource]] = None,
 ):
+    """Decorator that records verification rows and updates exit aggregation.
+
+    Wrapped functions must accept ``key=`` and return :class:`VerificationResult` (or
+    ``bool``). Use ``sources=`` to require measurements before the check runs.
+    """
     source_list = list(sources or [])
 
     def decorate(func: Callable):

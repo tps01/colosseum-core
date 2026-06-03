@@ -9,6 +9,7 @@ Usage:
   python scripts/cleanup.py --dry-run
   python scripts/cleanup.py
   python scripts/cleanup.py --include-venvs
+  python scripts/cleanup.py --include-infra
 """
 
 from __future__ import annotations
@@ -45,6 +46,14 @@ ROOT_DIRS = (
     ".tox",
     ".nox",
     ".hypothesis",
+    "wheelhouse",
+    "offline-bundle",
+)
+
+# Paths under repo root removed with --include-infra (Yocto builds are multi-GB).
+INFRA_DIRS = (
+    "infra/yocto/build",
+    "infra/yocto/cache",
 )
 
 # Top-level dirs only removed with --include-venvs.
@@ -72,6 +81,11 @@ WALK_FILE_GLOBS = (
     "MANIFEST",
     "*.egg",
     "pip-log.txt",
+    "colosseum-*-offline-*.tar.gz",
+    "*.wic",
+    "*.ext4",
+    "*.img",
+    "*.iso",
 )
 
 # Directory globs anywhere in the tree (e.g. *.egg-info).
@@ -113,6 +127,7 @@ def _collect_paths(
     root: Path,
     *,
     include_venvs: bool,
+    include_infra: bool,
 ) -> List[Path]:
     targets: List[Path] = []
 
@@ -120,6 +135,12 @@ def _collect_paths(
         path = root / name
         if path.exists():
             targets.append(path)
+
+    if include_infra:
+        for rel in INFRA_DIRS:
+            path = root / rel
+            if path.exists():
+                targets.append(path)
 
     if include_venvs:
         for name in VENV_DIRS:
@@ -202,10 +223,19 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Also remove .venv/, venv/, env/ at repository root",
     )
+    parser.add_argument(
+        "--include-infra",
+        action="store_true",
+        help="Also remove infra/yocto/build/ and infra/yocto/cache/ (Yocto artifacts)",
+    )
     args = parser.parse_args(argv)
     root = _repo_root()
 
-    targets = _collect_paths(root, include_venvs=args.include_venvs)
+    targets = _collect_paths(
+        root,
+        include_venvs=args.include_venvs,
+        include_infra=args.include_infra,
+    )
     if not targets:
         print("Nothing to clean.")
         return 0

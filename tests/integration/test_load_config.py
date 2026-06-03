@@ -19,3 +19,12 @@ def test_lazy_namespaces_resolve(bench_sim, isolated_cwd) -> None:
     load_config(bench_sim)
     assert hasattr(col.equipment, "psu")
     assert hasattr(col.shared, "ssh")
+
+
+def test_bench_toml_omits_driver_on_visa_instruments(repo_root, isolated_cwd) -> None:
+    path = repo_root / "examples" / "configs" / "bench.toml"
+    store = load_config(str(path))
+    psu = store.require_item("equipment.psu", 1)
+    assert "driver" not in psu
+    dmm = store.require_item("equipment.dmm", 1)
+    assert "driver" not in dmm

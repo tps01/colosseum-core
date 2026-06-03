@@ -25,5 +25,11 @@ class GenericPSU:
     def measure_voltage(self) -> float:
         return self._scpi.query_float("MEAS:VOLT?")
 
+    def measure_current(self) -> float:
+        return self._scpi.query_float("MEAS:CURR?")
+
+    def measure_output_state(self) -> bool:
+        return bool(int(float(self._scpi.query("OUTP?"))))
+
     def close(self) -> None:
         self._scpi._transport.close()

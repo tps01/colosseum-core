@@ -1,5 +1,10 @@
 # FFO: Bench Configuration
 
+> **Documentation note:** Normative behavior is in [mvp/scope.md](../mvp/scope.md), Sphinx user guides, and the codebase. Wave 1/2/3 references below are historical sequencing only.
+
+
+> **Key lists:** Run ``python scripts/docgen/build_all.py`` and open the generated **Bench configuration reference** (``bench_config_reference`` in the HTML manual). Do not duplicate ``required_keys`` / ``optional_keys`` by hand.
+
 ## Summary
 
 Users describe bench resources (instruments, SSH targets, timeouts) in TOML files. Colosseum loads, normalizes, and exposes configuration to core and plugins through a consistent access API.
@@ -31,30 +36,51 @@ Users describe bench resources (instruments, SSH targets, timeouts) in TOML file
 ```toml
 [equipment.dmm]
 dmm_id = 1
-driver = "visa"
 resource = "USB0::0x1234::0x5678::INSTR"
 ```
+
+Lab entries omit ``driver``; the default is ``visa`` (PyVISA + SCPI). Use ``driver = "sim"`` in CI/smoke configs.
 
 **Multiple PSUs:**
 
 ```toml
 [[equipment.psu]]
 psu_id = 1
-driver = "visa"
 resource = "COM1"
 
 [[equipment.psu]]
 psu_id = 2
-driver = "visa"
 resource = "GPIB::5::INSTR"
 ```
 
-**Interface vs model:**
+**RF instruments (VSG + spectrum analyzer):**
 
 ```toml
-[equipment.spectrum_analyzer]
-sa_id = 1
-model = "example-sa"
+[[equipment.vsg]]
+vsg_id = 1
+model = "keysight-esg"
+resource = "GPIB0::19::INSTR"
+frequency = 1e9
+power_dbm = -10.0
+
+[[equipment.speca]]
+speca_id = 1
+model = "keysight-e4407b"
+resource = "GPIB0::18::INSTR"
+center_freq = 1e9
+span = 10e6
+rbw = 100e3
+timeout = 10.0
+```
+
+Legacy planning docs may refer to `equipment.spectrum_analyzer` / `sa_id`; implemented sections use **`equipment.speca` / `speca_id`**.
+
+**Interface vs model (historical SA example):**
+
+```toml
+[equipment.speca]
+speca_id = 1
+model = "keysight-e4407b"
 interface = "ethernet"
 resource = "TCPIP0::192.168.1.25::INSTR"
 timeout = 10.0
