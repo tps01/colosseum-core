@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "colosseum"
-version = "0.3.1"
+version = "0.3.2"
 description = "Colosseum test automation framework (core + bench plugins)"
 requires-python = ">=3.9"
 license = { text = "MIT" }
