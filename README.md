@@ -8,7 +8,7 @@ Python test automation for embedded and bench system testing. Scripts use `impor
 
 ## Get started
 
-Pick one path below. All paths install the same runtime (`colosseum` CLI, equipment/shared plugins, sim and PyVISA-sim support).
+Pick one path below. All paths install the same runtime (`colosseum` CLI, equipment/shared plugins, and in-process sim drivers).
 
 ### 1. Clone from Git (development)
 
@@ -51,8 +51,8 @@ Pushing a tag `v*` (for example `v0.3.0`) runs the [Release workflow](.github/wo
 |-------|-----|
 | `colosseum-<ver>-py3-none-any.whl` | Online install: `pip install colosseum-<ver>-py3-none-any.whl` |
 | `colosseum-<ver>.tar.gz` (sdist) | `pip install colosseum-<ver>.tar.gz` or build wheels on another platform |
-| `colosseum-<ver>-offline-<os>-<arch>-pyXY.tar.gz` | Air-gapped bench: extract, venv, `pip install --no-index --find-links=wheels colosseum==<ver>` |
-| `colosseum.pdf` (when published on the release) | Offline user / API reference; same content as CI docgen PDF |
+| `colosseum-<ver>-offline-<os>-<arch>-pyXY.tar.gz` | Air-gapped **bench** (runtime wheels only; no pytest/Sphinx/docgen) |
+| `colosseum.pdf` (when published on the release) | End-user API reference (built by project CI; not inside offline tarballs) |
 
 Offline bundles are built per OS and Python minor (`py39`, `py311`, etc.). The `pyXY` in the filename **must match** the interpreter in your venv. After install, smoke-test with the files inside the bundle:
 
@@ -62,12 +62,13 @@ colosseum run smoke/run_sim.py --config smoke/bench.sim.toml
 
 Full steps (Windows/Linux, Docker check, regression): [offline install guide](docs/sphinx/source/guides/offline_install.rst) (also in generated HTML under **Guides → Offline install**).
 
-To build a bundle yourself from a connected checkout:
+To build a runtime bundle for air-gapped benches (from a connected checkout):
 
 ```sh
 py -3.11 scripts/package_offline.py          # Linux/Windows bundle for that interpreter
-py -3.11 scripts/package_offline.py --include-dev   # optional: pytest, Sphinx, Cosmic Ray wheels
 ```
+
+**Developers** (tests, docgen, PyVISA-sim): clone the repo and use `pip install -r requirements-dev.txt` — do not rely on offline tarballs for that tooling.
 
 ### 3. PyPI (when published)
 
@@ -90,11 +91,12 @@ Pip installs Python packages; the host still needs OS/runtime pieces for some fe
 | Serial instruments (`driver = "serial"`) | `pyserial` (included) | Correct `COM*` (Windows) or `/dev/ttyUSB*` (Linux); Linux: `dialout` or udev |
 | SSH / remote shell (`col.shared`) | `paramiko` (included) | Network reachability; keys/credentials in bench config |
 | GUI runner (`colosseum --gui`) | `customtkinter` (included) | Display; Linux: `python3-tk` |
-| PyVISA-sim tests (`pytest -m visa_sim`) | `pyvisa-sim` (included) | **Python 3.10+**; no lab VISA |
-| RF examples offline | `examples/configs/bench.rf.visa-sim.toml` | Python 3.10+ for visa_sim marker tests |
+| PyVISA-sim CI/dev tests (`pytest -m visa_sim`) | `pip install -e ".[test]"` (not in default install) | **Python 3.10+**; no lab VISA |
+| RF visa-sim integration tests | `examples/configs/bench.rf.visa-sim.toml` | Dev install + Python 3.10+ |
 | Build HTML docs | `pip install -r requirements-dev.txt` | None |
 | Build PDF docs (`build_all.py` default) | Dev requirements + Sphinx | `latexmk` + TeX (MiKTeX/TeX Live on Windows; `texlive-*` on Ubuntu — see [CI docgen job](.github/workflows/ci.yml)) |
-| Build offline release bundle | Source checkout + `scripts/package_offline.py` | Network; same Python **minor** as target bench |
+| Build offline release bundle (end users) | Source checkout + `scripts/package_offline.py` | Network; runtime wheels only; same Python **minor** as target bench |
+| Develop (pytest, docgen, visa_sim) | Git clone + `requirements-dev.txt` | Connected machine; not packaged in offline tarballs |
 
 Verify VISA after install: `python -m pyvisa info` inside your venv.
 
@@ -130,12 +132,12 @@ colosseum run-suite tests/fixtures/suites/smoke.toml --config examples/configs/b
 ```sh
 python -m pytest tests/unit              # unit tests only
 python scripts/run_tests.py              # default tiers 1–3
-pytest -m visa_sim -q                      # PyVISA-sim (Python 3.10+)
+pytest -m visa_sim -q                      # PyVISA-sim dev tests (3.10+, .[test] extra)
 python scripts/docgen/build_all.py       # HTML + PDF; --skip-pdf without LaTeX
 python scripts/cleanup.py --dry-run      # remove outputs/, build/, caches
 ```
 
-GitHub Actions: pytest on Windows and Ubuntu (3.9, 3.11), `visa_sim` on 3.10+, docgen PDF artifact, offline bundle smoke, packaging smoke. Pages docs: manual [Documentation workflow](.github/workflows/docs.yml) (`workflow_dispatch`).
+GitHub Actions: pytest on Windows and Ubuntu (3.9 skips `visa_sim`, 3.11 full), dedicated `visa_sim` job on 3.10+, docgen PDF artifact, offline bundle smoke, packaging smoke. Pages docs: manual [Documentation workflow](.github/workflows/docs.yml) (`workflow_dispatch`).
 
 Details: [testing guide](docs/testing/README.md), [regression procedure](docs/testing/regression-test-procedure.md).
 

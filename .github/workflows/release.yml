@@ -2,11 +2,6 @@ name: Release
 
 on:
   workflow_dispatch:
-    inputs:
-      include_dev:
-        description: Include dev wheels in offline bundle
-        type: boolean
-        default: false
   push:
     tags:
       - "v*"
@@ -28,22 +23,8 @@ jobs:
           cache: pip
       - name: Install build dependencies
         run: python -m pip install -U pip setuptools wheel build
-      - name: Build offline bundle (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $args = @()
-          if ("${{ inputs.include_dev }}" -eq "true") { $args += "--include-dev" }
-          python scripts/package_offline.py @args
-      - name: Build offline bundle (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          args=()
-          if [ "${{ inputs.include_dev }}" = "true" ]; then
-            args+=(--include-dev)
-          fi
-          python scripts/package_offline.py "${args[@]}"
+      - name: Build end-user offline bundle
+        run: python scripts/package_offline.py
       - name: Upload offline bundle artifact
         uses: actions/upload-artifact@v4
         with:

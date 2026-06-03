@@ -8,6 +8,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+# PyVISA-sim is test-only (.[test] extra) and needs Python 3.10+.
+_PYTEST_MARKER_ARGS = (
+    ["-m", "not visa_sim"]
+    if sys.version_info < (3, 10)
+    else []
+)
+
 
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
@@ -33,6 +40,7 @@ def main() -> int:
         "tests/integration",
         "tests/e2e",
         "-q",
+        *_PYTEST_MARKER_ARGS,
         *pytest_argv,
     ]
     code = subprocess.call(cmd, cwd=root)

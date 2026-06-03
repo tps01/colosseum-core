@@ -16,13 +16,14 @@ The supported end-of-run API is `col.endex()`. It writes final metadata, writes 
 
 | Area | Implemented status |
 |------|--------------------|
-| Python | `>=3.9` |
+| Python | `>=3.9` (`pyvisa` 1.14.x on 3.9, `>=1.15` on 3.10+) |
 | Platforms | Windows and Linux-oriented code paths; current local validation has been on Windows |
 | Network | No cloud dependency; hardware/SSH uses bundled runtime dependencies |
 | User import | `import colosseum as col` |
 | Packaging | One source project containing `colosseum`, `colosseum_equipment`, and `colosseum_shared` packages |
-| Default install | Full runtime (VISA, serial, SSH, PyVISA-sim, GUI); dev tools via `requirements-dev.txt` |
-| Optional extras | `test`, `docs`, `mutation` (dev); deprecated empty aliases `bench`, `gui`, `equipment-sim`, etc. |
+| Default install | Full runtime (VISA, serial, SSH, GUI); dev tools via git clone + `requirements-dev.txt` |
+| Offline tarballs | End-user runtime wheels only (from `scripts/package_offline.py`); no pytest/Sphinx/docgen/PyVISA-sim |
+| Optional extras | `test` (pytest + PyVISA-sim on 3.10+), `docs`, `mutation` (dev); deprecated aliases `bench`, `gui`, `equipment-sim` → visa-sim, etc. |
 | Documentation generation | Sphinx/docgen scripts under `scripts/docgen/` |
 
 ## Implemented Runtime Behavior

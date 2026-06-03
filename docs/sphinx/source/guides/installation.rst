@@ -2,8 +2,8 @@ Installation
 ============
 
 Colosseum ships as a single ``colosseum`` package. A normal install includes the full
-runtime stack: VISA/serial equipment transports, SSH (``col.shared``), PyVISA-sim,
-and the optional GUI runner (``customtkinter``).
+runtime stack: VISA/serial equipment transports, SSH (``col.shared``), and the
+GUI runner (``customtkinter``). PyVISA-sim is for repository tests only (``.[test]`` extra; install via ``pip install -e ".[test]"``).
 
 End users (when published to PyPI)::
 
@@ -31,7 +31,8 @@ Some capabilities need OS packages that pip cannot install:
 - **Linux serial:** ``dialout`` group membership or udev rules for ``/dev/ttyUSB*``
 - **VISA hardware:** a VISA implementation PyVISA can load (NI-VISA, Keysight IO Libraries,
   Tektronix VISA, Rohde & Schwarz, etc., or pure-Python ``pyvisa-py``). Not required for
-  ``driver = "sim"`` or PyVISA-sim. Use ``python -m pyvisa info`` to see the active backend.
+  ``driver = "sim"``. PyVISA-sim is optional for developers (``.[test]`` extra). Use
+  ``python -m pyvisa info`` to see the active VISA backend.
 
 Example (Debian/Ubuntu)::
 
@@ -41,7 +42,8 @@ Offline / air-gapped install
 ----------------------------
 
 See :doc:`offline_install` for building and installing from a pre-downloaded wheel
-bundle without network access.
+bundle without network access. Tarballs are for **bench end users** (runtime only).
+Tests, docgen, and PyVISA-sim require a git clone and ``requirements-dev.txt``.
 
 Source checkout helpers
 -----------------------

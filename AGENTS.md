@@ -11,7 +11,7 @@ Baseline expectations for AI agents in this repository.
 
 - User import: `import colosseum as col`. End-of-run: **`col.endex()`** only (flush logs/DB, `summary.txt`, `summary.json`, exit `0`/`1`). Do not gate exit via `read_verifications()` loops.
 - Example/test scripts: **one line per `col.*` call** with inline keyword args (see `examples/`).
-- Offline/CI bench: `examples/configs/bench.sim.toml` (`driver = "sim"`) or `COLOSSEUM_BENCH_CONFIG=bench.sim.toml`. PyVISA-sim: `examples/configs/bench.visa-sim.toml` and `pytest -m visa_sim` (Python 3.10+). RF PyVISA-sim: `examples/configs/bench.rf.visa-sim.toml`.
+- Offline/CI bench: `examples/configs/bench.sim.toml` (`driver = "sim"`) or `COLOSSEUM_BENCH_CONFIG=bench.sim.toml`. PyVISA-sim is **test-only** (`.[test]` extra, Python 3.10+): `pytest -m visa_sim`, `examples/configs/bench.visa-sim.toml`, `bench.rf.visa-sim.toml`.
 
 ## Repository layout
 

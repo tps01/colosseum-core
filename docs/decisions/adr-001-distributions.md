@@ -40,4 +40,4 @@ Architecture §5 and open question §22 Q1 ask how Colosseum is packaged and wha
 
 ## Addendum (0.3.0)
 
-The repository ships **one** setuptools project (`colosseum`) containing `colosseum`, `colosseum_equipment`, and `colosseum_shared`. Runtime dependencies (VISA, serial, SSH, PyVISA-sim, GUI) are installed by default. Split PyPI distributions remain deferred. Dev tools use `requirements-dev.txt` or optional extras `test`, `docs`, and `mutation`.
+The repository ships **one** setuptools project (`colosseum`) containing `colosseum`, `colosseum_equipment`, and `colosseum_shared`. Runtime dependencies (VISA, serial, SSH, GUI) are installed by default; PyVISA-sim is test-only (`.[test]` extra). Split PyPI distributions remain deferred. Dev tools use `requirements-dev.txt` or optional extras `test`, `docs`, and `mutation`.

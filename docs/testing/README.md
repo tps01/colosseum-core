@@ -55,7 +55,7 @@ python scripts/run_tests.py --regression
 
 ## PyVISA-sim (Python 3.10+)
 
-Semi-realistic SCPI mocks from YAML (PyVISA-sim is included in the default install):
+Semi-realistic SCPI mocks from YAML (install `pip install -e ".[test]"` first; not in the default package):
 
 ```bash
 pytest -m visa_sim -q

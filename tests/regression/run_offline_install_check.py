@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""R-OFFLINE-00: build offline bundle and install without network access."""
+"""R-OFFLINE-00: build end-user runtime bundle and install without network access."""
 
 from __future__ import annotations
 

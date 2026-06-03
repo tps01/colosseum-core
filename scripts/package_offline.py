@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
-Build an offline install bundle (wheelhouse + smoke files + tarball).
+Build an end-user offline install bundle (runtime wheels + smoke test + tarball).
+
+Bundles contain only default ``colosseum`` runtime dependencies. Developers who
+need pytest, Sphinx, docgen, or PyVISA-sim install from a git clone
+(``requirements-dev.txt``), not from offline tarballs.
 
 Usage:
   python scripts/package_offline.py
-  python scripts/package_offline.py --include-dev
   python scripts/package_offline.py --skip-build   # reuse dist/*.tar.gz
 """
 
@@ -98,7 +101,7 @@ def _build_artifacts() -> tuple[Path, Path]:
     return sdists[-1], wheels[-1]
 
 
-def _download_wheels(wheel: Path, *, include_dev: bool) -> None:
+def _download_wheels(wheel: Path) -> None:
     if WHEELHOUSE.exists():
         shutil.rmtree(WHEELHOUSE)
     WHEELHOUSE.mkdir(parents=True)
@@ -127,31 +130,7 @@ def _download_wheels(wheel: Path, *, include_dev: bool) -> None:
                 "tomli",
             ]
         )
-    if include_dev:
-        dev_req = REPO_ROOT / "requirements-dev.txt"
-        if not dev_req.is_file():
-            raise RuntimeError(f"Missing dev requirements: {dev_req}")
-        _run(
-            [
-                sys.executable,
-                "-m",
-                "pip",
-                "download",
-                "--dest",
-                str(WHEELHOUSE),
-                *_pip_download_args(),
-                "-r",
-                str(dev_req),
-            ]
-        )
-
-
-def _write_install_md(version: str, *, include_dev: bool) -> str:
-    dev_note = (
-        "\nDev tools (pytest, Sphinx, mutation) are included in ``wheels/``.\n"
-        if include_dev
-        else ""
-    )
+def _write_install_md(version: str) -> str:
     return f"""# Colosseum offline install (v{version})
 
 ## Prerequisites
@@ -167,7 +146,6 @@ source .venv/bin/activate   # Windows: .venv\\Scripts\\activate
 pip install --no-index --find-links=wheels colosseum=={version}
 ```
 
-{dev_note}
 ## Smoke test
 
 ```bash
@@ -178,7 +156,7 @@ Expected: exit code ``0`` and ``outputs/*/summary.txt`` with ``Overall result: P
 """
 
 
-def _stage_bundle(version: str, *, include_dev: bool) -> Path:
+def _stage_bundle(version: str) -> Path:
     if STAGING.exists():
         shutil.rmtree(STAGING)
     wheels_dir = STAGING / "wheels"
@@ -189,10 +167,7 @@ def _stage_bundle(version: str, *, include_dev: bool) -> Path:
     shutil.copy2(SMOKE_CONFIG, smoke_dir / "bench.sim.toml")
     shutil.copy2(SMOKE_SCRIPT, smoke_dir / "run_sim.py")
 
-    (STAGING / "INSTALL.md").write_text(
-        _write_install_md(version, include_dev=include_dev),
-        encoding="utf-8",
-    )
+    (STAGING / "INSTALL.md").write_text(_write_install_md(version), encoding="utf-8")
     if INSTALL_RST.is_file():
         shutil.copy2(INSTALL_RST, STAGING / "offline_install.rst")
     return STAGING
@@ -212,11 +187,6 @@ def _create_tarball(version: str) -> Path:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build Colosseum offline install bundle")
     parser.add_argument(
-        "--include-dev",
-        action="store_true",
-        help="Also download wheels for requirements-dev.txt",
-    )
-    parser.add_argument(
         "--skip-build",
         action="store_true",
         help="Reuse newest dist/colosseum-*.tar.gz instead of rebuilding",
@@ -233,8 +203,8 @@ def main(argv: list[str] | None = None) -> int:
     else:
         _, wheel = _build_artifacts()
 
-    _download_wheels(wheel, include_dev=args.include_dev)
-    _stage_bundle(version, include_dev=args.include_dev)
+    _download_wheels(wheel)
+    _stage_bundle(version)
     archive = _create_tarball(version)
 
     print(f"\nOffline bundle: {archive}")

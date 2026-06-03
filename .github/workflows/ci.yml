@@ -81,7 +81,7 @@ jobs:
         run: |
           python -m venv /tmp/colosseum-packaging-venv
           /tmp/colosseum-packaging-venv/bin/pip install dist/*.whl
-          /tmp/colosseum-packaging-venv/bin/python -c "import pyvisa, paramiko, customtkinter, pyvisa_sim"
+          /tmp/colosseum-packaging-venv/bin/python -c "import pyvisa, paramiko, customtkinter"
           /tmp/colosseum-packaging-venv/bin/colosseum --help
 
   offline-install:

@@ -33,10 +33,10 @@ Plugins register repeatable sections at load time (for example ``equipment.psu``
 
 Required and optional keys per section (generated from code) are in :doc:`bench_config_reference`. Build the HTML manual with ``python scripts/docgen/build_all.py`` to refresh that page.
 
-For offline development and CI:
+For repository developers and CI (git clone + ``.[test]`` extra, not offline tarballs):
 
 * ``examples/configs/bench.sim.toml`` — ``driver = "sim"`` (PSU/DMM cooperative sim)
-* ``examples/configs/bench.visa-sim.toml`` — PyVISA-sim for DMM/PSU SCPI
-* ``examples/configs/bench.rf.visa-sim.toml`` — PyVISA-sim for VSG and speca (Python 3.10+)
+* ``examples/configs/bench.visa-sim.toml`` — PyVISA-sim for DMM/PSU SCPI (dev/CI; ``.[test]`` extra)
+* ``examples/configs/bench.rf.visa-sim.toml`` — PyVISA-sim for VSG and speca (dev/CI; Python 3.10+)
 
 See :doc:`rf_equipment` for RF workflow examples.

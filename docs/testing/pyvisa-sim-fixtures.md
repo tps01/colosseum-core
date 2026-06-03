@@ -9,7 +9,7 @@ Colosseum supports two offline instrument simulation layers:
 
 ## Install
 
-PyVISA-sim is included in the default Colosseum install. Requires **Python 3.10+** (`pyvisa-sim` 0.7.x).
+PyVISA-sim is **not** in the default install; use the test extra (`pip install -e ".[test]"`). Requires **Python 3.10+** (`pyvisa-sim` 0.7.x).
 
 ## Run tests
 
