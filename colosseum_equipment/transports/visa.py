@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from colosseum_equipment.exceptions import EquipmentConnectionError, EquipmentTimeoutError
+from colosseum_equipment.exceptions import EquipmentConnectionError
 from colosseum_equipment.transports.base import Transport
+from colosseum_equipment.transports.visa_errors import map_visa_exception, raise_mapped_visa_error
 
 
 def _find_repo_root() -> Path | None:
@@ -48,6 +49,7 @@ class VISATransport(Transport):
                 "pyvisa is required for driver=visa. Reinstall colosseum."
             ) from exc
 
+        self._resource = resource
         self._timeout = timeout
         backend = (visa_backend or "").lower()
         try:
@@ -74,37 +76,40 @@ class VISATransport(Transport):
         except EquipmentConnectionError:
             raise
         except Exception as exc:
-            raise EquipmentConnectionError(f"Failed to open VISA resource `{resource}`: {exc}") from exc
+            mapped = map_visa_exception(exc, resource=resource)
+            raise EquipmentConnectionError(
+                f"Failed to open VISA resource `{resource}`: {mapped}"
+            ) from exc
 
     def write(self, data: str) -> None:
         try:
             self._inst.write(data)
         except Exception as exc:
-            raise EquipmentTimeoutError(str(exc)) from exc
+            raise_mapped_visa_error(exc, resource=self._resource)
 
     def read(self) -> str:
         try:
             return str(self._inst.read())
         except Exception as exc:
-            raise EquipmentTimeoutError(str(exc)) from exc
+            raise_mapped_visa_error(exc, resource=self._resource)
 
     def query(self, data: str) -> str:
         try:
             return str(self._inst.query(data))
         except Exception as exc:
-            raise EquipmentTimeoutError(str(exc)) from exc
+            raise_mapped_visa_error(exc, resource=self._resource)
 
     def write_raw(self, data: bytes) -> None:
         try:
             self._inst.write_raw(data)
         except Exception as exc:
-            raise EquipmentTimeoutError(str(exc)) from exc
+            raise_mapped_visa_error(exc, resource=self._resource)
 
     def read_raw(self, size: int = 655360) -> bytes:
         try:
             return bytes(self._inst.read_raw(size))
         except Exception as exc:
-            raise EquipmentTimeoutError(str(exc)) from exc
+            raise_mapped_visa_error(exc, resource=self._resource)
 
     def close(self) -> None:
         try:

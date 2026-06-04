@@ -32,6 +32,8 @@ def _resolve_domain(func: Callable) -> str:
     module = func.__module__
     if module.startswith("colosseum_shared"):
         return "shared"
+    if module.startswith("colosseum_equipment.io"):
+        return "io"
     if module.startswith("colosseum_equipment"):
         return "equipment"
     return getattr(func, "__colosseum_domain__", "core")

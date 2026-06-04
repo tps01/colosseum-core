@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.conftest import latest_output_dir, query_db, verification_row
+from tests.support.helpers import latest_output_dir, query_db, verification_row
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -71,6 +71,26 @@ def test_cli_run_script_crash_exits_one_and_finalizes(bench_sim, isolated_cwd, s
     meta = dict(query_db(run_dir, "SELECT key, value FROM run_metadata"))
     assert meta.get("overall_status") == "FAIL"
     assert meta.get("exit_code") == "1"
+
+
+def test_cli_run_system_exit_marks_script_failure(bench_sim, isolated_cwd, subprocess_env) -> None:
+    script = isolated_cwd / "sys_exit_test.py"
+    script.write_text(
+        "import sys\n\n"
+        "def main():\n"
+        "    sys.exit(2)\n",
+        encoding="utf-8",
+    )
+    proc = _cli_run(script, bench_sim, isolated_cwd, subprocess_env)
+    assert proc.returncode == 1
+    run_dir = latest_output_dir(isolated_cwd)
+    meta = dict(query_db(run_dir, "SELECT key, value FROM run_metadata"))
+    events = "\n".join(
+        row[0]
+        for row in query_db(run_dir, "SELECT message FROM events ORDER BY id")
+    )
+    assert meta.get("overall_status") == "FAIL"
+    assert "script_exit:" in events
 
 
 @pytest.mark.requirement("E2E-W1-04")

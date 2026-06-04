@@ -42,6 +42,6 @@ Suite orchestration is implemented through `colosseum run-suite`. The repository
 ## Related Documentation
 
 - [Top-level README](../README.md)
-- [Implemented MVP status](../docs/mvp/scope.md)
+- [Implementation scope](../docs/scope.md)
 - [User guides](../docs/sphinx/source/guides/)
 - [Testing guide](../docs/testing/README.md)

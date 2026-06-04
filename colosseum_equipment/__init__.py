@@ -3,7 +3,7 @@
 from colosseum.config.sections import ConfigSectionSpec
 from colosseum.plugins.registry import PluginRegistry
 
-from colosseum_equipment.connections import close_all
+from colosseum_equipment.connections import close_all, register_atexit_cleanup
 from colosseum_equipment.instruments._config_keys import VISA_OPTIONAL_KEYS
 
 
@@ -12,7 +12,7 @@ _IO_CONFIG_SPECS = (
         "io.dio",
         "dio_id",
         required_keys=(),
-        optional_keys=("driver", "resource", "port_lines"),
+        optional_keys=("driver", "resource", "port_lines", "direction"),
     ),
     ConfigSectionSpec(
         "io.i2c",
@@ -36,6 +36,7 @@ def register(registry: PluginRegistry) -> None:
     registry.register_namespace("equipment", api)
     registry.register_namespace("io", io_api)
     registry.register_shutdown(close_all)
+    register_atexit_cleanup()
     for spec in (*_CONFIG_SPECS, *_IO_CONFIG_SPECS):
         registry.register_config_section(spec)
 

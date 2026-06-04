@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from colosseum.runner.suite import run_suite
-from tests.conftest import latest_output_dir, query_db
+from tests.support.helpers import latest_output_dir, query_db
 
 
 def _run_suite_expect_exit(suite_path, bench_sim, isolated_cwd, code: int) -> None:

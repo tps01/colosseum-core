@@ -1,22 +1,22 @@
 # PyVISA-sim bench: driver=visa with visa_backend=sim and per-instrument YAML definitions.
-# Simulated bench with PyVISA-sim (visa_backend = "sim"). Python 3.10+.
+# Simulated bench with PyVISA-sim (visa_backend = sim). Python 3.10+.
 # Run tests: pytest -m visa_sim
 # Paths are relative to the repository root when running from a checkout.
 
 [[equipment.psu]]
 psu_id = 1
-visa_backend = "sim"
-sim_definition = "tests/fixtures/pyvisa_sim/generic_psu.yaml"
-resource = "GPIB::1::INSTR"
-model = "generic"
+visa_backend = sim
+sim_definition = tests/fixtures/pyvisa_sim/generic_psu.yaml
+resource = GPIB::1::INSTR
+model = generic
 voltage = 3.3
 ovp = 3.6
 ocp = 1.0
 
 [equipment.dmm]
 dmm_id = 1
-visa_backend = "sim"
-sim_definition = "tests/fixtures/pyvisa_sim/generic_dmm.yaml"
-resource = "GPIB::2::INSTR"
-model = "generic"
+visa_backend = sim
+sim_definition = tests/fixtures/pyvisa_sim/generic_dmm.yaml
+resource = GPIB::2::INSTR
+model = generic
 timeout = 5.0

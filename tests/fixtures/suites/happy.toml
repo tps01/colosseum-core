@@ -1,4 +1,4 @@
-name = "fixture_happy"
+name = fixture_happy
 
 setup = ["../scripts/setup_ok.py"]
 

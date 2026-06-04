@@ -36,7 +36,8 @@ Platform notes
 **Offline / air-gapped install (Windows or Linux)**
 
 - Build the offline bundle with the Python minor you will use on the bench: ``py -3.11 scripts/package_offline.py`` (or ``py -3.9``). See :doc:`offline_install`.
-- Install from the tarball with ``pip install --no-index --find-links=wheels colosseum==<version>``; the bundle ``pyXY`` tag must match the venv interpreter.
+- **Windows:** right-click the ``.tar.gz`` → **Extract All**, open ``offline-bundle``, run ``install.ps1`` or ``install.bat``.
+- **Linux:** ``tar xzf colosseum-*-offline-*.tar.gz``, ``cd offline-bundle``, run ``./install.sh``.
 - Run the bundled smoke test: ``colosseum run smoke/run_sim.py --config smoke/bench.sim.toml``.
 
 **Offline / CI**
@@ -55,11 +56,20 @@ Platform notes
 - Host SSH cases use ``infra/yocto/conf/bench.qemu.toml`` (port 2222).
 - Offline install and GUI cases install Colosseum on the guest via offline wheel bundle.
 
+**VISA sessions and cleanup**
+
+- End every test script with ``col.endex()`` so results, logs, and instrument sessions are released. ``colosseum run`` calls ``endex()`` in a ``finally`` block even when the script fails.
+- Colosseum closes cached instruments before their transports on shutdown. Spectrum analyzers may send a final ``DISP:UPD ON`` while the session is still open.
+- If a script exits without ``endex()``, the equipment plugin registers a best-effort ``atexit`` handler that calls ``close_all()`` when a runtime context exists and is not yet finalized. That handler does **not** write summaries or exit codes; prefer ``endex()`` or ``colosseum run``.
+- ``atexit`` does not run on ``kill -9`` or hard crashes. After an abnormal exit, confirm no other process holds the instrument (another Python REPL, vendor UI, LabVIEW), then retry. On Windows, end stray ``python.exe`` tasks if ``resource locked`` persists; power-cycle or reset VISA only as a last resort.
+
 **Troubleshooting**
 
-- ``pyvisa`` / VISA connection errors: check ``resource`` strings with ``pyvisa-shell`` or the vendor utility; confirm ``colosseum`` is installed with its dependencies intact.
+- ``pyvisa`` / VISA connection errors: check ``resource`` strings with ``pyvisa-shell`` or the vendor utility; confirm ``colosseum`` is installed with its dependencies intact. Colosseum maps PyVISA failures to ``EquipmentConnectionError`` (including invalid/closed sessions and locked resources) or ``EquipmentTimeoutError`` (VISA timeout).
+- **Resource locked / in use:** another session holds the same ``resource`` string; close other apps or zombie Python processes before re-running.
 - Empty or ``ERROR`` responses with ``visa_backend = "sim"``: verify ``sim_definition`` path and that YAML ``resources:`` keys match the bench ``resource``; see ``docs/testing/pyvisa-sim-fixtures.md``.
 - Permission denied on serial (Linux): group membership or udev rules for the adapter.
+- **FT232H GPIO (``col.io.dio``):** install ``pip install colosseum[io]`` for pyftdi. On Windows, assign WinUSB to the FT232H with Zadig (USB serial alone is not enough for MPSSE GPIO). On Linux, install ``libusb`` and ensure udev permissions for the adapter. See :doc:`io_digital`.
 
 **GUI runner**
 

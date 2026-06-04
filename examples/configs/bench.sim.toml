@@ -2,45 +2,51 @@
 
 [[equipment.psu]]
 psu_id = 1
-driver = "sim"
-resource = "SIM::PSU1"
-model = "generic"
-interface = "sim"
+driver = sim
+resource = SIM::PSU1
+model = generic
+interface = sim
 voltage = 3.3
 ovp = 3.6
 ocp = 1.0
 
 [[equipment.psu]]
 psu_id = 2
-driver = "sim"
-resource = "SIM::PSU2"
-model = "generic"
-interface = "sim"
+driver = sim
+resource = SIM::PSU2
+model = generic
+interface = sim
 voltage = 12.0
 ovp = 12.4
 ocp = 3.0
 
 [equipment.dmm]
 dmm_id = 1
-driver = "sim"
-resource = "SIM::DMM1"
-model = "generic"
-interface = "sim"
+driver = sim
+resource = SIM::DMM1
+model = generic
+interface = sim
 timeout = 5.0
 
 [equipment.serial]
 serial_id = 1
-driver = "sim"
-port = "SIM4"
+driver = sim
+port = SIM4
 baudrate = 115200
 timeout = 2.0
 
 [shared.ssh]
 ssh_id = 1
-driver = "sim"
-host = "sim.local"
+driver = sim
+host = sim.local
 port = 22
-username = "root"
+username = root
 key_filename = ""
 password = ""
 timeout = 30.0
+
+[[io.dio]]
+dio_id = 1
+driver = sim
+port_lines = 8
+direction = 0xFF

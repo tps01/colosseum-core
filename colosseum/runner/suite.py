@@ -40,8 +40,12 @@ def load_suite_toml(path: Path) -> SuiteDefinition:
     if not suite_path.exists():
         raise SuiteError(f"Suite file not found: {suite_path}")
     try:
-        with suite_path.open("rb") as fh:
-            raw = tomllib.load(fh)
+        from ..config.toml_relaxed import loads_relaxed
+
+        text = suite_path.read_text(encoding="utf-8")
+        raw = loads_relaxed(text)
+    except UnicodeDecodeError as exc:
+        raise SuiteError(f"Suite file is not valid UTF-8: {suite_path}: {exc}") from exc
     except tomllib.TOMLDecodeError as exc:
         raise SuiteError(f"Invalid suite TOML: {exc}") from exc
 

@@ -8,6 +8,7 @@ from ..context import get_context, init_context
 from ..plugins.loader import ensure_plugins_loaded
 from .normalize import normalize_sections
 from .sections import ConfigSectionSpec
+from .toml_relaxed import loads_relaxed
 from .validate import collect_unknown_key_warnings, run_section_validators
 
 try:
@@ -79,15 +80,25 @@ def _default_test_name() -> str:
     return "run"
 
 
+def _load_toml(config_path: Path) -> dict[str, Any]:
+    data = config_path.read_bytes()
+    if data.startswith(b"\xef\xbb\xbf"):
+        data = data[3:]
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ConfigError(f"Config file is not valid UTF-8: {config_path}: {exc}") from exc
+    try:
+        return loads_relaxed(text)
+    except tomllib.TOMLDecodeError as exc:
+        raise ConfigError(f"Invalid TOML in {config_path}: {exc}") from exc
+
+
 def load_config(path: str | Path) -> ConfigStore:
     config_path = Path(path).resolve()
     if not config_path.exists():
         raise ConfigError(f"Config file not found: {config_path}")
-    try:
-        with config_path.open("rb") as fh:
-            raw = tomllib.load(fh)
-    except tomllib.TOMLDecodeError as exc:
-        raise ConfigError(f"Invalid TOML in {config_path}: {exc}") from exc
+    raw = _load_toml(config_path)
 
     existing_ctx = get_context()
     if existing_ctx is None:
@@ -108,8 +119,13 @@ def load_config(path: str | Path) -> ConfigStore:
         spec.dotted_path: ctx.plugin_registry.validators_for(spec.dotted_path) for spec in specs
     }
     ctx.config_warnings.extend(run_section_validators(normalized, spec_map, validator_map))
+    if ctx.output_dir is not None and ctx.logger is not None:
+        for warning in ctx.config_warnings:
+            ctx.logger.warning(warning)
     store = ConfigStore(raw, normalized, spec_map)
     ctx.config = store
+    if ctx.db.is_initialized():
+        ctx.db.insert_run_metadata("config_path", str(config_path))
     return store
 
 
@@ -123,3 +139,8 @@ def get(dotted: str, default: Optional[Any] = None) -> Any:
     if value is None:
         return default
     return value
+
+
+def is_loaded() -> bool:
+    ctx = get_context()
+    return ctx is not None and ctx.config is not None

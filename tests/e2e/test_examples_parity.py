@@ -33,7 +33,9 @@ def _run_example(name: str, bench_sim: Path, isolated_cwd: Path, env: dict[str, 
 
 
 def test_example_power_rails(bench_sim, isolated_cwd, subprocess_env) -> None:
-    _run_example("test_power_rails.py", bench_sim, isolated_cwd, subprocess_env)
+    env = dict(subprocess_env)
+    env.pop("COLOSSEUM_BENCH_CONFIG", None)
+    _run_example("test_power_rails.py", bench_sim, isolated_cwd, env)
 
 
 def test_example_ssh_health(bench_sim, isolated_cwd, subprocess_env) -> None:

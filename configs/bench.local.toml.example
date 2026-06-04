@@ -25,3 +25,11 @@ username = "root"
 key_filename = "C:/path/to/id_rsa"
 password = ""
 timeout = 30.0
+
+# FT232H GPIO (requires: pip install colosseum[io])
+[[io.dio]]
+dio_id = 1
+driver = ftdi-ft232h
+resource = ftdi://ftdi:232h/1
+port_lines = 8
+direction = 0x0F

@@ -7,7 +7,7 @@ import pytest
 import colosseum as col
 from colosseum.config import load_config
 
-from tests.conftest import latest_output_dir, query_db, run_endex_expect_code
+from tests.support.helpers import latest_output_dir, query_db, run_endex_expect_code
 
 
 def test_decorators_create_sqlite_log_and_summary(bench_sim, isolated_cwd) -> None:

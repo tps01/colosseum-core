@@ -25,7 +25,8 @@ _CONFIG = Path(__file__).resolve().parent / "configs" / os.environ.get("COLOSSEU
 
 
 def main() -> None:
-    col.config.load_config(str(_CONFIG))
+    if not col.config.is_loaded():
+        col.config.load_config(str(_CONFIG))
 
     # --- Stimulus: configure supply and enable output ---
     col.equipment.psu.set_voltage(psu_id=1, voltage=3.3)

@@ -9,7 +9,7 @@ from colosseum.config import load_config
 from colosseum.output.paths import sanitize_logical_name
 from colosseum.output.runs import find_run_directory, list_run_directories, read_summary_json
 
-from tests.conftest import latest_output_dir, run_endex_expect_code
+from tests.support.helpers import latest_output_dir, run_endex_expect_code
 
 
 def test_sanitize_logical_name_strips_invalid_chars() -> None:

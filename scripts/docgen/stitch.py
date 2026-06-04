@@ -111,6 +111,7 @@ def _write_site_index(site_source: Path, manifests: List[dict]) -> None:
         "   guides/quickstart",
         "   guides/configuration",
         "   guides/bench_config_reference",
+        "   guides/io_digital",
         "   guides/rf_equipment",
         "   guides/running_tests",
         "   guides/running_suites",

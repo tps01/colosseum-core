@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
 
 import pytest
 
 from colosseum.config import load_config
+from colosseum.context import require_context
 
 pytestmark = [
     pytest.mark.visa_sim,
@@ -55,6 +57,19 @@ def test_speca_peak_and_marker_power(bench_rf, isolated_cwd) -> None:
     speca.peak_search(speca_id=1, marker=1)
     power = speca.measure_marker_power(speca_id=1, marker=1, key="carrier")
     assert power == pytest.approx(-42.5, rel=1e-3)
+
+
+def test_speca_shutdown_hook_succeeds_after_use(bench_rf, isolated_cwd, caplog) -> None:
+    pytest.importorskip("pyvisa_sim")
+    from colosseum_equipment.connections import get_cached_instrument
+
+    with caplog.at_level(logging.ERROR, logger="colosseum.plugins"):
+        load_config(bench_rf)
+        get_cached_instrument("speca", 1)
+        require_context().plugin_registry.run_shutdown()
+
+    assert "Plugin shutdown hook failed" not in caplog.text
+    assert require_context().resource_cache == {}
 
 
 def test_speca_marker_at_frequency_and_verify(bench_rf, isolated_cwd) -> None:

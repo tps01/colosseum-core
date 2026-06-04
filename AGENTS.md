@@ -4,7 +4,7 @@ Baseline expectations for AI agents in this repository.
 
 ## Purpose
 
-- Normative docs: `docs/mvp/scope.md`, `docs/sphinx/source/guides/`, `examples/`, and code. Bench config keys: run `python scripts/docgen/build_all.py` (generated **Bench configuration reference**). ADRs/FFOs/DDDs are design history (see `docs/archive/README.md` for removed files).
+- Normative docs: `docs/scope.md`, `docs/sphinx/source/guides/`, `examples/`, and code. Bench config keys: run `python scripts/docgen/build_all.py` (generated **Bench configuration reference**). Archived ADRs/FFOs/DDDs: `docs/archive/planning/` (see `docs/archive/README.md`).
 - Small, reviewable diffs. No commits unless asked. Read `RULES.md` at task start (user-owned; do not edit unless asked).
 
 ## API and examples
@@ -18,18 +18,19 @@ Baseline expectations for AI agents in this repository.
 | Path | Role |
 |------|------|
 | `colosseum/` | Core: config, context, decorators, DB, runner (`run`, `run-suite`), plugins registry |
-| `colosseum_equipment/` | Plugin → `col.equipment.*` and `col.io.*` (PSU/DMM/VSG/speca/SCPI; DIO/I2C/SPI stubs; `visa`/`serial`/`sim`) |
+| `colosseum_equipment/` | Plugin → `col.equipment.*` and `col.io.*` (PSU/DMM/VSG/speca/SCPI; DIO sim/FT232H + I2C/SPI stubs; `visa`/`serial`/`sim`) |
 | `colosseum_shared/` | Plugin → `col.shared.*` (SSH, regex, parsing; `sim`/paramiko) |
-| `docs/` | Planning (FFO/DDD/ADR); user guides are **not** here |
+| `docs/` | Scope, testing notes, releasing; user guides are under `docs/sphinx/` |
 | `docs/sphinx/source/guides/` | Hand-written Sphinx RST |
+| `docs/archive/planning/` | Historical ADRs, FFOs, DDDs (not normative) |
 | `outputs/` | Run artifacts (`debug.log`, `execution.sqlite`, `summary.txt`, `summary.json`) — gitignored |
 | `build/` | Docgen staging + HTML — gitignored |
 
 **Entry points:** `colosseum.plugins` (runtime `register(registry)`), `colosseum.docgen` (`docgen_entry:spec` → `DocgenModuleSpec`). Monorepo dev works without install via built-in fallbacks in `plugins/loader.py` and `docgen/discover.py`.
 
-## MVP implementation status
+## Implementation status
 
-Waves 1–3 are implemented: single-test + suite runners, plugins, optional verifications, `summary.txt`, `col.database.read_*`, vendor models `keysight-edu34450a` / `tdk-genesys` in equipment factory. RF VSG/speca (Wave A/B) with `keysight-esg`, `keysight-e4407b`, `tektronix-rsa5100b`. Post-MVP: parallel suites, JSON-schema config, context-manager API, etc. (`docs/mvp/scope.md`).
+Core runtime is implemented: single-test + suite runners, plugins, optional verifications, `summary.txt` / `summary.json`, `col.database.read_*`, vendor models `keysight-edu34450a` / `tdk-genesys`, RF VSG/speca with `keysight-esg`, `keysight-e4407b`, `tektronix-rsa5100b`. Deferred items (parallel suites, JSON-schema config, context-manager API, etc.) are listed in [`docs/scope.md`](docs/scope.md).
 
 ## Scripts
 
@@ -44,7 +45,8 @@ Waves 1–3 are implemented: single-test + suite runners, plugins, optional veri
 
 Install: `pip install -e .` for runtime; `pip install -r requirements-dev.txt` for pytest, docs, and mutation checks. See `docs/testing/README.md` and `docs/testing/regression-test-procedure.md`.
 
-## Doc and design hygiene
+## Doc hygiene
 
-- Update FFO/DDD cross-refs when behavior changes. User-doc tracker: `docs/mvp/user-documentation.md`.
+- When behavior changes, update `docs/scope.md` and Sphinx guides as needed; archived planning docs are historical only.
+- User-doc tracker: `docs/user-documentation.md`.
 - `python -m colosseum.runner.cli` requires `if __name__ == "__main__": main()` in `runner/cli.py` (module is not executed when imported).

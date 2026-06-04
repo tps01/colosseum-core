@@ -1,8 +1,14 @@
 from __future__ import annotations
 
-from colosseum.context import require_context
+import atexit
+import logging
+
+from colosseum.context import get_context, require_context
 
 from colosseum_equipment.transports.base import Transport
+
+_logger = logging.getLogger("colosseum.equipment")
+_atexit_registered = False
 
 
 def _cache_key(kind: str, equipment_id: int) -> str:
@@ -39,9 +45,40 @@ def get_cached_instrument(kind: str, equipment_id: int):
 
 def close_all() -> None:
     ctx = require_context()
-    keys = [k for k in list(ctx.resource_cache) if k.startswith("equipment:") or k.startswith("instrument:")]
-    for key in keys:
+    keys = [
+        k
+        for k in list(ctx.resource_cache)
+        if k.startswith("equipment:")
+        or k.startswith("instrument:")
+        or k.startswith("io:backend:")
+    ]
+    instrument_keys = [k for k in keys if k.startswith("instrument:")]
+    io_keys = [k for k in keys if k.startswith("io:backend:")]
+    equipment_keys = [k for k in keys if k.startswith("equipment:")]
+    for key in instrument_keys + io_keys + equipment_keys:
         resource = ctx.resource_cache.pop(key, None)
         close = getattr(resource, "close", None)
-        if callable(close):
+        if not callable(close):
+            continue
+        try:
             close()
+        except Exception:
+            _logger.exception("Failed to close cached resource %s", key)
+
+
+def _atexit_close_equipment() -> None:
+    ctx = get_context()
+    if ctx is None or ctx.finalized:
+        return
+    try:
+        close_all()
+    except Exception:
+        _logger.exception("atexit equipment close failed")
+
+
+def register_atexit_cleanup() -> None:
+    global _atexit_registered
+    if _atexit_registered:
+        return
+    atexit.register(_atexit_close_equipment)
+    _atexit_registered = True

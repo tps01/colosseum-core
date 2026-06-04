@@ -2,7 +2,7 @@
 
 Python test automation for embedded and bench system testing. Scripts use `import colosseum as col`, call measurement and verification APIs, and finish with **`col.endex()`** so logs, SQLite evidence, summaries, cleanup, and exit status are consistent.
 
-**Python:** 3.9+ (3.11 recommended for new Windows/Linux benches). **Status:** [MVP scope](docs/mvp/scope.md).
+**Python:** 3.9+ (3.11 recommended for new Windows/Linux benches). **Status:** [implementation scope](docs/scope.md).
 
 ---
 
@@ -55,7 +55,13 @@ Pushing a tag `v*` (for example `v0.3.0`) runs the [Release workflow](.github/wo
 | `colosseum.pdf` | End-user API reference (on each release; not inside offline tarballs) |
 | `colosseum-docs-html.zip` | Same documentation as browsable HTML (on each release) |
 
-Offline bundles are built per OS and Python minor (`py39`, `py311`, etc.). The `pyXY` in the filename **must match** the interpreter in your venv. After install, smoke-test with the files inside the bundle:
+Offline bundles are built per OS and Python minor (`py39`, `py311`, etc.). The `pyXY` in the filename **must match** the interpreter in your venv.
+
+**Windows:** Right-click the `.tar.gz` → **Extract All**, open `offline-bundle`, then run `.\install.ps1` or `install.bat`.
+
+**Linux:** `tar xzf colosseum-*-offline-*.tar.gz`, `cd offline-bundle`, `./install.sh`.
+
+Then smoke-test:
 
 ```sh
 colosseum run smoke/run_sim.py --config smoke/bench.sim.toml
@@ -151,7 +157,7 @@ Details: [testing guide](docs/testing/README.md), [regression procedure](docs/te
 | User guides (install, config, RF, offline) | [docs/sphinx/source/guides/](docs/sphinx/source/guides/) |
 | Local HTML/PDF build | `python scripts/docgen/build_all.py` → `build/docgen/site/html/`, `build/docgen/site/latex/colosseum.pdf` |
 | Docgen pipeline | [scripts/docgen/README.md](scripts/docgen/README.md) |
-| Design / MVP / archive | [docs/README.md](docs/README.md), [docs/mvp/scope.md](docs/mvp/scope.md), [docs/archive/README.md](docs/archive/README.md) |
+| Design / scope / archive | [docs/README.md](docs/README.md), [docs/scope.md](docs/scope.md), [docs/archive/README.md](docs/archive/README.md) |
 
 ---
 
