@@ -10,6 +10,15 @@ class ScriptRunError(RuntimeError):
     pass
 
 
+def _system_exit_code(exc: SystemExit) -> int:
+    code = exc.code
+    if code is None:
+        return 0
+    if isinstance(code, int):
+        return code
+    return 1
+
+
 def run_script(path: Path) -> None:
     """Execute a test/setup/teardown script (calls main() only; no endex)."""
     ctx = require_context()
@@ -24,6 +33,15 @@ def run_script(path: Path) -> None:
         if not callable(main_fn):
             raise ScriptRunError(f"Script does not define callable main(): {resolved}")
         main_fn()
+    except SystemExit as exc:
+        if ctx.finalized:
+            raise
+        code = _system_exit_code(exc)
+        message = f"script_exit:{resolved}: code={code}"
+        ctx.db.insert_event("ERROR", "runner", message)
+        if ctx.logger is not None:
+            ctx.logger.error("Script exited before col.endex(): %s (code=%s)", resolved, code)
+        raise ScriptRunError(message) from exc
     except Exception as exc:
         ctx.db.insert_event("ERROR", "runner", f"script_fail:{resolved}: {exc}")
         if ctx.logger is not None:

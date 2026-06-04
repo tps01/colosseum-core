@@ -1,27 +1,27 @@
 from __future__ import annotations
 
-from colosseum.config.loader import ConfigError
-from colosseum.context import get_context
+from colosseum.decorators import measurement
 
-from colosseum_equipment.io.api._stub import require_driver
+from colosseum_equipment.io.connections import get_backend
 
 
-def _dio_driver(dio_id: int) -> str | None:
-    ctx = get_context()
-    if ctx is None or ctx.config is None:
-        return None
-    try:
-        return ctx.config.get_item("io.dio", dio_id).get("driver")
-    except ConfigError:
-        return None
+def configure(*, dio_id: int, direction: int) -> None:
+    get_backend("dio", dio_id).configure(direction)
+
+
+def write_port(*, dio_id: int, value: int) -> None:
+    get_backend("dio", dio_id).write_port(value)
+
+
+@measurement
+def read_port(*, dio_id: int, key: str) -> int:
+    return get_backend("dio", dio_id).read_port()
 
 
 def write_pin(*, dio_id: int, line: int, value: bool) -> None:
-    _ = line, value
-    require_driver(_dio_driver(dio_id), "write_pin", vendor_doc="NI 6501/6502 DIO")
+    get_backend("dio", dio_id).write_pin(line, value)
 
 
-def read_pin(*, dio_id: int, line: int) -> bool:
-    _ = line
-    require_driver(_dio_driver(dio_id), "read_pin", vendor_doc="NI 6501/6502 DIO")
-    return False
+@measurement
+def read_pin(*, dio_id: int, line: int, key: str) -> bool:
+    return get_backend("dio", dio_id).read_pin(line)

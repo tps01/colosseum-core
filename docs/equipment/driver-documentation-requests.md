@@ -66,3 +66,33 @@ Use `frequency_unit = "MHz"` for 54107A/54109A/54111A per the GPIB guide.
 | sdr | Ettus UHD documentation |
 | `col.io` `ni-845x` | NI DLL on host (manual 371746E on file; ctypes driver pending) |
 | `col.io` `ni-6501` | 6501/6502 DIO programming reference |
+
+## Implemented IO drivers
+
+| `driver` slug | Kind | Dependency | Notes |
+|---------------|------|------------|-------|
+| `sim` | dio | (core) | In-memory GPIO for CI/offline |
+| `ftdi-ft232h` | dio | `pip install colosseum[io]` (pyftdi) | FT232H ADBUS/ACBUS GPIO via pyftdi URL in `resource` |
+
+### Bench TOML examples
+
+**Simulated DIO:**
+
+```toml
+[[io.dio]]
+dio_id = 1
+driver = sim
+port_lines = 8
+direction = 0xFF
+```
+
+**FT232H GPIO:**
+
+```toml
+[[io.dio]]
+dio_id = 1
+driver = ftdi-ft232h
+resource = ftdi://ftdi:232h/1
+port_lines = 8
+direction = 0x0F
+```

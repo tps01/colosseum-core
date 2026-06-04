@@ -14,7 +14,7 @@ This is covered by `tests/integration/test_suite_runner.py::test_test_script_exc
 
 ## Rationale
 
-The runner preserves suite throughput and teardown execution, but an uncaught test exception is still a failed run because the script did not complete its evidence path. See [docs/mvp/scope.md](../mvp/scope.md) ("Suite test exceptions").
+The runner preserves suite throughput and teardown execution, but an uncaught test exception is still a failed run because the script did not complete its evidence path. See [docs/scope.md](../scope.md) ("Suite test exceptions").
 
 ## Future option
 

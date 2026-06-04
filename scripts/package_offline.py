@@ -31,6 +31,7 @@ SMOKE_DIR = REPO_ROOT / "scripts" / "offline_smoke"
 SMOKE_SCRIPT = SMOKE_DIR / "run_sim.py"
 SMOKE_CONFIG = SMOKE_DIR / "bench.sim.toml"
 INSTALL_RST = REPO_ROOT / "docs" / "sphinx" / "source" / "guides" / "offline_install.rst"
+INSTALL_SCRIPTS = REPO_ROOT / "scripts" / "offline_bundle"
 
 
 def _read_version() -> str:
@@ -60,6 +61,14 @@ def _python_tag() -> str:
         return f"py{major}{minor or '0'}"
     major, minor = sys.version_info[:2]
     return f"py{major}{minor}"
+
+
+def _python_minor_label() -> str:
+    tag = _python_tag()
+    digits = tag[2:] if tag.startswith("py") else f"{sys.version_info.major}{sys.version_info.minor}"
+    if len(digits) == 2:
+        return f"{digits[0]}.{digits[1]}"
+    return f"{digits[0]}.{digits[1:]}"
 
 
 def _pip_download_args(*, only_binary: bool = True) -> list[str]:
@@ -130,15 +139,33 @@ def _download_wheels(wheel: Path) -> None:
                 "tomli",
             ]
         )
-def _write_install_md(version: str) -> str:
+def _write_install_md(version: str, python_minor: str) -> str:
     return f"""# Colosseum offline install (v{version})
 
 ## Prerequisites
 
-- Python {sys.version_info.major}.{sys.version_info.minor} (same as the machine that built this bundle)
+- Python {python_minor} (same minor as the ``pyXY`` tag in this bundle filename)
 - ``python3-venv`` on Linux if creating a virtual environment
 
-## Install
+## Install (recommended)
+
+**Windows:** Right-click the ``.tar.gz`` archive → **Extract All** (or **Extract**), open the ``offline-bundle`` folder, then run one of the install scripts below from that folder.
+
+Linux / macOS: extract with ``tar xzf colosseum-*-offline-*.tar.gz``, ``cd offline-bundle``, then:
+
+   ./install.sh
+
+Windows PowerShell (from ``offline-bundle``)::
+
+   .\\install.ps1
+
+Windows Command Prompt (from ``offline-bundle``)::
+
+   install.bat
+
+Each script creates ``.venv`` in this directory, installs ``colosseum=={version}`` from ``wheels/``, and prints activation instructions.
+
+## Manual install
 
 ```bash
 python3 -m venv .venv
@@ -167,7 +194,20 @@ def _stage_bundle(version: str) -> Path:
     shutil.copy2(SMOKE_CONFIG, smoke_dir / "bench.sim.toml")
     shutil.copy2(SMOKE_SCRIPT, smoke_dir / "run_sim.py")
 
-    (STAGING / "INSTALL.md").write_text(_write_install_md(version), encoding="utf-8")
+    python_minor = _python_minor_label()
+    (STAGING / "VERSION").write_text(f"{version}\n", encoding="utf-8")
+    (STAGING / "PYTHON_MINOR").write_text(f"{python_minor}\n", encoding="utf-8")
+
+    for name in ("install.sh", "install.ps1", "install.bat"):
+        src = INSTALL_SCRIPTS / name
+        if not src.is_file():
+            raise RuntimeError(f"Missing offline install script: {src}")
+        dest = STAGING / name
+        shutil.copy2(src, dest)
+        if name.endswith(".sh"):
+            dest.chmod(dest.stat().st_mode | 0o111)
+
+    (STAGING / "INSTALL.md").write_text(_write_install_md(version, python_minor), encoding="utf-8")
     if INSTALL_RST.is_file():
         shutil.copy2(INSTALL_RST, STAGING / "offline_install.rst")
     return STAGING

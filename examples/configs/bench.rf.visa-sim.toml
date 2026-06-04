@@ -3,20 +3,20 @@
 
 [[equipment.vsg]]
 vsg_id = 1
-visa_backend = "sim"
-sim_definition = "tests/fixtures/pyvisa_sim/keysight_esg.yaml"
-resource = "GPIB::19::INSTR"
-model = "keysight-esg"
+visa_backend = sim
+sim_definition = tests/fixtures/pyvisa_sim/keysight_esg.yaml
+resource = GPIB::19::INSTR
+model = keysight-esg
 frequency = 1000000000.0
 power_dbm = -10.0
 output = false
 
 [[equipment.speca]]
 speca_id = 1
-visa_backend = "sim"
-sim_definition = "tests/fixtures/pyvisa_sim/keysight_e4407b_sa.yaml"
-resource = "GPIB::18::INSTR"
-model = "keysight-e4407b"
+visa_backend = sim
+sim_definition = tests/fixtures/pyvisa_sim/keysight_e4407b_sa.yaml
+resource = GPIB::18::INSTR
+model = keysight-e4407b
 center_freq = 1000000000.0
 span = 10000000.0
 rbw = 100000.0
@@ -24,10 +24,10 @@ timeout = 5.0
 
 [[equipment.speca]]
 speca_id = 2
-visa_backend = "sim"
-sim_definition = "tests/fixtures/pyvisa_sim/tektronix_rsa5100b_sa.yaml"
-resource = "GPIB::20::INSTR"
-model = "tektronix-rsa5100b"
+visa_backend = sim
+sim_definition = tests/fixtures/pyvisa_sim/tektronix_rsa5100b_sa.yaml
+resource = GPIB::20::INSTR
+model = tektronix-rsa5100b
 center_freq = 1000000000.0
 span = 10000000.0
 rbw = 100000.0

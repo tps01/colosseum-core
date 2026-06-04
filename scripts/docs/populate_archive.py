@@ -74,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
-    print(f"\nDone. Files are under {ARCHIVE_ROOT} (gitignored except README/MANIFEST).")
+    print(f"\nDone. Tag-recovered files are under {ARCHIVE_ROOT} (gitignored except README, MANIFEST, and planning/).")
     return 0
 
 

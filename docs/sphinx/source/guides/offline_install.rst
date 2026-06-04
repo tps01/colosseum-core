@@ -36,13 +36,14 @@ Python version and architecture, or build wheels on-target from the sdist.
 Installing on a disconnected host
 ---------------------------------
 
-Copy the tarball to the target, then::
+Copy the tarball to the target, extract it, then run the bundled install script (creates ``.venv`` and installs from ``wheels/``).
+
+Linux / macOS::
 
    tar xzf colosseum-0.3.0-offline-linux-x86_64-py311.tar.gz
    cd offline-bundle
-   python3 -m venv .venv
+   ./install.sh
    source .venv/bin/activate
-   pip install --no-index --find-links=wheels colosseum==0.3.0
    colosseum run smoke/run_sim.py --config smoke/bench.sim.toml
 
 Replace the version and archive name with your bundle. The ``pyXY`` segment in the archive name (for example ``py311``) must match the Python used on the target host.
@@ -50,16 +51,27 @@ Replace the version and archive name with your bundle. The ``pyXY`` segment in t
 Windows 11 (air-gapped)
 -----------------------
 
-On a connected Windows machine, build the bundle with the target interpreter (for example ``py -3.11``). Copy ``colosseum-*-offline-windows-amd64-py311.tar.gz`` to the bench PC, then in PowerShell::
+On a connected Windows machine, build the bundle with the target interpreter (for example ``py -3.11``). Copy ``colosseum-*-offline-windows-amd64-py311.tar.gz`` to the bench PC.
 
-   tar -xzf colosseum-0.3.0-offline-windows-amd64-py311.tar.gz
-   cd offline-bundle
-   py -3.11 -m venv .venv
+Extract the archive in File Explorer: **right-click** the ``.tar.gz`` file, then choose **Extract All** (or **Extract**). Open the ``offline-bundle`` folder that appears.
+
+In PowerShell (from ``offline-bundle``)::
+
+   .\install.ps1
    .\.venv\Scripts\Activate.ps1
-   pip install --no-index --find-links=wheels colosseum==0.3.0
    colosseum run smoke\run_sim.py --config smoke\bench.sim.toml
 
-Install **NI-VISA** (or your vendor VISA runtime) before using ``driver = "visa"`` instruments. Verify with ``python -m pyvisa info`` inside the venv. For Python 3.9 benches, build and install a ``py39`` bundle the same way.
+Command Prompt alternative: run ``install.bat``, then ``.venv\Scripts\activate.bat``.
+
+Advanced: ``tar -xzf colosseum-0.3.0-offline-windows-amd64-py311.tar.gz`` in PowerShell or Windows Terminal also works if you prefer the command line.
+
+Manual install (any platform)::
+
+   python3 -m venv .venv
+   source .venv/bin/activate   # Windows: .venv\Scripts\activate
+   pip install --no-index --find-links=wheels colosseum==0.3.0
+
+Install **NI-VISA** (or your vendor VISA runtime) before using ``driver = visa`` instruments. Verify with ``python -m pyvisa info`` inside the venv. For Python 3.9 benches, build and install a ``py39`` bundle the same way.
 
 Docker validation (optional)
 ----------------------------

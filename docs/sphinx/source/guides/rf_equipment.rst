@@ -62,4 +62,4 @@ See ``examples/test_rf_vector_mod.py`` for ``upload_waveform``, ``select_wavefor
 API reference
 -------------
 
-Generated pages under **API reference → Colosseum Equipment** list ``colosseum_equipment.api.vsg`` and ``colosseum_equipment.api.speca``. Design detail: ``docs/design/ddd-equipment-vsg-speca.md``.
+Generated pages under **API reference → Colosseum Equipment** list ``colosseum_equipment.api.vsg`` and ``colosseum_equipment.api.speca``. Historical design detail: ``docs/archive/planning/design/ddd-equipment-vsg-speca.md``.

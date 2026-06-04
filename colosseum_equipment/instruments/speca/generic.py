@@ -128,5 +128,8 @@ class GenericSpecA:
         unsupported(self._model, "set_acquisition_length")
 
     def close(self) -> None:
-        self._scpi.write("DISP:UPD ON")
+        try:
+            self._scpi.write("DISP:UPD ON")
+        except Exception:
+            pass
         self._scpi._transport.close()

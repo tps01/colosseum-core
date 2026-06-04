@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.conftest import latest_output_dir, query_db
+from tests.support.helpers import latest_output_dir, query_db
 
 REPO = Path(__file__).resolve().parents[2]
 

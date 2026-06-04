@@ -77,6 +77,8 @@ scratchpad/
 docs/archive/*
 !docs/archive/README.md
 !docs/archive/MANIFEST.md
+!docs/archive/planning/
+!docs/archive/planning/**
 
 # Offline packaging (see scripts/package_offline.py)
 wheelhouse/

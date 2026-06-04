@@ -8,7 +8,7 @@ from colosseum.database.manager import DatabaseManager, MeasurementRow
 
 
 def test_shared_unit_db_truncates_between_connections(unit_test_db, unit_test_db_uri: str) -> None:
-    from tests.db_unit import connect_unit_test_db, truncate_unit_test_db
+    from tests.unit.db_unit import connect_unit_test_db, truncate_unit_test_db
 
     first = DatabaseManager()
     connect_unit_test_db(first, unit_test_db_uri)

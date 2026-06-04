@@ -6,7 +6,7 @@ import colosseum as col
 from colosseum.config import load_config
 from colosseum.database.read_from_path import read_from_path
 
-from tests.conftest import latest_output_dir, run_endex_expect_code
+from tests.support.helpers import latest_output_dir, run_endex_expect_code
 
 
 def test_read_from_path_measurements_and_verifications(bench_sim, isolated_cwd) -> None:
