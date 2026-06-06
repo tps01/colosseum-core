@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import logging
+import re
 from datetime import datetime
 from pathlib import Path
-import re
 
 from ..context import RuntimeContext
 from ..database import initialize_database_if_needed
@@ -40,8 +41,17 @@ def ensure_output_dir(ctx: RuntimeContext, logical_name: str | None = None) -> P
         output_dir = allocate_run_directory(Path.cwd(), logical_name)
         output_dir.mkdir(parents=True, exist_ok=True)
         ctx.output_dir = output_dir
-        ctx.logger = setup_logging(ctx, console=ctx.verbose_logging)
+        ctx.logger = setup_logging(
+            ctx,
+            console=True,
+            console_level=logging.DEBUG if ctx.debug_logging else logging.INFO,
+        )
+        ctx.logger.debug("Allocated output directory: %s", output_dir)
         initialize_database_if_needed(ctx)
+        from ..config.loader import log_loaded_config
+
+        if ctx.config is not None:
+            log_loaded_config(ctx)
         for warning in ctx.config_warnings:
             ctx.logger.warning(warning)
     return ctx.output_dir

@@ -47,7 +47,7 @@ Run 4B after plugin/transport changes, vendor driver changes, or before a releas
 1. Copy [configs/bench.local.toml.example](../../configs/bench.local.toml.example) (or [examples/configs/bench.toml](../../examples/configs/bench.toml)) to a **gitignored** local file, e.g. `configs/bench.local.toml`.
 2. Set real `resource`, `port`, `host`, `key_filename` / `password`. Never commit secrets.
 3. For QEMU SSH, start from [templates/bench.qemu.toml.example](templates/bench.qemu.toml.example).
-4. Optional vendor models (Wave 3):
+4. Optional vendor models:
    - DMM: `model = "keysight-edu34450a"`
    - PSU: `model = "tdk-genesys"`
 5. Export nothing sensitive in shell history; use env vars only for non-secret overrides if needed.
@@ -60,7 +60,7 @@ Each case lists **objective**, **preconditions**, **steps**, **expected results*
 
 ### R-HW-01 — Real PSU/DMM power rail
 
-**Objective:** Wave 2 scenario 1 on physical instruments.
+**Objective:** Real PSU/DMM power-rail scenario on physical instruments.
 
 **Preconditions:** PSU and DMM powered; outputs off; `bench.local.toml` wired to correct VISA/COM resources.
 
@@ -83,7 +83,7 @@ Each case lists **objective**, **preconditions**, **steps**, **expected results*
 
 ### R-HW-02 — Vendor instrument models
 
-**Objective:** Wave 3 vendor drivers (`keysight-edu34450a`, `tdk-genesys`) on real hardware when available.
+**Objective:** Vendor drivers (`keysight-edu34450a`, `tdk-genesys`) on real hardware when available.
 
 **Preconditions:** Instruments support configured models; limits set conservatively.
 
@@ -154,7 +154,7 @@ Or: `colosseum run infra/yocto/examples/regex_noisy_stdout.py --config infra/yoc
 
 ### R-EMU-03 — Full suite on DUT
 
-**Objective:** Wave 3 lifecycle on embedded target.
+**Objective:** Suite lifecycle on embedded target.
 
 **Preconditions:** Suite TOML paths valid; setup/teardown scripts safe for DUT.
 

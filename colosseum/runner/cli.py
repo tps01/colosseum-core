@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from ..config import ConfigError, load_config
 from ..context import init_context
@@ -11,30 +11,92 @@ from ..results import endex
 from .single_test import ScriptRunError, run_script
 from .suite import SuiteError, run_suite
 
+_DESCRIPTION = (
+    "Colosseum test automation: run Python test scripts and suites with bench configuration."
+)
+_EPILOG = """examples:
+  colosseum run my_test.py --config bench.toml
+  colosseum run-suite suite.toml --config bench.toml -d
+  colosseum --gui
+"""
+
+
+def _add_common_run_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--config",
+        dest="config_path",
+        metavar="PATH",
+        help="Bench TOML config (equipment, shared, io sections)",
+    )
+    parser.add_argument(
+        "-d",
+        "--debug",
+        action="store_true",
+        help="Include DEBUG logs on stdout",
+    )
+
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="colosseum")
+    parser = argparse.ArgumentParser(
+        prog="colosseum",
+        description=_DESCRIPTION,
+        epilog=_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--gui", action="store_true", help="Launch the desktop GUI runner")
     sub = parser.add_subparsers(dest="command", required=False)
 
-    run_parser = sub.add_parser("run", help="Run a single Python test file")
-    run_parser.add_argument("test_file")
-    run_parser.add_argument("--config", dest="config_path")
-    run_parser.add_argument("--verbose", action="store_true")
+    run_parser = sub.add_parser(
+        "run",
+        help="Run a single Python test file",
+        description="Initialize runtime, call the script's main(), and finalize with col.endex().",
+    )
+    run_parser.add_argument("test_file", help="Path to the Python test script")
+    _add_common_run_options(run_parser)
 
-    suite_parser = sub.add_parser("run-suite", help="Run a suite TOML (setup, tests, teardown)")
-    suite_parser.add_argument("suite_file")
-    suite_parser.add_argument("--config", dest="config_path")
-    suite_parser.add_argument("--verbose", action="store_true")
+    suite_parser = sub.add_parser(
+        "run-suite",
+        help="Run a suite TOML (setup, tests, teardown)",
+        description=(
+            "Run setup scripts, test scripts, and teardown scripts in one output directory."
+        ),
+    )
+    suite_parser.add_argument("suite_file", help="Path to the suite TOML file")
+    _add_common_run_options(suite_parser)
+
+    help_parser = sub.add_parser(
+        "help",
+        help="Show help for colosseum or a subcommand",
+        description="Print usage for colosseum or a specific subcommand.",
+    )
+    help_parser.add_argument(
+        "topic",
+        nargs="?",
+        choices=("run", "run-suite"),
+        help="Subcommand to describe (default: top-level usage)",
+    )
     return parser
 
 
-def _run_single_test(test_path: Path, config_path: str | None, verbose: bool) -> None:
+def _print_help(parser: argparse.ArgumentParser, topic: str | None = None) -> None:
+    if topic is None:
+        parser.print_help()
+        return
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            subparser = action.choices.get(topic)
+            if subparser is not None:
+                subparser.print_help()
+                return
+    parser.error(f"unknown help topic: {topic}")
+
+
+def _run_single_test(test_path: Path, config_path: str | None, debug: bool) -> None:
     ctx = init_context(
         test_case_name=test_path.stem,
         config_path=Path(config_path).resolve() if config_path else None,
     )
-    ctx.verbose_logging = verbose
+    ctx.debug_logging = debug
     if config_path:
         load_config(config_path)
     ensure_output_dir(ctx)
@@ -57,16 +119,21 @@ def run_cli(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command is None:
-        parser.error("command required unless --gui")
+        _print_help(parser)
+        return 0
+
+    if args.command == "help":
+        _print_help(parser, getattr(args, "topic", None))
+        return 0
 
     if args.command == "run":
         test_path = Path(args.test_file).resolve()
         if not test_path.exists():
             raise SystemExit(1)
         try:
-            _run_single_test(test_path, args.config_path, bool(args.verbose))
+            _run_single_test(test_path, args.config_path, bool(args.debug))
         except ConfigError:
-            raise SystemExit(1)
+            raise SystemExit(1) from None
         return 0
 
     if args.command == "run-suite":
@@ -75,9 +142,9 @@ def run_cli(argv: list[str] | None = None) -> int:
             raise SystemExit(1)
         try:
             config = Path(args.config_path).resolve() if args.config_path else None
-            run_suite(suite_path, config, verbose=bool(args.verbose))
+            run_suite(suite_path, config, debug=bool(args.debug))
         except (ConfigError, SuiteError):
-            raise SystemExit(1)
+            raise SystemExit(1) from None
         return 0
 
     parser.error(f"Unknown command: {args.command}")

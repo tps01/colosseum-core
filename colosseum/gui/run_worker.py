@@ -8,6 +8,7 @@ import time
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
+from typing import Any
 
 from ..output.runs import find_run_directory
 from ..runner.suite import load_suite_toml
@@ -23,7 +24,7 @@ class RunRequest:
     kind: RunKind
     path: Path
     config_path: str | None
-    verbose: bool
+    debug: bool
 
 
 @dataclass
@@ -37,13 +38,13 @@ class RunWorker:
 
     def __init__(self, cwd: Path | None = None) -> None:
         self._cwd = cwd or Path.cwd()
-        self._queue: queue.Queue = queue.Queue()
+        self._queue: queue.Queue[Any] = queue.Queue()
         self._thread: threading.Thread | None = None
-        self._process: subprocess.Popen | None = None
+        self._process: subprocess.Popen[Any] | None = None
         self._stop_requested = False
 
     @property
-    def events(self) -> queue.Queue:
+    def events(self) -> queue.Queue[Any]:
         return self._queue
 
     def is_running(self) -> bool:
@@ -81,8 +82,8 @@ class RunWorker:
             argv.extend(["run-suite", str(request.path)])
         if request.config_path:
             argv.extend(["--config", request.config_path])
-        if request.verbose:
-            argv.append("--verbose")
+        if request.debug:
+            argv.append("--debug")
         return argv
 
     def _tail_log(self, log_path: Path, offset: int) -> tuple[int, list[str]]:

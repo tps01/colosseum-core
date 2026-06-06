@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from typing import Any, cast
 
 from .paths import sanitize_logical_name
 
@@ -48,8 +49,9 @@ def find_run_directory(
     return candidates[0]
 
 
-def read_summary_json(run_dir: Path) -> dict | None:
+def read_summary_json(run_dir: Path) -> dict[str, Any] | None:
     summary_path = run_dir / "summary.json"
     if not summary_path.is_file():
         return None
-    return json.loads(summary_path.read_text(encoding="utf-8"))
+    payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    return cast(dict[str, Any], payload)

@@ -5,21 +5,38 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ..context import RuntimeContext
-from ..results.aggregation import ResultAggregator
+from ..results.aggregation import OutcomeRecord, ResultAggregator
+
+
+def _count_by_kind(
+    records: list[OutcomeRecord], *, kind: str, optional: bool
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in records:
+        if row.get("kind") != kind:
+            continue
+        if bool(row.get("optional")) != optional:
+            continue
+        status = row["status"]
+        counts[status] = counts.get(status, 0) + 1
+    return counts
 
 
 class SummaryWriter:
     def write(self, output_dir: Path, aggregator: ResultAggregator, ctx: RuntimeContext) -> Path:
         summary_path = output_dir / "summary.txt"
-        counts = aggregator.counts()
-        required = counts.get("required", {})
-        optional = counts.get("optional", {})
-        failed_required = aggregator.failed_required_verifications()
+        records = aggregator._records  # noqa: SLF001 — summary formatting
+        required_verifications = _count_by_kind(records, kind="verification", optional=False)
+        optional_verifications = _count_by_kind(records, kind="verification", optional=True)
+        required_commands = _count_by_kind(records, kind="command", optional=False)
+        optional_commands = _count_by_kind(records, kind="command", optional=True)
+        failed_required = aggregator.failed_required_outcomes()
 
         measurement_count = 0
-        verification_count = counts.get("total", 0)
+        command_count = 0
         if ctx.db.is_initialized():
             measurement_count = ctx.db.count_rows("measurements")
+            command_count = ctx.db.count_rows("commands")
 
         lines = [
             "Colosseum Run Summary",
@@ -34,32 +51,60 @@ class SummaryWriter:
             f"Exit code: {aggregator.exit_code()}",
             "",
             f"Measurements: {measurement_count}",
-            f"Verifications (required): {sum(required.values())}",
+            f"Commands: {command_count}",
+            f"Verifications (required): {sum(required_verifications.values())}",
         ]
-        for status, count in sorted(required.items()):
-            lines.append(f"  required {status}: {count}")
-        if optional:
-            lines.append(f"Verifications (optional): {sum(optional.values())}")
-            for status, count in sorted(optional.items()):
-                lines.append(f"  optional {status}: {count}")
+        for status, count in sorted(required_verifications.items()):
+            lines.append(f"  required verification {status}: {count}")
+        if required_commands:
+            lines.append(f"Commands (required outcomes): {sum(required_commands.values())}")
+            for status, count in sorted(required_commands.items()):
+                lines.append(f"  required command {status}: {count}")
+        if optional_verifications or optional_commands:
+            if optional_verifications:
+                lines.append(f"Verifications (optional): {sum(optional_verifications.values())}")
+                for status, count in sorted(optional_verifications.items()):
+                    lines.append(f"  optional verification {status}: {count}")
+            if optional_commands:
+                lines.append(f"Commands (optional outcomes): {sum(optional_commands.values())}")
+                for status, count in sorted(optional_commands.items()):
+                    lines.append(f"  optional command {status}: {count}")
 
         if failed_required:
             lines.append("")
-            lines.append("Failed required verifications:")
+            lines.append("Failed required outcomes:")
             for row in failed_required:
                 label = row.get("key") or row.get("command") or "?"
                 domain = row.get("domain", "")
                 command = row.get("command", "")
-                lines.append(f"  - {domain}.{command} key={label}: {row.get('message', '')}")
+                kind = row.get("kind", "outcome")
+                lines.append(
+                    f"  - [{kind}] {domain}.{command} key={label}: {row.get('message', '')}"
+                )
 
-        if optional:
+        optional_rows = aggregator.optional_outcomes()
+        if optional_rows:
             lines.append("")
-            lines.append("Optional verifications:")
-            for row in aggregator.optional_verifications():
-                lines.append(f"  - {row.get('domain')}.{row.get('command')} key={row.get('key')}: {row['status']}")
+            lines.append("Optional outcomes:")
+            for row in optional_rows:
+                lines.append(
+                    f"  - [{row.get('kind')}] {row.get('domain')}.{row.get('command')} "
+                    f"key={row.get('key')}: {row['status']}"
+                )
 
         summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        self._write_json(output_dir, aggregator, ctx, measurement_count, required, optional, failed_required)
+        self._write_json(
+            output_dir,
+            aggregator,
+            ctx,
+            measurement_count,
+            command_count,
+            required_verifications,
+            optional_verifications,
+            required_commands,
+            optional_commands,
+            failed_required,
+        )
         return summary_path
 
     def _write_json(
@@ -68,9 +113,12 @@ class SummaryWriter:
         aggregator: ResultAggregator,
         ctx: RuntimeContext,
         measurement_count: int,
-        required: dict,
-        optional: dict,
-        failed_required: list,
+        command_count: int,
+        required_verifications: dict[str, int],
+        optional_verifications: dict[str, int],
+        required_commands: dict[str, int],
+        optional_commands: dict[str, int],
+        failed_required: list[OutcomeRecord],
     ) -> None:
         payload = {
             "colosseum_version": ctx.framework_version,
@@ -82,10 +130,26 @@ class SummaryWriter:
             "overall_result": "PASS" if aggregator.overall_pass() else "FAIL",
             "exit_code": aggregator.exit_code(),
             "measurement_count": measurement_count,
+            "command_count": command_count,
             "verification_counts": {
-                "required": required,
-                "optional": optional,
+                "required": required_verifications,
+                "optional": optional_verifications,
             },
+            "command_counts": {
+                "required": required_commands,
+                "optional": optional_commands,
+            },
+            "failed_required_outcomes": [
+                {
+                    "kind": row.get("kind", ""),
+                    "domain": row.get("domain", ""),
+                    "command": row.get("command", ""),
+                    "key": row.get("key", ""),
+                    "status": row.get("status", ""),
+                    "message": row.get("message", ""),
+                }
+                for row in failed_required
+            ],
             "failed_required_verifications": [
                 {
                     "domain": row.get("domain", ""),
@@ -95,6 +159,7 @@ class SummaryWriter:
                     "message": row.get("message", ""),
                 }
                 for row in failed_required
+                if row.get("kind") == "verification"
             ],
             "suite_error": aggregator.suite_error,
             "teardown_failed": aggregator.teardown_failed,

@@ -15,7 +15,7 @@ set /p VERSION=<VERSION
 set /p PY_MINOR=<PYTHON_MINOR
 set VENV_DIR=.venv
 
-echo Creating %VENV_DIR% and installing colosseum==%VERSION% ...
+echo Creating %VENV_DIR% and installing colosseum[bench]==%VERSION% ...
 
 where py >nul 2>nul
 if %ERRORLEVEL%==0 (
@@ -26,7 +26,7 @@ if %ERRORLEVEL%==0 (
 if errorlevel 1 exit /b 1
 
 call "%VENV_DIR%\Scripts\activate.bat"
-pip install --no-index --find-links=wheels colosseum==%VERSION%
+pip install --no-index --find-links=wheels "colosseum[bench]==%VERSION%"
 if errorlevel 1 exit /b 1
 
 echo.

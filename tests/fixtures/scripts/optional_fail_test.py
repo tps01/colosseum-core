@@ -19,9 +19,7 @@ def main() -> None:
     col.equipment.dmm.measure_voltage(dmm_id=1, channel=1, key="vrail_3v3")
     col.equipment.dmm.verify_voltage(key="vrail_3v3", expected_val=3.3, tolerance=0.1)
     col.equipment.dmm.measure_voltage(dmm_id=1, channel=2, key="probe_optional")
-    col.equipment.dmm.verify_voltage(
-        key="probe_optional", expected_val=1.8, tolerance=0.1, optional=True
-    )
+    col.equipment.dmm.verify_voltage(key="probe_optional", expected_val=1.8, tolerance=0.1, optional=True)
 
 
 if __name__ == "__main__":

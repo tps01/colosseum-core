@@ -2,7 +2,8 @@
 """
 Remove Colosseum build artifacts and temporary files from the repository tree.
 
-Aligned with .gitignore (includes ``*.egg-info/``). Does not delete source, docs, or local secrets (.env).
+Aligned with .gitignore (includes ``*.egg-info/``). Does not delete source, docs,
+or local secrets (.env).
 By default, virtual environments are kept but safe generated artifacts inside them are removed.
 
 Usage:
@@ -15,12 +16,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import fnmatch
 import os
 import shutil
-import sys
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, List
 
 # Top-level directories under repo root to remove entirely.
 ROOT_DIRS = (
@@ -37,7 +38,7 @@ ROOT_DIRS = (
     "sdist",
     "var",
     "wheels",
-    "share",
+    "share/python-wheels",
     "pip-wheel-metadata",
     "htmlcov",
     ".pytest_cache",
@@ -63,12 +64,19 @@ VENV_DIRS = (".venv", "venv", "ENV", "env")
 WALK_DIR_NAMES = {"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".hypothesis"}
 
 # Safe generated artifacts to remove inside virtual environments when the venv itself is kept.
-VENV_ARTIFACT_DIR_NAMES = {"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".hypothesis"}
-VENV_ARTIFACT_FILE_GLOBS = ("*.py[cod]", "*$py.class")
+VENV_ARTIFACT_DIR_NAMES = {
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".hypothesis",
+}
+VENV_ARTIFACT_FILE_GLOBS = ("*.pyc", "*.pyo", "*$py.class")
 
 # File globs removed anywhere in the tree.
 WALK_FILE_GLOBS = (
-    "*.py[cod]",
+    "*.pyc",
+    "*.pyo",
     "*$py.class",
     "*.so",
     ".coverage",
@@ -105,8 +113,8 @@ def _is_under_venv(root: Path, path: Path) -> bool:
     return bool(rel_parts and rel_parts[0] in VENV_DIRS)
 
 
-def _collect_venv_artifacts(root: Path) -> List[Path]:
-    targets: List[Path] = []
+def _collect_venv_artifacts(root: Path) -> list[Path]:
+    targets: list[Path] = []
     for name in VENV_DIRS:
         venv = root / name
         if not venv.is_dir():
@@ -123,13 +131,20 @@ def _collect_venv_artifacts(root: Path) -> List[Path]:
     return targets
 
 
+def _collect_infra_artifacts(root: Path) -> list[Path]:
+    artifacts = root / "infra" / "yocto" / "artifacts"
+    if not artifacts.is_dir():
+        return []
+    return [path for path in artifacts.iterdir() if path.name != ".gitkeep"]
+
+
 def _collect_paths(
     root: Path,
     *,
     include_venvs: bool,
     include_infra: bool,
-) -> List[Path]:
-    targets: List[Path] = []
+) -> list[Path]:
+    targets: list[Path] = []
 
     for name in ROOT_DIRS:
         path = root / name
@@ -141,6 +156,7 @@ def _collect_paths(
             path = root / rel
             if path.exists():
                 targets.append(path)
+        targets.extend(_collect_infra_artifacts(root))
 
     if include_venvs:
         for name in VENV_DIRS:
@@ -177,7 +193,7 @@ def _collect_paths(
 
     # Deduplicate: drop paths inside another target (keep outermost only).
     targets = sorted(set(targets), key=lambda p: (len(p.parts), str(p)))
-    pruned: List[Path] = []
+    pruned: list[Path] = []
     for path in targets:
         if any(path != other and other in path.parents for other in targets):
             continue
@@ -191,10 +207,8 @@ def _format_size(path: Path) -> str:
     total = 0
     for p in path.rglob("*"):
         if p.is_file():
-            try:
+            with contextlib.suppress(OSError):
                 total += p.stat().st_size
-            except OSError:
-                pass
     if total < 1024:
         return f"{total} B"
     if total < 1024 * 1024:
@@ -212,6 +226,14 @@ def _remove(path: Path, *, dry_run: bool) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Remove build artifacts and temporary files from the repository tree.
+
+    :param argv: Optional argument vector (defaults to ``sys.argv[1:]``).
+    :type argv: list[str] | None, optional
+
+    :returns: Process exit code (``0`` on success).
+    :rtype: int
+    """
     parser = argparse.ArgumentParser(description="Remove build artifacts and temporary files")
     parser.add_argument(
         "--dry-run",
@@ -226,7 +248,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--include-infra",
         action="store_true",
-        help="Also remove infra/yocto/build/ and infra/yocto/cache/ (Yocto artifacts)",
+        help=(
+            "Also remove infra/yocto/build/, infra/yocto/cache/, and generated "
+            "infra/yocto/artifacts/ contents"
+        ),
     )
     args = parser.parse_args(argv)
     root = _repo_root()

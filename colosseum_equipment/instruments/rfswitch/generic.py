@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+from typing import Any
+
+from colosseum_equipment.instruments._base import ScpiInstrumentMixin
 from colosseum_equipment.instruments._capabilities import unsupported
 from colosseum_equipment.protocols.scpi import SCPIHelper
 from colosseum_equipment.transports.base import Transport
 
 
-class GenericRfSwitch:
+class GenericRfSwitch(ScpiInstrumentMixin):
     _model = "generic"
     """Generic SCPI RF switch matrix (preset path names in bench config)."""
 
-    def __init__(self, transport: Transport, config: dict) -> None:
+    def __init__(self, transport: Transport, config: dict[str, Any]) -> None:
         self._scpi = SCPIHelper(transport)
         self._config = config
         self._model = str(config.get("model", "generic")).lower()
@@ -19,7 +22,7 @@ class GenericRfSwitch:
     def set_path(self, path: str) -> None:
         self._scpi.write(f"ROUT:PATH {path}")
 
-    def set_switch(self, switch: str, state: int) -> None:
+    def set_switch(self, _switch: str, _state: int) -> None:
         unsupported(self._model, "set_switch")
 
     def measure_path(self) -> str:
@@ -27,6 +30,3 @@ class GenericRfSwitch:
 
     def preset(self) -> None:
         self._scpi.write("*RST")
-
-    def close(self) -> None:
-        self._scpi._transport.close()

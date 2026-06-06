@@ -6,7 +6,6 @@ Manual: IT8600 Programming Guide — ``CURRent:LEVel``, ``FUNCtion``, ``INPut:ST
 from __future__ import annotations
 
 from colosseum_equipment.instruments.eload.generic import GenericEload
-from colosseum_equipment.transports.base import Transport
 
 
 class ItechIT8600Eload(GenericEload):
@@ -27,8 +26,17 @@ class ItechIT8600Eload(GenericEload):
     def set_voltage(self, voltage: float) -> None:
         self._scpi.write(f"VOLTage:LEVel {voltage}")
 
-    def set_input(self, enabled: bool) -> None:
-        self._scpi.write(f"INPut:STATe {'ON' if enabled else 'OFF'}")
+    def set_power(self, power: float) -> None:
+        self._scpi.write(f"POWer:LEVel {power}")
+
+    def set_resistance(self, resistance: float) -> None:
+        self._scpi.write(f"RESistance:LEVel {resistance}")
+
+    def engage(self) -> None:
+        self._scpi.write("INPut:STATe ON")
+
+    def disengage(self) -> None:
+        self._scpi.write("INPut:STATe OFF")
 
     def measure_voltage(self) -> float:
         return self._scpi.query_float("MEASure:VOLTage?")

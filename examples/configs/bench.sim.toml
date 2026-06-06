@@ -50,3 +50,13 @@ dio_id = 1
 driver = sim
 port_lines = 8
 direction = 0xFF
+
+[[equipment.asg]]
+asg_id = 1
+driver = sim
+resource = SIM::ASG1
+model = generic
+interface = sim
+frequency = 1000000000.0
+power_dbm = -10.0
+output = false

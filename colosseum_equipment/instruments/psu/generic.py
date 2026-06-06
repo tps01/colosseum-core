@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import time
+from typing import Any
+
+from colosseum_equipment.exceptions import EquipmentTimeoutError
+from colosseum_equipment.instruments._base import ScpiInstrumentMixin
 from colosseum_equipment.protocols.scpi import SCPIHelper
 from colosseum_equipment.transports.base import Transport
 
 
-class GenericPSU:
-    def __init__(self, transport: Transport, config: dict) -> None:
+class GenericPSU(ScpiInstrumentMixin):
+    def __init__(self, transport: Transport, config: dict[str, Any]) -> None:
         self._scpi = SCPIHelper(transport)
         self._config = config
         if "voltage" in config:
@@ -31,5 +36,15 @@ class GenericPSU:
     def measure_output_state(self) -> bool:
         return bool(int(float(self._scpi.query("OUTP?"))))
 
-    def close(self) -> None:
-        self._scpi._transport.close()
+    def wait_for_current(
+        self, current: float, *, timeout_s: float, tolerance: float = 0.01
+    ) -> None:
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            measured = self.measure_current()
+            if abs(measured - current) <= tolerance:
+                return
+            time.sleep(0.05)
+        raise EquipmentTimeoutError(
+            f"PSU did not reach {current} A within {timeout_s}s (last reading {measured} A)"
+        )

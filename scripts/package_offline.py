@@ -2,8 +2,8 @@
 """
 Build an end-user offline install bundle (runtime wheels + smoke test + tarball).
 
-Bundles contain only default ``colosseum`` runtime dependencies. Developers who
-need pytest, Sphinx, docgen, or PyVISA-sim install from a git clone
+Bundles contain the broad ``colosseum[bench]`` runtime dependency set for end-user
+bench hosts. Developers who need pytest, Sphinx, docgen, or PyVISA-sim install from a git clone
 (``requirements-dev.txt``), not from offline tarballs.
 
 Usage:
@@ -57,15 +57,17 @@ def _platform_tag() -> str:
 def _python_tag() -> str:
     target = os.environ.get("COLOSSEUM_OFFLINE_PYTHON_VERSION")
     if target:
-        major, _, minor = target.partition(".")
-        return f"py{major}{minor or '0'}"
-    major, minor = sys.version_info[:2]
-    return f"py{major}{minor}"
+        major_str, _, minor_str = target.partition(".")
+        return f"py{major_str}{minor_str or '0'}"
+    py_major, py_minor = sys.version_info[:2]
+    return f"py{py_major}{py_minor}"
 
 
 def _python_minor_label() -> str:
     tag = _python_tag()
-    digits = tag[2:] if tag.startswith("py") else f"{sys.version_info.major}{sys.version_info.minor}"
+    digits = (
+        tag[2:] if tag.startswith("py") else f"{sys.version_info.major}{sys.version_info.minor}"
+    )
     if len(digits) == 2:
         return f"{digits[0]}.{digits[1]}"
     return f"{digits[0]}.{digits[1:]}"
@@ -122,7 +124,7 @@ def _download_wheels(wheel: Path) -> None:
         "--dest",
         str(WHEELHOUSE),
         *_pip_download_args(),
-        str(wheel),
+        f"{wheel}[bench]",
     ]
     _run(cmd)
     offline_py = _offline_python_tuple()
@@ -139,6 +141,8 @@ def _download_wheels(wheel: Path) -> None:
                 "tomli",
             ]
         )
+
+
 def _write_install_md(version: str, python_minor: str) -> str:
     return f"""# Colosseum offline install (v{version})
 
@@ -149,7 +153,9 @@ def _write_install_md(version: str, python_minor: str) -> str:
 
 ## Install (recommended)
 
-**Windows:** Right-click the ``.tar.gz`` archive → **Extract All** (or **Extract**), open the ``offline-bundle`` folder, then run one of the install scripts below from that folder.
+**Windows:** Right-click the ``.tar.gz`` archive → **Extract All** (or **Extract**),
+open the ``offline-bundle`` folder, then run one of the install scripts below from
+that folder.
 
 Linux / macOS: extract with ``tar xzf colosseum-*-offline-*.tar.gz``, ``cd offline-bundle``, then:
 
@@ -163,14 +169,15 @@ Windows Command Prompt (from ``offline-bundle``)::
 
    install.bat
 
-Each script creates ``.venv`` in this directory, installs ``colosseum=={version}`` from ``wheels/``, and prints activation instructions.
+Each script creates ``.venv`` in this directory, installs ``colosseum[bench]=={version}``
+from ``wheels/``, and prints activation instructions.
 
 ## Manual install
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate   # Windows: .venv\\Scripts\\activate
-pip install --no-index --find-links=wheels colosseum=={version}
+pip install --no-index --find-links=wheels "colosseum[bench]=={version}"
 ```
 
 ## Smoke test
@@ -225,6 +232,14 @@ def _create_tarball(version: str) -> Path:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Build an offline install tarball with wheels and smoke-test assets.
+
+    :param argv: Optional argument vector (defaults to ``sys.argv[1:]``).
+    :type argv: list[str] | None, optional
+
+    :returns: Process exit code (``0`` on success, ``2`` when ``--skip-build`` finds no wheel).
+    :rtype: int
+    """
     parser = argparse.ArgumentParser(description="Build Colosseum offline install bundle")
     parser.add_argument(
         "--skip-build",

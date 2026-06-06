@@ -5,11 +5,13 @@ Manual: Prog_Manual-2-Switch — ``SET[switch]=[state]``, ``SETP=[states]``, ``S
 
 from __future__ import annotations
 
+from typing import Any
+
 from colosseum_equipment.transports.base import Transport
 
 
 class MiniCircuitsRcSwitch:
-    def __init__(self, transport: Transport, config: dict) -> None:
+    def __init__(self, transport: Transport, config: dict[str, Any]) -> None:
         self._transport = transport
         self._config = config
         if "path" in config:

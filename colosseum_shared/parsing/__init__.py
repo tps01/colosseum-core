@@ -1,3 +1,3 @@
-from colosseum_shared.parsing import text
+from . import text
 
 __all__ = ["text"]

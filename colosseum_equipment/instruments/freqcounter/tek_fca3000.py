@@ -6,7 +6,6 @@ Manual: 077-0494-00 Programmer Manual — frequency measurement subsystem.
 from __future__ import annotations
 
 from colosseum_equipment.instruments.freqcounter.generic import GenericFreqCounter
-from colosseum_equipment.transports.base import Transport
 
 
 class TekFca3000FreqCounter(GenericFreqCounter):

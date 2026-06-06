@@ -6,6 +6,7 @@ Manual: T3DSO1000/2000 Programming Guide — ``TDIV``, ``PACU``, ``PAVA?``, ``AR
 from __future__ import annotations
 
 import re
+from typing import Any
 
 from colosseum_equipment.instruments.oscope.generic import GenericOscope
 from colosseum_equipment.transports.base import Transport
@@ -32,7 +33,7 @@ def _seconds_to_tdiv(seconds_per_div: float) -> str:
 class TekT3dso2000Oscope(GenericOscope):
     _model = "tektronix-t3dso2000"
 
-    def __init__(self, transport: Transport, config: dict) -> None:
+    def __init__(self, transport: Transport, config: dict[str, Any]) -> None:
         super().__init__(transport, config)
         self._meas_slot = int(config.get("measurement_slot", 1))
 

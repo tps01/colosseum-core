@@ -48,4 +48,19 @@ CREATE TABLE IF NOT EXISTS artifacts (
   description TEXT,
   timestamp TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS commands (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  domain TEXT NOT NULL,
+  command TEXT NOT NULL,
+  key TEXT NOT NULL DEFAULT '',
+  result_json TEXT,
+  status TEXT NOT NULL,
+  optional INTEGER NOT NULL DEFAULT 0,
+  message TEXT,
+  timestamp TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_commands_lookup
+  ON commands(domain, command, key);
 """

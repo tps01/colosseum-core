@@ -8,7 +8,7 @@ pip install -r requirements-dev.txt
 ```
 
 For docgen regression only: ensure `requirements-dev.txt` is installed (includes Sphinx).
-For hardware procedure: runtime is included in `pip install -e .`; add `requirements-dev.txt` for pytest helpers.
+For hardware procedure: install `pip install -e ".[hardware,ssh,plot]"`; add `requirements-dev.txt` for pytest helpers.
 The standard `scripts/start_environment.ps1` setup installs runtime plus dev requirements.
 
 ## Tiers 1–3 (pytest, sim bench)
@@ -40,6 +40,31 @@ python scripts/profile_unit_tests.py --stats build/profile/unit_tests.prof
 ```
 
 The script runs `tests/unit` under `cProfile`, prints project-scoped `pstats` tables (cumulative and self time), and includes pytest’s slowest-test report (`--durations=15`). Optional `.prof` output works with [snakeviz](https://jiffyclub.github.io/snakeviz/) if installed.
+
+## Static analysis (ruff, mypy, bandit, vulture)
+
+Install dev dependencies (includes the `static` extra):
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+From the repository root:
+
+```bash
+python scripts/run_static.py
+```
+
+| Tool | Script | Scope |
+|------|--------|--------|
+| Ruff | `tests/static/run_ruff.py` | Lint + annotation hygiene |
+| mypy | `tests/static/run_mypy.py` | Strict types on packages + `scripts/` |
+| bandit | `tests/static/run_bandit.py` | Security scan (`-ll`) |
+| vulture | `tests/static/run_vulture.py` | Dead code (`--min-confidence 80`) |
+
+Run one tool: `python scripts/run_static.py -- --tool ruff`. Apply safe ruff fixes locally: `python scripts/run_static.py -- --fix`.
+
+Configuration lives in [`pyproject.toml`](../../pyproject.toml) (`[tool.ruff]`, `[tool.mypy]`, `[tool.bandit]`). CI runs this gate on every push/PR (Python 3.11).
 
 ## Tier 4A — Scripted regression (no hardware)
 

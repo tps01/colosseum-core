@@ -20,6 +20,7 @@ Baseline expectations for AI agents in this repository.
 | `colosseum/` | Core: config, context, decorators, DB, runner (`run`, `run-suite`), plugins registry |
 | `colosseum_equipment/` | Plugin → `col.equipment.*` and `col.io.*` (PSU/DMM/VSG/speca/SCPI; DIO sim/FT232H + I2C/SPI stubs; `visa`/`serial`/`sim`) |
 | `colosseum_shared/` | Plugin → `col.shared.*` (SSH, regex, parsing; `sim`/paramiko) |
+| `colosseum_host/` | Plugin → `col.host.*` (bench PC prerequisites: system/bench/config) |
 | `docs/` | Scope, testing notes, releasing; user guides are under `docs/sphinx/` |
 | `docs/sphinx/source/guides/` | Hand-written Sphinx RST |
 | `docs/archive/planning/` | Historical ADRs, FFOs, DDDs (not normative) |
@@ -40,13 +41,24 @@ Core runtime is implemented: single-test + suite runners, plugins, optional veri
 | `scripts/docgen/build_module.py` | Autodoc RST for one package |
 | `scripts/cleanup.py` | Remove `outputs/`, `build/`, `__pycache__`, etc. — **`--dry-run` first** |
 | `scripts/run_tests.py` | `pytest` tiers 1–3; `--regression` for soak + docgen |
+| `scripts/run_static.py` | Ruff, mypy, bandit, vulture on production packages + `scripts/` (strict; CI gate) |
 | `scripts/profile_unit_tests.py` | cProfile unit tests; use before long mutation runs |
 | `tests/regression/*.py` | Tier 4A (sim soak, docgen; optional Cosmic Ray mutation) |
+| `tests/static/*.py` | Per-tool static analysis runners |
 
-Install: `pip install -e .` for runtime; `pip install -r requirements-dev.txt` for pytest, docs, and mutation checks. See `docs/testing/README.md` and `docs/testing/regression-test-procedure.md`.
+Install: `pip install -e .` for runtime; `pip install -r requirements-dev.txt` for pytest, docs, static analysis, and mutation checks. See `docs/testing/README.md` and `docs/testing/regression-test-procedure.md`.
 
 ## Doc hygiene
 
+- Public `col.*` APIs and `scripts/` maintainer entry points use Sphinx field docstrings (`:param:`, `:type:`, `:returns:`, `:rtype:`, `:raises:`), not Google-style `Args:` blocks.
 - When behavior changes, update `docs/scope.md` and Sphinx guides as needed; archived planning docs are historical only.
 - User-doc tracker: `docs/user-documentation.md`.
 - `python -m colosseum.runner.cli` requires `if __name__ == "__main__": main()` in `runner/cli.py` (module is not executed when imported).
+
+## Workflow
+
+When completing changes, increment the version number using the following guidelines:
+Use a semantic versioning scheme, i.e. major.minor.incremental (0.10.1, for example)
+Agents cannot increment the major number. It is incremented after substantial changes that are not backwards compatible.
+The minor number is to be incremented with the addition of new functionality, modules, or large changes within a module.
+Incremental numbers are used for the remainder of the changes. Documentation changes do not require a version increment, unless they are significant.

@@ -39,7 +39,7 @@ def main() -> None:
         import customtkinter as ctk
     except ImportError as exc:
         print(
-            "Colosseum GUI requires customtkinter. Reinstall colosseum.",
+            "Colosseum GUI requires customtkinter. Install with: pip install colosseum[gui]",
             file=sys.stderr,
         )
         raise SystemExit(1) from exc
@@ -51,7 +51,7 @@ def main() -> None:
 
 
 class ColosseumApp:
-    def __init__(self, ctk: Any) -> None:
+    def __init__(self, ctk: Any) -> None:  # noqa: ANN401
         self._ctk = ctk
         self._root = ctk.CTk()
         self._root.title("Colosseum")
@@ -63,7 +63,7 @@ class ColosseumApp:
         self._test_path = ctk.StringVar(value="")
         self._suite_path = ctk.StringVar(value="")
         self._config_path = ctk.StringVar(value=os.environ.get("COLOSSEUM_BENCH_CONFIG", ""))
-        self._verbose = ctk.BooleanVar(value=False)
+        self._debug = ctk.BooleanVar(value=False)
         self._run_buttons: list[Any] = []
 
         self._build_layout()
@@ -85,21 +85,43 @@ class ColosseumApp:
         run_frame.grid_columnconfigure(1, weight=1)
 
         ctk.CTkLabel(run_frame, text="Test (.py)").grid(row=0, column=0, padx=4, pady=2, sticky="w")
-        ctk.CTkEntry(run_frame, textvariable=self._test_path).grid(row=0, column=1, padx=4, pady=2, sticky="ew")
-        ctk.CTkButton(run_frame, text="Browse", width=80, command=self._browse_test).grid(row=0, column=2, padx=4)
-        ctk.CTkButton(run_frame, text="Run test", width=90, command=self._run_test).grid(row=0, column=3, padx=4)
+        ctk.CTkEntry(run_frame, textvariable=self._test_path).grid(
+            row=0, column=1, padx=4, pady=2, sticky="ew"
+        )
+        ctk.CTkButton(run_frame, text="Browse", width=80, command=self._browse_test).grid(
+            row=0, column=2, padx=4
+        )
+        ctk.CTkButton(run_frame, text="Run test", width=90, command=self._run_test).grid(
+            row=0, column=3, padx=4
+        )
 
-        ctk.CTkLabel(run_frame, text="Suite (.toml)").grid(row=1, column=0, padx=4, pady=2, sticky="w")
-        ctk.CTkEntry(run_frame, textvariable=self._suite_path).grid(row=1, column=1, padx=4, pady=2, sticky="ew")
-        ctk.CTkButton(run_frame, text="Browse", width=80, command=self._browse_suite).grid(row=1, column=2, padx=4)
-        ctk.CTkButton(run_frame, text="Run suite", width=90, command=self._run_suite).grid(row=1, column=3, padx=4)
+        ctk.CTkLabel(run_frame, text="Suite (.toml)").grid(
+            row=1, column=0, padx=4, pady=2, sticky="w"
+        )
+        ctk.CTkEntry(run_frame, textvariable=self._suite_path).grid(
+            row=1, column=1, padx=4, pady=2, sticky="ew"
+        )
+        ctk.CTkButton(run_frame, text="Browse", width=80, command=self._browse_suite).grid(
+            row=1, column=2, padx=4
+        )
+        ctk.CTkButton(run_frame, text="Run suite", width=90, command=self._run_suite).grid(
+            row=1, column=3, padx=4
+        )
 
         ctk.CTkLabel(run_frame, text="Config").grid(row=2, column=0, padx=4, pady=2, sticky="w")
-        ctk.CTkEntry(run_frame, textvariable=self._config_path).grid(row=2, column=1, padx=4, pady=2, sticky="ew")
-        ctk.CTkButton(run_frame, text="Browse", width=80, command=self._browse_config).grid(row=2, column=2, padx=4)
-        ctk.CTkCheckBox(run_frame, text="Verbose", variable=self._verbose).grid(row=2, column=3, padx=4, sticky="w")
+        ctk.CTkEntry(run_frame, textvariable=self._config_path).grid(
+            row=2, column=1, padx=4, pady=2, sticky="ew"
+        )
+        ctk.CTkButton(run_frame, text="Browse", width=80, command=self._browse_config).grid(
+            row=2, column=2, padx=4
+        )
+        ctk.CTkCheckBox(run_frame, text="Debug", variable=self._debug).grid(
+            row=2, column=3, padx=4, sticky="w"
+        )
 
-        self._stop_btn = ctk.CTkButton(run_frame, text="Stop", width=90, state="disabled", command=self._stop_run)
+        self._stop_btn = ctk.CTkButton(
+            run_frame, text="Stop", width=90, state="disabled", command=self._stop_run
+        )
         self._stop_btn.grid(row=3, column=3, padx=4, pady=4, sticky="e")
 
         body = ctk.CTkFrame(root)
@@ -112,7 +134,9 @@ class ColosseumApp:
         log_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
         log_frame.grid_rowconfigure(1, weight=1)
         log_frame.grid_columnconfigure(0, weight=1)
-        ctk.CTkLabel(log_frame, text="Log (debug.log)").grid(row=0, column=0, sticky="w", padx=4, pady=2)
+        ctk.CTkLabel(log_frame, text="Log (debug.log)").grid(
+            row=0, column=0, sticky="w", padx=4, pady=2
+        )
         self._log_text = ctk.CTkTextbox(log_frame, state="disabled", wrap="none")
         self._log_text.grid(row=1, column=0, sticky="nsew", padx=4, pady=4)
 
@@ -173,7 +197,7 @@ class ColosseumApp:
         path = Path(path_str).resolve()
         if not path.is_file():
             return
-        self._start_run(RunRequest(RunKind.TEST, path, self._config_value(), self._verbose.get()))
+        self._start_run(RunRequest(RunKind.TEST, path, self._config_value(), self._debug.get()))
 
     def _run_suite(self) -> None:
         path_str = self._suite_path.get().strip()
@@ -182,7 +206,7 @@ class ColosseumApp:
         path = Path(path_str).resolve()
         if not path.is_file():
             return
-        self._start_run(RunRequest(RunKind.SUITE, path, self._config_value(), self._verbose.get()))
+        self._start_run(RunRequest(RunKind.SUITE, path, self._config_value(), self._debug.get()))
 
     def _start_run(self, request: RunRequest) -> None:
         if self._worker.is_running():
@@ -277,17 +301,25 @@ class ColosseumApp:
                 f"Output: {summary.get('output_directory')}",
                 f"End time: {summary.get('end_time_utc')}",
                 f"Measurements: {summary.get('measurement_count')}",
-                f"Verifications (required): {summary.get('verification_counts', {}).get('required', {})}",
-                f"Verifications (optional): {summary.get('verification_counts', {}).get('optional', {})}",
+                (
+                    "Verifications (required): "
+                    f"{summary.get('verification_counts', {}).get('required', {})}"
+                ),
+                (
+                    "Verifications (optional): "
+                    f"{summary.get('verification_counts', {}).get('optional', {})}"
+                ),
             ]
             failed = summary.get("failed_required_verifications") or []
             if failed:
                 lines.append("")
                 lines.append("Failed required verifications:")
                 for row in failed:
-                    lines.append(
-                        f"  - {row.get('domain')}.{row.get('command')} key={row.get('key')}: {row.get('message')}"
-                    )
+                    domain = row.get("domain")
+                    command = row.get("command")
+                    key = row.get("key")
+                    message = row.get("message")
+                    lines.append(f"  - {domain}.{command} key={key}: {message}")
             self._summary_text.insert("end", "\n".join(lines))
         self._summary_text.configure(state="disabled")
 

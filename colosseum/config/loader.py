@@ -2,19 +2,22 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-from ..context import get_context, init_context
+from ..context import RuntimeContext, get_context, init_context
+from ..logging import get_logger
 from ..plugins.loader import ensure_plugins_loaded
 from .normalize import normalize_sections
 from .sections import ConfigSectionSpec
-from .toml_relaxed import loads_relaxed
+from .toml_relaxed import read_relaxed_toml
 from .validate import collect_unknown_key_warnings, run_section_validators
 
 try:
-    import tomllib  # type: ignore[attr-defined]
+    import tomllib
 except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib  # type: ignore[no-redef]
+
+_logger = get_logger("colosseum.config")
 
 
 class ConfigError(RuntimeError):
@@ -24,14 +27,14 @@ class ConfigError(RuntimeError):
 @dataclass
 class ConfigStore:
     _raw: dict[str, Any]
-    _normalized: dict[str, dict[int, dict]]
+    _normalized: dict[str, dict[int, dict[str, Any]]]
     _specs: dict[str, ConfigSectionSpec]
 
     def raw(self) -> dict[str, Any]:
         return self._raw
 
-    def get_section(self, dotted: str) -> Any:
-        cursor: Any = self._raw
+    def get_section(self, dotted: str) -> object | None:
+        cursor: object = self._raw
         for part in dotted.split("."):
             if not isinstance(cursor, dict):
                 return None
@@ -40,11 +43,11 @@ class ConfigStore:
                 return None
         return cursor
 
-    def list_items(self, dotted: str) -> list[dict]:
+    def list_items(self, dotted: str) -> list[dict[str, Any]]:
         items = self._normalized.get(dotted, {})
         return [items[key] for key in sorted(items)]
 
-    def get_item(self, dotted: str, item_id: int) -> dict:
+    def get_item(self, dotted: str, item_id: int) -> dict[str, Any]:
         section = self._normalized.get(dotted)
         if section is None:
             raise ConfigError(f"Config section `{dotted}` is not registered")
@@ -52,7 +55,7 @@ class ConfigStore:
             raise ConfigError(f"Unknown id `{item_id}` in section `{dotted}`")
         return section[item_id]
 
-    def require_item(self, dotted: str, item_id: int) -> dict:
+    def require_item(self, dotted: str, item_id: int) -> dict[str, Any]:
         item = self.get_item(dotted, item_id)
         spec = self._specs.get(dotted)
         if spec is None:
@@ -63,12 +66,6 @@ class ConfigStore:
                 f"Section `{dotted}` id `{item_id}` missing required keys: {', '.join(missing)}"
             )
         return item
-
-    def get_equipment(self, kind: str, equipment_id: int) -> dict:
-        return self.require_item(f"equipment.{kind}", equipment_id)
-
-    def list_equipment(self, kind: str) -> list[dict]:
-        return self.list_items(f"equipment.{kind}")
 
 
 def _default_test_name() -> str:
@@ -81,20 +78,25 @@ def _default_test_name() -> str:
 
 
 def _load_toml(config_path: Path) -> dict[str, Any]:
-    data = config_path.read_bytes()
-    if data.startswith(b"\xef\xbb\xbf"):
-        data = data[3:]
     try:
-        text = data.decode("utf-8")
+        return read_relaxed_toml(config_path)
     except UnicodeDecodeError as exc:
         raise ConfigError(f"Config file is not valid UTF-8: {config_path}: {exc}") from exc
-    try:
-        return loads_relaxed(text)
     except tomllib.TOMLDecodeError as exc:
         raise ConfigError(f"Invalid TOML in {config_path}: {exc}") from exc
 
 
 def load_config(path: str | Path) -> ConfigStore:
+    """Load and validate a bench TOML file into the active run context.
+
+    :param path: Path to the bench configuration file.
+    :type path: str | Path
+
+    :returns: Normalized configuration store for plugin sections.
+    :rtype: ConfigStore
+
+    :raises ConfigError: When the file is missing, invalid TOML, or fails validation.
+    """
     config_path = Path(path).resolve()
     if not config_path.exists():
         raise ConfigError(f"Config file not found: {config_path}")
@@ -126,10 +128,39 @@ def load_config(path: str | Path) -> ConfigStore:
     ctx.config = store
     if ctx.db.is_initialized():
         ctx.db.insert_run_metadata("config_path", str(config_path))
+    if ctx.logger is not None:
+        log_loaded_config(ctx)
     return store
 
 
-def get(dotted: str, default: Optional[Any] = None) -> Any:
+def log_loaded_config(ctx: RuntimeContext) -> None:
+    """Emit DEBUG summary of normalized config sections (call after logging is ready)."""
+    if ctx.config is None or ctx.logger is None:
+        return
+    store: ConfigStore = ctx.config
+    _logger.debug("Loaded config from %s", ctx.config_path)
+    for dotted_path in sorted(store._specs):
+        section = store._normalized.get(dotted_path, {})
+        if section:
+            ids = ", ".join(str(item_id) for item_id in sorted(section))
+            _logger.debug("Config section %s: %d item(s) id=[%s]", dotted_path, len(section), ids)
+    if ctx.config_warnings:
+        _logger.debug("Config validation produced %d warning(s)", len(ctx.config_warnings))
+
+
+def get(dotted: str, default: object | None = None) -> object | None:
+    """Read a top-level or nested config section from the loaded bench TOML.
+
+    :param dotted: Dotted section path (for example ``equipment.psu``).
+    :type dotted: str
+    :param default: Value returned when the section is absent.
+    :type default: object | None, optional
+
+    :returns: Section value, or ``default`` when missing.
+    :rtype: object | None
+
+    :raises ConfigError: When configuration has not been loaded and ``default`` is not given.
+    """
     ctx = get_context()
     if ctx is None or ctx.config is None:
         if default is not None:
@@ -142,5 +173,10 @@ def get(dotted: str, default: Optional[Any] = None) -> Any:
 
 
 def is_loaded() -> bool:
+    """Report whether ``load_config`` has populated the active run context.
+
+    :returns: ``True`` when a configuration store is present on the context.
+    :rtype: bool
+    """
     ctx = get_context()
     return ctx is not None and ctx.config is not None

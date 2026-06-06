@@ -8,7 +8,7 @@ from pathlib import Path
 
 from tests.support.helpers import latest_output_dir, verification_row
 
-REPO = Path(__file__).resolve().parents[2]
+from tests.support.helpers import REPO_ROOT as REPO
 SCRIPT = REPO / "tests" / "fixtures" / "scripts" / "optional_fail_test.py"
 
 

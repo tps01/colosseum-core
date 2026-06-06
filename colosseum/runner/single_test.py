@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
 import runpy
+from pathlib import Path
 
 from ..context import require_context
 
@@ -27,11 +27,14 @@ def run_script(path: Path) -> None:
     ctx.db.insert_event("INFO", "runner", f"script_start:{resolved}")
     if ctx.logger is not None:
         ctx.logger.info("Running script %s (phase=%s)", resolved, ctx.phase)
+        ctx.logger.debug("Loading script module: %s", resolved)
     try:
         module_globals = runpy.run_path(str(resolved), run_name="colosseum.test_run")
         main_fn = module_globals.get("main")
         if not callable(main_fn):
             raise ScriptRunError(f"Script does not define callable main(): {resolved}")
+        if ctx.logger is not None:
+            ctx.logger.debug("Calling main() in %s", resolved)
         main_fn()
     except SystemExit as exc:
         if ctx.finalized:
@@ -48,3 +51,5 @@ def run_script(path: Path) -> None:
             ctx.logger.exception("Script failed: %s", resolved)
         raise ScriptRunError(str(exc)) from exc
     ctx.db.insert_event("INFO", "runner", f"script_done:{resolved}")
+    if ctx.logger is not None:
+        ctx.logger.debug("Script finished: %s", resolved)

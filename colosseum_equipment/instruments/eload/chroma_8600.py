@@ -6,7 +6,6 @@ Manual: 8600 Series Programming Manual — ``FUNCtion``, ``CURRent:LEVel``, ``IN
 from __future__ import annotations
 
 from colosseum_equipment.instruments.eload.generic import GenericEload
-from colosseum_equipment.transports.base import Transport
 
 
 class Chroma8600Eload(GenericEload):
@@ -27,8 +26,17 @@ class Chroma8600Eload(GenericEload):
     def set_voltage(self, voltage: float) -> None:
         self._scpi.write(f"VOLT {voltage}")
 
-    def set_input(self, enabled: bool) -> None:
-        self._scpi.write(f"INP {1 if enabled else 0}")
+    def set_power(self, power: float) -> None:
+        self._scpi.write(f"POW:LEV {power}")
+
+    def set_resistance(self, resistance: float) -> None:
+        self._scpi.write(f"RES:LEV {resistance}")
+
+    def engage(self) -> None:
+        self._scpi.write("INP 1")
+
+    def disengage(self) -> None:
+        self._scpi.write("INP 0")
 
     def measure_voltage(self) -> float:
         return self._scpi.query_float("MEAS:VOLT?")

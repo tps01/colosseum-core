@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+from typing import Any
+
 from colosseum_equipment.io.exceptions import IoConfigError, IoConnectionError
 
+_gpio_controller: Any = None
 try:
     from pyftdi.gpio import GpioMpsseController
+
+    _gpio_controller = GpioMpsseController
 except ImportError:  # pragma: no cover - exercised via missing-extra test
-    GpioMpsseController = None  # type: ignore[misc, assignment]
+    pass
 
 
 def _line_mask(port_lines: int) -> int:
@@ -18,15 +23,17 @@ class FtdiFt232hDioBackend:
     """FT232H GPIO via pyftdi ``GpioMpsseController`` (MPSSE mode)."""
 
     def __init__(self, *, resource: str, port_lines: int, direction: int) -> None:
-        if GpioMpsseController is None:
+        if _gpio_controller is None:
             raise IoConnectionError(
                 "col.io ftdi-ft232h requires pyftdi; install with: pip install colosseum[io]"
             )
         if not resource:
-            raise IoConfigError("ftdi-ft232h requires resource= (pyftdi URL, e.g. ftdi://ftdi:232h/1)")
+            raise IoConfigError(
+                "ftdi-ft232h requires resource= (pyftdi URL, e.g. ftdi://ftdi:232h/1)"
+            )
         self._mask = _line_mask(port_lines)
         self._direction = direction & self._mask
-        self._gpio = GpioMpsseController()
+        self._gpio = _gpio_controller()
         try:
             self._gpio.configure(resource, direction=self._direction)
         except Exception as exc:

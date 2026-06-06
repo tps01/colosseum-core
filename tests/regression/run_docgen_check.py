@@ -43,6 +43,19 @@ def main() -> int:
         print(f"DOCGEN FAIL: expected HTML at {html}", file=sys.stderr)
         return 1
 
+    index_pdf = REPO / "build" / "docgen" / "site" / "source" / "index_pdf.rst"
+    if not index_pdf.is_file():
+        print(f"DOCGEN FAIL: expected PDF master doc at {index_pdf}", file=sys.stderr)
+        return 1
+    pdf_index_text = index_pdf.read_text(encoding="utf-8")
+    if "guides/plugins" in pdf_index_text:
+        print("DOCGEN FAIL: index_pdf.rst must not include developer plugin guide", file=sys.stderr)
+        return 1
+    user_api_index = REPO / "build" / "docgen" / "site" / "source" / "user_api" / "index.rst"
+    if not user_api_index.is_file():
+        print(f"DOCGEN FAIL: expected user API RST at {user_api_index}", file=sys.stderr)
+        return 1
+
     if not skip_pdf:
         pdf_files = list((REPO / "build" / "docgen" / "site" / "latex").glob("*.pdf"))
         if not pdf_files:

@@ -22,9 +22,9 @@ else
   exit 1
 fi
 
-echo "Using ${PYTHON} to create ${VENV_DIR} and install colosseum==${VERSION} ..."
+echo "Using ${PYTHON} to create ${VENV_DIR} and install colosseum[bench]==${VERSION} ..."
 "${PYTHON}" -m venv "${VENV_DIR}"
-"${VENV_DIR}/bin/pip" install --no-index --find-links=wheels "colosseum==${VERSION}"
+"${VENV_DIR}/bin/pip" install --no-index --find-links=wheels "colosseum[bench]==${VERSION}"
 
 echo ""
 echo "Installed colosseum ${VERSION}."

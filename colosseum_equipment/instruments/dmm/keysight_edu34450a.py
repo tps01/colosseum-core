@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from colosseum_equipment.instruments.dmm.generic import GenericDMM
-from colosseum_equipment.transports.base import Transport
 
 
 class KeysightEDU34450A(GenericDMM):

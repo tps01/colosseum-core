@@ -3,7 +3,7 @@ Example: DUT software health via SSH.
 
 Exercises:
   - col.shared.ssh.measure_stdout stores stdout under a measurement key
-  - col.shared.regex.verify_match reads measure_stdout evidence (not verify_match rows)
+  - col.shared.regex.verify_match reads ssh.measure_stdout evidence (not verify_match rows)
   - col.endex() aggregates required/optional verifications and exits 0/1 (no manual result loop)
 
 Run:

@@ -36,7 +36,18 @@ def _find_main_tex(latex_dir: Path) -> Path:
 
 
 def build_pdf(*, site_source: Path, latex_dir: Path, repo_root: Path) -> Path:
-    """Run sphinx-build -b latex and latexmk; return path to the PDF."""
+    """Run ``sphinx-build -b latex`` and ``latexmk``; return path to the PDF.
+
+    :param site_source: Stitched Sphinx source tree.
+    :type site_source: Path
+    :param latex_dir: LaTeX build output directory.
+    :type latex_dir: Path
+    :param repo_root: Repository root (sphinx working directory).
+    :type repo_root: Path
+
+    :returns: Path to the generated PDF file.
+    :rtype: Path
+    """
     require_latex_toolchain()
     latex_dir.mkdir(parents=True, exist_ok=True)
     subprocess.run(

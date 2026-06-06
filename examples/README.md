@@ -13,6 +13,7 @@ These scripts exercise the implemented user-facing API. For offline runs without
 | [test_rf_sweep.py](test_rf_sweep.py) | VSG + speca sweep, peak marker, trace CSV (PyVISA-sim bench) |
 | [test_rf_vector_mod.py](test_rf_vector_mod.py) | Vector arb upload and RTSA capture (PyVISA-sim) |
 | [test_rf_bench_integration.py](test_rf_bench_integration.py) | Dual PSU, E4407B max-hold trace, SSH, marker + trace verify, `col.endex()` |
+| [test_host_profile.py](test_host_profile.py) | Host memory/disk/VISA checks, `host_profile.json` artifact |
 
 ## Config
 
@@ -38,6 +39,10 @@ colosseum run examples/test_rf_bench_integration.py --config configs/bench.local
 ```
 
 Suite orchestration is implemented through `colosseum run-suite`. The repository includes suite fixtures under `tests/fixtures/suites/`; production projects should keep suite TOML beside their own tests.
+
+## Extension skeleton
+
+- [plugins/myvendor_bench/](plugins/myvendor_bench/) — minimal third-party plugin example (see plugin development guide).
 
 ## Related Documentation
 

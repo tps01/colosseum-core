@@ -77,6 +77,18 @@ def test_close_all_transport_only_when_no_instrument(unit_runtime_context) -> No
     assert ctx.resource_cache == {}
 
 
+def test_close_all_delegates_io_backend_shutdown(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    order: list[str] = []
+    ctx.resource_cache["io:backend:dio:1"] = _RecordingClose("io", order)
+    ctx.resource_cache["equipment:dmm:1"] = _RecordingClose("transport", order)
+
+    close_all()
+
+    assert order == ["io", "transport"]
+    assert ctx.resource_cache == {}
+
+
 class _FailingClose:
     def close(self) -> None:
         raise RuntimeError("close failed")

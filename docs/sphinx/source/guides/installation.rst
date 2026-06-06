@@ -1,13 +1,23 @@
 Installation
 ============
 
-Colosseum ships as a single ``colosseum`` package. A normal install includes the full
-runtime stack: VISA/serial equipment transports, SSH (``col.shared``), and the
-GUI runner (``customtkinter``). PyVISA-sim is for repository tests only (``.[test]`` extra; install via ``pip install -e ".[test]"``).
+Colosseum ships as a single ``colosseum`` package. A normal install includes the
+core runtime, simulated bench paths, config loading, evidence database, decorators,
+CLI runner, and first-party API modules. Hardware transports, SSH, GUI, plotting,
+and FT232H GPIO are optional extras. PyVISA-sim is for repository tests only
+(``.[test]`` extra; install via ``pip install -e ".[test]"``).
 
 End users (when published to PyPI)::
 
    pip install colosseum
+
+Install optional capabilities only where needed::
+
+   pip install "colosseum[hardware]"  # PyVISA + pyserial
+   pip install "colosseum[ssh]"       # Paramiko SSH
+   pip install "colosseum[gui]"       # desktop GUI runner
+   pip install "colosseum[plot]"      # spectrum trace PNGs
+   pip install "colosseum[io]"        # FT232H GPIO via pyftdi
 
 From a source checkout::
 
@@ -25,13 +35,13 @@ Or in one step from a checkout::
 System prerequisites
 --------------------
 
-Some capabilities need OS packages that pip cannot install:
+Some optional capabilities need OS packages that pip cannot install:
 
-- **Linux GUI:** ``python3-tk`` (stdlib ``tkinter`` for ``colosseum --gui``)
-- **Linux serial:** ``dialout`` group membership or udev rules for ``/dev/ttyUSB*``
+- **Linux GUI:** ``python3-tk`` (stdlib ``tkinter`` for ``colosseum --gui`` with ``[gui]``)
+- **Linux serial:** ``dialout`` group membership or udev rules for ``/dev/ttyUSB*`` with ``[hardware]``
 - **VISA hardware:** a VISA implementation PyVISA can load (NI-VISA, Keysight IO Libraries,
   Tektronix VISA, Rohde & Schwarz, etc., or pure-Python ``pyvisa-py``). Not required for
-  ``driver = "sim"``. PyVISA-sim is optional for developers (``.[test]`` extra). Use
+  ``driver = "sim"``. Install ``colosseum[hardware]`` for PyVISA/serial. PyVISA-sim is optional for developers (``.[test]`` extra). Use
   ``python -m pyvisa info`` to see the active VISA backend.
 
 Example (Debian/Ubuntu)::
@@ -69,11 +79,13 @@ Set ``SKIP_DEV=1`` to install runtime only (no ``requirements-dev.txt``)::
 
    SKIP_DEV=1 . ./scripts/start_environment.sh
 
-Deprecated extras
------------------
+Compatibility extras
+--------------------
 
-Prior releases used optional extras such as ``colosseum[bench]``, ``[gui]``, and
-``[equipment-sim]``. Runtime dependencies are now installed by default. Those extras
-remain as empty aliases for one release cycle and will be removed in 0.4.0.
+Prior releases treated runtime dependencies as broadly installed. ``colosseum[bench]``
+remains as a broad compatibility extra for hardware, SSH, GUI, and plotting. Prefer
+the focused extras above for new environments. ``colosseum[equipment]`` maps to
+hardware + plotting, ``colosseum[shared]`` maps to SSH, and ``[equipment-sim]`` keeps
+the PyVISA-sim test dependency alias.
 
 Dev-only extras: ``test``, ``docs``, ``mutation`` (or use ``requirements-dev.txt``).

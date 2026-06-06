@@ -10,3 +10,6 @@ def test_psu_verify_voltage_sim() -> None:
     col.equipment.psu.measure_voltage(psu_id=1, key="psu_v")
     result = col.equipment.psu.verify_voltage(key="psu_v", expected_val=3.3, tolerance=0.2)
     assert result.status == "PASS"
+    assert result.actual is not None
+    rows = col.database.read_verifications()
+    assert rows[-1].actual is not None

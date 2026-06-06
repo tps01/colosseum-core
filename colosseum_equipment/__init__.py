@@ -6,7 +6,6 @@ from colosseum.plugins.registry import PluginRegistry
 from colosseum_equipment.connections import close_all, register_atexit_cleanup
 from colosseum_equipment.instruments._config_keys import VISA_OPTIONAL_KEYS
 
-
 _IO_CONFIG_SPECS = (
     ConfigSectionSpec(
         "io.dio",
@@ -41,7 +40,9 @@ def register(registry: PluginRegistry) -> None:
         registry.register_config_section(spec)
 
 
-def _visa_section(section: str, id_field: str, *, extra_optional: tuple[str, ...] = ()) -> ConfigSectionSpec:
+def _visa_section(
+    section: str, id_field: str, *, extra_optional: tuple[str, ...] = ()
+) -> ConfigSectionSpec:
     return ConfigSectionSpec(
         section,
         id_field,
@@ -65,8 +66,18 @@ _CONFIG_SPECS = (
         extra_optional=("frequency", "power_dbm", "output"),
     ),
     _visa_section(
+        "equipment.asg",
+        "asg_id",
+        extra_optional=("frequency", "power_dbm", "output"),
+    ),
+    _visa_section(
         "equipment.speca",
         "speca_id",
+        extra_optional=("center_freq", "span", "rbw"),
+    ),
+    _visa_section(
+        "equipment.rtsa",
+        "rtsa_id",
         extra_optional=("center_freq", "span", "rbw"),
     ),
     ConfigSectionSpec(

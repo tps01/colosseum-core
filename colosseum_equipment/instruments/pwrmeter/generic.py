@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+from typing import Any
+
+from colosseum_equipment.instruments._base import ScpiInstrumentMixin
 from colosseum_equipment.protocols.scpi import SCPIHelper
 from colosseum_equipment.transports.base import Transport
 
 
-class GenericPwrMeter:
+class GenericPwrMeter(ScpiInstrumentMixin):
     """Generic SCPI RF power meter."""
 
-    def __init__(self, transport: Transport, config: dict) -> None:
+    def __init__(self, transport: Transport, config: dict[str, Any]) -> None:
         self._scpi = SCPIHelper(transport)
         self._config = config
         if "frequency" in config:
@@ -27,6 +30,3 @@ class GenericPwrMeter:
 
     def preset(self) -> None:
         self._scpi.write("*RST")
-
-    def close(self) -> None:
-        self._scpi._transport.close()

@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import logging
+from typing import Any
+
 from colosseum_equipment.exceptions import EquipmentConnectionError
 from colosseum_equipment.transports.base import Transport
+from colosseum_equipment.transports.null_transport import NullTransport
 from colosseum_equipment.transports.serial_transport import SerialTransport
 from colosseum_equipment.transports.sim import SimTransport
-from colosseum_equipment.transports.null_transport import NullTransport
 from colosseum_equipment.transports.visa import VISATransport
+
+_logger = logging.getLogger("colosseum.equipment")
 
 
 def default_driver_for_kind(kind: str) -> str:
@@ -17,9 +22,16 @@ def default_driver_for_kind(kind: str) -> str:
     return "visa"
 
 
-def open_transport(kind: str, equipment_id: int, config: dict) -> Transport:
+def open_transport(kind: str, equipment_id: int, config: dict[str, Any]) -> Transport:
     driver = str(config.get("driver", default_driver_for_kind(kind))).lower()
     timeout = float(config.get("timeout", 5.0))
+    _logger.debug(
+        "open_transport kind=%s id=%s driver=%s timeout=%ss",
+        kind,
+        equipment_id,
+        driver,
+        timeout,
+    )
 
     if driver == "sim":
         return SimTransport(kind, equipment_id, config)
@@ -50,4 +62,6 @@ def open_transport(kind: str, equipment_id: int, config: dict) -> Transport:
             f"equipment.{kind} id {equipment_id}: driver `uhd` requires Ettus/UHD documentation "
             "before implementation; use driver=stub for API scaffolding."
         )
-    raise EquipmentConnectionError(f"Unsupported driver `{driver}` for equipment.{kind} id {equipment_id}")
+    raise EquipmentConnectionError(
+        f"Unsupported driver `{driver}` for equipment.{kind} id {equipment_id}"
+    )

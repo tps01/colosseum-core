@@ -8,7 +8,6 @@ Operating guide: Keysight U2001A specs/manual PDF in repo docs.
 from __future__ import annotations
 
 from colosseum_equipment.instruments.pwrmeter.generic import GenericPwrMeter
-from colosseum_equipment.transports.base import Transport
 
 
 class KeysightU2000PwrMeter(GenericPwrMeter):

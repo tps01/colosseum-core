@@ -1,6 +1,7 @@
 """User-facing `col.equipment` namespace."""
 
-from colosseum_equipment.api import (
+from . import (
+    asg,
     attn,
     dmm,
     eload,
@@ -9,6 +10,7 @@ from colosseum_equipment.api import (
     psu,
     pwrmeter,
     rfswitch,
+    rtsa,
     scpi,
     sdr,
     speca,
@@ -17,6 +19,7 @@ from colosseum_equipment.api import (
 )
 
 __all__ = [
+    "asg",
     "attn",
     "dmm",
     "eload",
@@ -25,6 +28,7 @@ __all__ = [
     "psu",
     "pwrmeter",
     "rfswitch",
+    "rtsa",
     "scpi",
     "sdr",
     "speca",

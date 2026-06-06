@@ -1,34 +1,56 @@
 from __future__ import annotations
 
-import logging
 import types
 from collections import defaultdict
-from typing import Callable, Iterable, List, Optional
+from collections.abc import Iterable
+from typing import Callable
 
-from ..config.sections import ConfigSectionSpec
+from colosseum.logging import get_logger
 
-_logger = logging.getLogger("colosseum.plugins")
+from ..config.sections import ConfigSectionSpec, ConfigValidator
+
+_logger = get_logger("colosseum.plugins")
+
+
+class PluginRegistrationError(RuntimeError):
+    """Raised when plugin registration would make runtime behavior ambiguous."""
 
 
 class PluginRegistry:
     def __init__(self) -> None:
         self._sections: dict[str, ConfigSectionSpec] = {}
-        self._validators: dict[str, list[Callable[[dict], list[str]]]] = defaultdict(list)
+        self._validators: dict[str, list[ConfigValidator]] = defaultdict(list)
         self._namespaces: dict[str, types.ModuleType] = {}
         self._shutdown_hooks: list[Callable[[], None]] = []
         self._loaded = False
 
     def register_config_section(self, spec: ConfigSectionSpec) -> None:
         if spec.dotted_path in self._sections:
-            _logger.warning("Replacing config section spec for `%s`", spec.dotted_path)
+            raise PluginRegistrationError(
+                f"Config section `{spec.dotted_path}` is already registered. "
+                "Use replace_config_section() for an intentional override."
+            )
         self._sections[spec.dotted_path] = spec
 
-    def register_config_validator(self, dotted_path: str, validator: Callable[[dict], list[str]]) -> None:
+    def replace_config_section(self, spec: ConfigSectionSpec) -> None:
+        if spec.dotted_path not in self._sections:
+            _logger.warning("Replacing unregistered config section `%s`", spec.dotted_path)
+        self._sections[spec.dotted_path] = spec
+
+    def register_config_validator(self, dotted_path: str, validator: ConfigValidator) -> None:
         self._validators[dotted_path].append(validator)
 
     def register_namespace(self, name: str, module: types.ModuleType) -> None:
         if name in self._namespaces:
-            _logger.warning("Replacing namespace `%s` from plugin registration", name)
+            raise PluginRegistrationError(
+                f"Namespace `{name}` is already registered. "
+                "Use replace_namespace() for an intentional override."
+            )
+        self._namespaces[name] = module
+
+    def replace_namespace(self, name: str, module: types.ModuleType) -> None:
+        if name not in self._namespaces:
+            _logger.warning("Replacing unregistered namespace `%s`", name)
         self._namespaces[name] = module
 
     def register_shutdown(self, hook: Callable[[], None]) -> None:
@@ -40,7 +62,7 @@ class PluginRegistry:
     def iter_config_sections(self) -> Iterable[ConfigSectionSpec]:
         return self.config_section_specs()
 
-    def validators_for(self, dotted_path: str) -> list[Callable[[dict], list[str]]]:
+    def validators_for(self, dotted_path: str) -> list[ConfigValidator]:
         return self._validators.get(dotted_path, [])
 
     def get_namespace(self, name: str) -> types.ModuleType:

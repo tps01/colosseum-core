@@ -1,6 +1,0 @@
-=== SSH regression (host -> QEMU guest) ===
-Log: /mnt/c/Users/tomlocal/colloseum/infra/yocto/artifacts/ssh-regression-20260531T233311Z.log
-Config: /mnt/c/Users/tomlocal/colloseum/infra/yocto/conf/bench.qemu.toml
---- R-EMU-01 ---
---- R-EMU-01 PASS ---
---- R-EMU-02 ---

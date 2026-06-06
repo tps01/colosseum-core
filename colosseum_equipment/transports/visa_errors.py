@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from colosseum_equipment.exceptions import EquipmentConnectionError, EquipmentError, EquipmentTimeoutError
+from typing import NoReturn
+
+from colosseum_equipment.exceptions import (
+    EquipmentConnectionError,
+    EquipmentError,
+    EquipmentTimeoutError,
+)
 
 
 def map_visa_exception(exc: BaseException, *, resource: str) -> EquipmentError:
@@ -36,5 +42,5 @@ def map_visa_exception(exc: BaseException, *, resource: str) -> EquipmentError:
     return EquipmentConnectionError(f"VISA error on `{resource}`: {exc}")
 
 
-def raise_mapped_visa_error(exc: BaseException, *, resource: str) -> None:
+def raise_mapped_visa_error(exc: BaseException, *, resource: str) -> NoReturn:
     raise map_visa_exception(exc, resource=resource) from exc

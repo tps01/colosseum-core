@@ -77,7 +77,7 @@ def test_load_config_accepts_utf8_bom(tmp_path) -> None:
 
     store = load_config(config_path)
 
-    assert store.get_equipment("psu", 1)["resource"] == "SIM::1"
+    assert store.require_item("equipment.psu", 1)["resource"] == "SIM::1"
 
 
 def test_config_is_loaded_reports_runtime_state(bench_sim) -> None:

@@ -1,17 +1,49 @@
 from __future__ import annotations
 
 from collections import Counter
+from typing import Protocol, TypedDict
+
+
+class OutcomeResult(Protocol):
+    status: str
+    optional: bool
+    message: str
+
+
+class OutcomeRecord(TypedDict):
+    kind: str
+    status: str
+    optional: bool
+    message: str
+    key: str
+    command: str
+    domain: str
+
+
+class OutcomeCounts(TypedDict):
+    required: dict[str, int]
+    optional: dict[str, int]
+    total: int
 
 
 class ResultAggregator:
     def __init__(self) -> None:
-        self._records: list[dict] = []
+        self._records: list[OutcomeRecord] = []
         self.suite_error: bool = False
         self.teardown_failed: bool = False
 
-    def record_verification(self, result, *, key: str = "", command: str = "", domain: str = "") -> None:
+    def _record_outcome(
+        self,
+        result: OutcomeResult,
+        *,
+        key: str = "",
+        command: str = "",
+        domain: str = "",
+        kind: str,
+    ) -> None:
         self._records.append(
             {
+                "kind": kind,
                 "status": result.status,
                 "optional": bool(result.optional),
                 "message": result.message,
@@ -21,10 +53,50 @@ class ResultAggregator:
             }
         )
 
+    def record_verification(
+        self,
+        result: OutcomeResult,
+        *,
+        key: str = "",
+        command: str = "",
+        domain: str = "",
+    ) -> None:
+        self._record_outcome(
+            result,
+            key=key,
+            command=command,
+            domain=domain,
+            kind="verification",
+        )
+
+    def record_command(
+        self,
+        result: OutcomeResult,
+        *,
+        key: str = "",
+        command: str = "",
+        domain: str = "",
+    ) -> None:
+        self._record_outcome(
+            result,
+            key=key,
+            command=command,
+            domain=domain,
+            kind="command",
+        )
+
     def mark_suite_error(self, message: str) -> None:
         self.suite_error = True
         self._records.append(
-            {"status": "ERROR", "optional": False, "message": message, "key": "", "command": "suite", "domain": "runner"}
+            {
+                "kind": "suite",
+                "status": "ERROR",
+                "optional": False,
+                "message": message,
+                "key": "",
+                "command": "suite",
+                "domain": "runner",
+            }
         )
 
     def mark_teardown_failed(self) -> None:
@@ -40,19 +112,28 @@ class ResultAggregator:
                 return False
         return True
 
-    def failed_required_verifications(self) -> list[dict]:
+    def failed_required_outcomes(self) -> list[OutcomeRecord]:
         return [
             row
             for row in self._records
             if not row["optional"] and row["status"] in {"FAIL", "ERROR"}
         ]
 
-    def optional_verifications(self) -> list[dict]:
+    def failed_required_verifications(self) -> list[OutcomeRecord]:
+        return [row for row in self.failed_required_outcomes() if row.get("kind") == "verification"]
+
+    def failed_required_commands(self) -> list[OutcomeRecord]:
+        return [row for row in self.failed_required_outcomes() if row.get("kind") == "command"]
+
+    def optional_outcomes(self) -> list[OutcomeRecord]:
         return [row for row in self._records if row["optional"]]
 
-    def counts(self) -> dict:
-        required = Counter()
-        optional = Counter()
+    def optional_verifications(self) -> list[OutcomeRecord]:
+        return [row for row in self.optional_outcomes() if row.get("kind") == "verification"]
+
+    def counts(self) -> OutcomeCounts:
+        required: Counter[str] = Counter()
+        optional: Counter[str] = Counter()
         for row in self._records:
             target = optional if row["optional"] else required
             target[row["status"]] += 1

@@ -7,7 +7,7 @@ and set resources/credentials for your lab.
 Run:
   colosseum run examples/test_rf_bench_integration.py --config configs/bench.local.toml
 
-Post-run plot (optional matplotlib):
+Post-run plot:
   python examples/plot_trace.py outputs/<run>/traces/rf_hold.csv
 """
 
@@ -46,24 +46,12 @@ def main() -> None:
     col.shared.ssh.measure_stdout(ssh_id=1, command="echo bench-integration", key="sdr_cmd")
 
     col.equipment.speca.save_trace_data(speca_id=1, path="traces/rf_hold.csv")
-    col.equipment.speca.measure_trace_power_at_frequency(
-        speca_id=1,
-        frequency_hz=_VERIFY_FREQUENCY_HZ,
-        key="trace_power_1ghz",
-    )
-    col.equipment.speca.verify_trace_power_at_frequency(
-        key="trace_power_1ghz",
-        expected_val=_EXPECTED_POWER_DBM,
-        tolerance=_POWER_TOLERANCE_DBM,
-    )
+    col.equipment.speca.measure_trace_power_at_frequency(speca_id=1, frequency_hz=_VERIFY_FREQUENCY_HZ, key="trace_power_1ghz")
+    col.equipment.speca.verify_trace_power_at_frequency(key="trace_power_1ghz", expected_val=_EXPECTED_POWER_DBM, tolerance=_POWER_TOLERANCE_DBM)
 
     col.equipment.speca.set_marker_frequency(speca_id=1, marker=1, frequency_hz=_VERIFY_FREQUENCY_HZ)
     col.equipment.speca.measure_marker_power(speca_id=1, marker=1, key="marker_power_1ghz")
-    col.equipment.speca.verify_marker_power(
-        key="marker_power_1ghz",
-        expected_val=_EXPECTED_POWER_DBM,
-        tolerance=_POWER_TOLERANCE_DBM,
-    )
+    col.equipment.speca.verify_marker_power(key="marker_power_1ghz", expected_val=_EXPECTED_POWER_DBM, tolerance=_POWER_TOLERANCE_DBM)
 
     col.equipment.psu.set_output(psu_id=1, enabled=False)
     col.equipment.psu.set_output(psu_id=2, enabled=False)

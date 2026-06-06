@@ -9,7 +9,7 @@ Public `col.equipment.*` / `col.io.*` APIs are implemented. **Vendor `model` dri
 | `keysight-edu34450a` | dmm | EDU34450A Programming Guide | DC V/I/R |
 | `keysight-esg` | vsg | E4400-90506 | CW measure + arb (E4438C) |
 | `keysight-e4407b` | speca | E4407B manual | |
-| `tektronix-rsa5100b` | speca | RSA5100B manual | RTSA capture |
+| `tektronix-rsa5100b` | rtsa | RSA5100B manual | IQ capture |
 | `tdk-genesys` | psu | Genesys user guide | OVP/OCP |
 | `adaura-r3` | attn | AdauraTech R3 manual | Text `SET`/`STATUS`; `driver = "serial"` + `port` |
 | `itech-it8600` | eload | IT8600 Programming Guide | |

@@ -7,10 +7,10 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 from colosseum.decorators.measurement import measurement
+from colosseum.decorators._common import resolve_domain
 from colosseum.decorators.verification import (
     MeasurementSource,
     VerificationResult,
-    _resolve_domain,
     verification,
 )
 
@@ -109,13 +109,13 @@ def test_resolve_domain_maps_plugin_module_prefixes(monkeypatch) -> None:
         return True
 
     monkeypatch.setattr(sample, "__module__", "colosseum_shared.regex")
-    assert _resolve_domain(sample) == "shared"
+    assert resolve_domain(sample) == "shared"
 
     monkeypatch.setattr(sample, "__module__", "colosseum_equipment.psu")
-    assert _resolve_domain(sample) == "equipment"
+    assert resolve_domain(sample) == "equipment"
 
     monkeypatch.setattr(sample, "__module__", "local_module")
-    assert _resolve_domain(sample) == "core"
+    assert resolve_domain(sample) == "core"
 
 
 def test_source_lookup_defaults_to_row_zero(ctx) -> None:

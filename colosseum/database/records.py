@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -12,8 +12,8 @@ class MeasurementRecord:
     key: str
     row_index: int
     value: Any
-    units: Optional[str]
-    artifact_path: Optional[str]
+    units: str | None
+    artifact_path: str | None
     status: str
     timestamp: str
 
@@ -28,7 +28,7 @@ class VerificationRecord:
     actual: Any
     status: str
     optional: bool
-    message: Optional[str]
+    message: str | None
     timestamp: str
 
 

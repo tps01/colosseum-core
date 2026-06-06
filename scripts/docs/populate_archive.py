@@ -70,11 +70,14 @@ def main(argv: list[str] | None = None) -> int:
     if errors:
         print(
             f"\n{errors} path(s) failed. Create tag first, e.g.\n"
-            f"  git tag -a {args.tag} -m \"Pre-archive doc snapshot\"\n",
+            f'  git tag -a {args.tag} -m "Pre-archive doc snapshot"\n',
             file=sys.stderr,
         )
         return 1
-    print(f"\nDone. Tag-recovered files are under {ARCHIVE_ROOT} (gitignored except README, MANIFEST, and planning/).")
+    print(
+        f"\nDone. Tag-recovered files are under {ARCHIVE_ROOT} "
+        "(gitignored except README, MANIFEST, and planning/)."
+    )
     return 0
 
 

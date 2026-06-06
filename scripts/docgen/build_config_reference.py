@@ -11,9 +11,9 @@ from _bootstrap import bootstrap
 
 bootstrap()
 
-from colosseum.plugins.loader import ensure_plugins_loaded
-from colosseum.plugins.registry import PluginRegistry
-from colosseum_equipment.transports.factory import default_driver_for_kind
+from colosseum.plugins.loader import ensure_plugins_loaded  # noqa: E402
+from colosseum.plugins.registry import PluginRegistry  # noqa: E402
+from colosseum_equipment.transports.factory import default_driver_for_kind  # noqa: E402
 
 
 def _repo_root() -> Path:
@@ -42,6 +42,14 @@ def _format_keys(keys: tuple[str, ...]) -> str:
 
 
 def build_config_reference_rst(*, output_path: Path) -> Path:
+    """Generate bench TOML config reference RST from plugin ``ConfigSectionSpec``.
+
+    :param output_path: Destination RST file path.
+    :type output_path: Path
+
+    :returns: ``output_path`` after writing.
+    :rtype: Path
+    """
     registry = PluginRegistry()
     ensure_plugins_loaded(registry)
     specs = sorted(registry.config_section_specs(), key=lambda spec: spec.dotted_path)
@@ -56,12 +64,15 @@ def build_config_reference_rst(*, output_path: Path) -> Path:
         "Defaults",
         "--------",
         "",
-        "- Lab hardware: omit ``driver`` on ``equipment.*`` sections (default **visa**, PyVISA + SCPI).",
+        "- Lab hardware: omit ``driver`` on ``equipment.*`` sections "
+        "(default **visa**, PyVISA + SCPI).",
         "- ``equipment.serial``: omit ``driver`` (default **serial**).",
         "- ``shared.ssh``: omit ``driver`` (default **ssh**).",
-        "- Offline CI / smoke: ``driver = \"sim\"`` (see ``examples/configs/bench.sim.toml``).",
-        "- PyVISA-sim: ``visa_backend = \"sim\"`` and ``sim_definition`` (see ``examples/configs/bench.rf.visa-sim.toml``).",
-        "- Multiple VISA runtimes: optional ``visa_library`` (PyVISA ``ResourceManager`` argument); see :doc:`platform_notes`.",
+        '- Offline CI / smoke: ``driver = "sim"`` (see ``examples/configs/bench.sim.toml``).',
+        '- PyVISA-sim: ``visa_backend = "sim"`` and ``sim_definition`` '
+        '(see ``examples/configs/bench.rf.visa-sim.toml``).',
+        "- Multiple VISA runtimes: optional ``visa_library`` "
+        "(PyVISA ``ResourceManager`` argument); see :doc:`platform_notes`.",
         "",
     ]
 
@@ -74,7 +85,8 @@ def build_config_reference_rst(*, output_path: Path) -> Path:
                 "",
                 f":ID field: ``{spec.id_field}``",
                 "",
-                f":Default driver: ``{_default_driver_for_section(spec.dotted_path)}`` (when ``driver`` is omitted)",
+                f":Default driver: ``{_default_driver_for_section(spec.dotted_path)}`` "
+                "(when ``driver`` is omitted)",
                 "",
                 ".. list-table::",
                 "   :header-rows: 1",
@@ -96,6 +108,14 @@ def build_config_reference_rst(*, output_path: Path) -> Path:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """CLI entry point for bench configuration reference generation.
+
+    :param argv: Optional argument vector (defaults to ``sys.argv[1:]``).
+    :type argv: list[str] | None, optional
+
+    :returns: Process exit code (``0`` on success).
+    :rtype: int
+    """
     parser = argparse.ArgumentParser(description="Generate bench config reference RST")
     parser.add_argument(
         "--output",

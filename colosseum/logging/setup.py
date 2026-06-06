@@ -8,7 +8,12 @@ from datetime import datetime, timezone
 from ..context import RuntimeContext
 
 
-def setup_logging(ctx: RuntimeContext, *, console: bool = False) -> logging.Logger:
+def setup_logging(
+    ctx: RuntimeContext,
+    *,
+    console: bool = False,
+    console_level: int = logging.INFO,
+) -> logging.Logger:
     logger = logging.getLogger("colosseum")
     logger.setLevel(logging.DEBUG)
     logger.handlers.clear()
@@ -21,8 +26,8 @@ def setup_logging(ctx: RuntimeContext, *, console: bool = False) -> logging.Logg
     logger.addHandler(file_handler)
 
     if console:
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.DEBUG)
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(console_level)
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
 
