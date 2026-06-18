@@ -4,6 +4,14 @@ from __future__ import annotations
 
 import ctypes
 from ctypes import wintypes
+from typing import cast
+
+
+def _kernel32() -> ctypes.WinDLL:
+    windll = getattr(ctypes, "windll", None)
+    if windll is None:
+        raise OSError("Windows API unavailable")
+    return cast(ctypes.WinDLL, windll.kernel32)
 
 
 class _MEMORYSTATUSEX(ctypes.Structure):
@@ -23,23 +31,20 @@ class _MEMORYSTATUSEX(ctypes.Structure):
 def memory_available_mb() -> float:
     stat = _MEMORYSTATUSEX()
     stat.dwLength = ctypes.sizeof(_MEMORYSTATUSEX)
-    if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(stat)):
+    if not _kernel32().GlobalMemoryStatusEx(ctypes.byref(stat)):
         raise OSError("GlobalMemoryStatusEx failed")
     return float(stat.ullAvailPhys) / (1024**2)
 
 
 def uptime_s() -> float:
-    return float(ctypes.windll.kernel32.GetTickCount64()) / 1000.0
+    return float(_kernel32().GetTickCount64()) / 1000.0
 
 
 def serial_ports_csv() -> str:
     try:
         from serial.tools import list_ports
-    except ImportError as exc:
-        raise ImportError(
-            "pyserial is required for serial port enumeration. "
-            "Install with: pip install colosseum[hardware]"
-        ) from exc
+    except ImportError:
+        return ""
     names = sorted(
         port.device for port in list_ports.comports() if port.device.upper().startswith("COM")
     )

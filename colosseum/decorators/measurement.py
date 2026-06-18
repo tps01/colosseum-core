@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from functools import wraps
-from typing import Any, ParamSpec, TypeVar, overload
+from typing import Any, TypeVar, overload
 
 from ..database import MeasurementRow
 from ..output import ensure_output_dir
 from ._common import ensure_runtime_context, resolve_command, resolve_domain
+from ._typing import ParamSpec
 from .command import COLOSSEUM_DECORATOR
 
 P = ParamSpec("P")

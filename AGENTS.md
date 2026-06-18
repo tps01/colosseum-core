@@ -7,6 +7,18 @@ Baseline expectations for AI agents in this repository.
 - Normative docs: `docs/scope.md`, `docs/sphinx/source/guides/`, `examples/`, and code. Bench config keys: run `python scripts/docgen/build_all.py` (generated **Bench configuration reference**). Archived ADRs/FFOs/DDDs: `docs/archive/planning/` (see `docs/archive/README.md`).
 - Small, reviewable diffs. No commits unless asked. Read `RULES.md` at task start (user-owned; do not edit unless asked).
 
+## Change discipline
+
+Prefer **focused, compact changes** that a human can review quickly:
+
+- Fix the root cause in the fewest files and lines that work — a 5-line targeted fix beats a 500-line refactor.
+- Touch only what the task requires; leave unrelated code, style churn, and drive-by cleanups out of the diff.
+- Avoid project-wide overhauls (mass renames, sweeping abstractions, new layers) unless the user explicitly asks for them.
+- When several approaches exist, choose the one that is **clever but local**: e.g. a one-line CI fix, a small compat shim, or a narrow behavior change — not a new framework or cross-cutting rewrite.
+- If scope grows, stop and split: land the minimal fix first; defer broader improvements to a follow-up.
+
+Reviewability matters as much as correctness. Small diffs that are easy to read and approve are preferred over exhaustive but sprawling changes.
+
 ## API and examples
 
 - User import: `import colosseum as col`. End-of-run: **`col.endex()`** only (flush logs/DB, `summary.txt`, `summary.json`, exit `0`/`1`). Do not gate exit via `read_verifications()` loops.

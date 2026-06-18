@@ -22,10 +22,7 @@ def uptime_s() -> float:
 def serial_ports_csv() -> str:
     try:
         from serial.tools import list_ports
-    except ImportError as exc:
-        raise ImportError(
-            "pyserial is required for serial port enumeration. "
-            "Install with: pip install colosseum[hardware]"
-        ) from exc
+    except ImportError:
+        return ""
     names = sorted(port.device for port in list_ports.comports() if "/dev/tty" in port.device)
     return ",".join(names)

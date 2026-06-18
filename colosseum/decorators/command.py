@@ -5,11 +5,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import wraps
-from typing import Any, ParamSpec, TypeVar, overload
+from typing import Any, TypeVar, overload
 
 from ..database import CommandRow
 from ..output import ensure_output_dir
 from ._common import ensure_runtime_context, resolve_command, resolve_domain
+from ._typing import ParamSpec
 
 COLOSSEUM_DECORATOR = "__colosseum_decorator__"
 
