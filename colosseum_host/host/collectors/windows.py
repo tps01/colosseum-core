@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import ctypes
 from ctypes import wintypes
-from typing import cast
+from typing import Any
 
 
-def _kernel32() -> ctypes.WinDLL:
+def _kernel32() -> Any:  # noqa: ANN401
     windll = getattr(ctypes, "windll", None)
     if windll is None:
         raise OSError("Windows API unavailable")
-    return cast(ctypes.WinDLL, windll.kernel32)
+    return windll.kernel32
 
 
 class _MEMORYSTATUSEX(ctypes.Structure):
