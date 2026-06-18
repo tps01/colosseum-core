@@ -7,9 +7,9 @@ Third-party extensions ship a ``colosseum.docgen`` entry point whose target is
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional, Sequence, Union
 
 DOCGEN_ENTRY_GROUP = "colosseum.docgen"
 
@@ -23,8 +23,8 @@ class DocgenModuleSpec:
     import_packages: Sequence[str]
     autodoc_modules: Sequence[str]
     order: int = 100
-    namespace: Optional[str] = None
-    extra_rst_dirs: Sequence[Union[str, Path]] = field(default_factory=list)
+    namespace: str | None = None
+    extra_rst_dirs: Sequence[str | Path] = field(default_factory=list)
 
-    def normalized_extra_rst_dirs(self) -> List[Path]:
+    def normalized_extra_rst_dirs(self) -> list[Path]:
         return [Path(p) for p in self.extra_rst_dirs]

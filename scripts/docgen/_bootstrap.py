@@ -7,6 +7,11 @@ from pathlib import Path
 
 
 def bootstrap() -> Path:
+    """Insert repository root and ``scripts/docgen`` on ``sys.path``.
+
+    :returns: Absolute repository root path.
+    :rtype: Path
+    """
     repo_root = Path(__file__).resolve().parents[2]
     docgen_dir = Path(__file__).resolve().parent
     for path in (repo_root, docgen_dir):

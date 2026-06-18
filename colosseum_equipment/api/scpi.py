@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from typing import Optional
+import inspect
+from typing import Any, Callable, Optional, cast
+
+from colosseum.decorators import command
 
 from colosseum_equipment.connections import get_transport
 from colosseum_equipment.protocols.scpi import SCPIHelper
@@ -10,7 +13,9 @@ _KIND_ID_PARAMS: dict[str, str] = {
     "dmm_id": "dmm",
     "serial_id": "serial",
     "vsg_id": "vsg",
+    "asg_id": "asg",
     "speca_id": "speca",
+    "rtsa_id": "rtsa",
     "attn_id": "attn",
     "pwrmeter_id": "pwrmeter",
     "rfswitch_id": "rfswitch",
@@ -36,109 +41,62 @@ def _resolve_kind(**kwargs: object) -> tuple[str, int]:
         names = ", ".join(f"{name}=" for name in _KIND_ID_PARAMS)
         raise ValueError(f"Specify exactly one of {names}")
     value, kind = selected[0]
-    return kind, int(value)  # type: ignore[arg-type]
+    return kind, int(cast(int, value))
 
 
-def write(
-    *,
-    command: str,
-    psu_id: Optional[int] = None,
-    dmm_id: Optional[int] = None,
-    serial_id: Optional[int] = None,
-    vsg_id: Optional[int] = None,
-    speca_id: Optional[int] = None,
-    attn_id: Optional[int] = None,
-    pwrmeter_id: Optional[int] = None,
-    rfswitch_id: Optional[int] = None,
-    oscope_id: Optional[int] = None,
-    eload_id: Optional[int] = None,
-    freqcounter_id: Optional[int] = None,
-    vna_id: Optional[int] = None,
-    sdr_id: Optional[int] = None,
-) -> None:
+def _scpi_helper(**instrument_ids: object) -> SCPIHelper:
     kind, equipment_id = _resolve_kind(
-        psu_id=psu_id,
-        dmm_id=dmm_id,
-        serial_id=serial_id,
-        vsg_id=vsg_id,
-        speca_id=speca_id,
-        attn_id=attn_id,
-        pwrmeter_id=pwrmeter_id,
-        rfswitch_id=rfswitch_id,
-        oscope_id=oscope_id,
-        eload_id=eload_id,
-        freqcounter_id=freqcounter_id,
-        vna_id=vna_id,
-        sdr_id=sdr_id,
+        **{
+            key: instrument_ids[key]
+            for key in _KIND_ID_PARAMS
+            if instrument_ids.get(key) is not None
+        }
     )
-    for_instrument(kind, equipment_id).write(command)
+    return for_instrument(kind, equipment_id)
 
 
-def query(
-    *,
-    command: str,
-    psu_id: Optional[int] = None,
-    dmm_id: Optional[int] = None,
-    serial_id: Optional[int] = None,
-    vsg_id: Optional[int] = None,
-    speca_id: Optional[int] = None,
-    attn_id: Optional[int] = None,
-    pwrmeter_id: Optional[int] = None,
-    rfswitch_id: Optional[int] = None,
-    oscope_id: Optional[int] = None,
-    eload_id: Optional[int] = None,
-    freqcounter_id: Optional[int] = None,
-    vna_id: Optional[int] = None,
-    sdr_id: Optional[int] = None,
-) -> str:
-    kind, equipment_id = _resolve_kind(
-        psu_id=psu_id,
-        dmm_id=dmm_id,
-        serial_id=serial_id,
-        vsg_id=vsg_id,
-        speca_id=speca_id,
-        attn_id=attn_id,
-        pwrmeter_id=pwrmeter_id,
-        rfswitch_id=rfswitch_id,
-        oscope_id=oscope_id,
-        eload_id=eload_id,
-        freqcounter_id=freqcounter_id,
-        vna_id=vna_id,
-        sdr_id=sdr_id,
-    )
-    return for_instrument(kind, equipment_id).query(command)
+def _make_scpi_api(name: str, method: str, return_annotation: object) -> Callable[..., object]:
+    params = [
+        inspect.Parameter("command", inspect.Parameter.KEYWORD_ONLY, annotation=str),
+        *[
+            inspect.Parameter(
+                param, inspect.Parameter.KEYWORD_ONLY, default=None, annotation=Optional[int]
+            )
+            for param in _KIND_ID_PARAMS
+        ],
+    ]
+
+    def api(*, command: str, **instrument_ids: int | None) -> object:
+        helper = _scpi_helper(**instrument_ids)
+        return getattr(helper, method)(command)
+
+    api.__name__ = name
+    api.__qualname__ = name
+    api.__module__ = __name__
+    api_any: Any = api
+    api_any.__signature__ = inspect.Signature(params, return_annotation=return_annotation)
+    id_list = ", ".join(sorted(_KIND_ID_PARAMS))
+    if return_annotation is type(None):
+        returns_line = "None"
+    elif return_annotation is str:
+        returns_line = "Instrument response text."
+    elif return_annotation is float:
+        returns_line = "Parsed float from the instrument response."
+    else:
+        returns_line = "Value from the instrument."
+    api.__doc__ = f"""Send SCPI ``{method}`` to exactly one configured instrument.
+
+:param command: SCPI command string (including terminators as required by the driver).
+:type command: str
+:param {id_list}: Pass exactly one ``*_id`` matching a configured bench resource.
+
+:returns: {returns_line}
+:raises ValueError: If zero or more than one ``*_id`` is provided.
+:raises EquipmentConnectionError: Transport or instrument connection failed.
+"""
+    return command(api_any)
 
 
-def query_float(
-    *,
-    command: str,
-    psu_id: Optional[int] = None,
-    dmm_id: Optional[int] = None,
-    serial_id: Optional[int] = None,
-    vsg_id: Optional[int] = None,
-    speca_id: Optional[int] = None,
-    attn_id: Optional[int] = None,
-    pwrmeter_id: Optional[int] = None,
-    rfswitch_id: Optional[int] = None,
-    oscope_id: Optional[int] = None,
-    eload_id: Optional[int] = None,
-    freqcounter_id: Optional[int] = None,
-    vna_id: Optional[int] = None,
-    sdr_id: Optional[int] = None,
-) -> float:
-    kind, equipment_id = _resolve_kind(
-        psu_id=psu_id,
-        dmm_id=dmm_id,
-        serial_id=serial_id,
-        vsg_id=vsg_id,
-        speca_id=speca_id,
-        attn_id=attn_id,
-        pwrmeter_id=pwrmeter_id,
-        rfswitch_id=rfswitch_id,
-        oscope_id=oscope_id,
-        eload_id=eload_id,
-        freqcounter_id=freqcounter_id,
-        vna_id=vna_id,
-        sdr_id=sdr_id,
-    )
-    return for_instrument(kind, equipment_id).query_float(command)
+write = _make_scpi_api("write", "write", None)
+query = _make_scpi_api("query", "query", str)
+query_float = _make_scpi_api("query_float", "query_float", float)

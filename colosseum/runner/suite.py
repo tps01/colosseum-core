@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+
+from ..config.toml_relaxed import read_relaxed_toml
 
 try:
-    import tomllib  # type: ignore[attr-defined]
+    import tomllib
 except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib  # type: ignore[no-redef]
 
@@ -13,21 +14,21 @@ except ModuleNotFoundError:  # pragma: no cover
 @dataclass
 class SuiteDefinition:
     name: str
-    setup: List[Path]
-    tests: List[Path]
-    teardown: List[Path]
+    setup: list[Path]
+    tests: list[Path]
+    teardown: list[Path]
 
 
 class SuiteError(RuntimeError):
     pass
 
 
-def _as_path_list(value: object, field: str, base_dir: Path) -> List[Path]:
+def _as_path_list(value: object, field: str, base_dir: Path) -> list[Path]:
     if value is None:
         return []
     if not isinstance(value, list):
         raise SuiteError(f"Suite field `{field}` must be a list of paths")
-    paths: List[Path] = []
+    paths: list[Path] = []
     for item in value:
         if not isinstance(item, str):
             raise SuiteError(f"Suite field `{field}` entries must be strings")
@@ -40,10 +41,7 @@ def load_suite_toml(path: Path) -> SuiteDefinition:
     if not suite_path.exists():
         raise SuiteError(f"Suite file not found: {suite_path}")
     try:
-        from ..config.toml_relaxed import loads_relaxed
-
-        text = suite_path.read_text(encoding="utf-8")
-        raw = loads_relaxed(text)
+        raw = read_relaxed_toml(suite_path)
     except UnicodeDecodeError as exc:
         raise SuiteError(f"Suite file is not valid UTF-8: {suite_path}: {exc}") from exc
     except tomllib.TOMLDecodeError as exc:
@@ -77,7 +75,7 @@ def _set_phase(phase: str) -> None:
         ctx.logger.info("Suite phase: %s", phase)
 
 
-def run_suite(suite_path: Path, config_path: Optional[Path] = None, *, verbose: bool = False) -> int:
+def run_suite(suite_path: Path, config_path: Path | None = None, *, debug: bool = False) -> int:
     from ..config import load_config
     from ..context import init_context, require_context
     from ..output import ensure_output_dir
@@ -91,13 +89,21 @@ def run_suite(suite_path: Path, config_path: Optional[Path] = None, *, verbose: 
         config_path=config_path.resolve() if config_path else None,
     )
     ctx = require_context()
-    ctx.verbose_logging = verbose
+    ctx.debug_logging = debug
     if config_path:
         load_config(config_path)
 
     logical = ctx.suite_name or ctx.test_case_name
     ensure_output_dir(ctx, logical_name=logical)
     ctx.db.insert_run_metadata("suite_name", suite.name)
+    if ctx.logger is not None:
+        ctx.logger.debug(
+            "Suite %r: setup=%d test=%d teardown=%d",
+            suite.name,
+            len(suite.setup),
+            len(suite.tests),
+            len(suite.teardown),
+        )
 
     setup_failed = False
     _set_phase("setup")
@@ -107,6 +113,8 @@ def run_suite(suite_path: Path, config_path: Optional[Path] = None, *, verbose: 
         except ScriptRunError:
             setup_failed = True
             ctx.result_aggregator.mark_suite_error("setup script failed")
+            if ctx.logger is not None:
+                ctx.logger.debug("Setup failed; skipping test scripts")
             break
 
     if not setup_failed:

@@ -65,7 +65,7 @@ Platform notes
 
 **Troubleshooting**
 
-- ``pyvisa`` / VISA connection errors: check ``resource`` strings with ``pyvisa-shell`` or the vendor utility; confirm ``colosseum`` is installed with its dependencies intact. Colosseum maps PyVISA failures to ``EquipmentConnectionError`` (including invalid/closed sessions and locked resources) or ``EquipmentTimeoutError`` (VISA timeout).
+- ``pyvisa`` / VISA connection errors: check ``resource`` strings with ``pyvisa-shell`` or the vendor utility; confirm ``colosseum[hardware]`` is installed. Colosseum maps PyVISA failures to ``EquipmentConnectionError`` (including invalid/closed sessions and locked resources) or ``EquipmentTimeoutError`` (VISA timeout).
 - **Resource locked / in use:** another session holds the same ``resource`` string; close other apps or zombie Python processes before re-running.
 - Empty or ``ERROR`` responses with ``visa_backend = "sim"``: verify ``sim_definition`` path and that YAML ``resources:`` keys match the bench ``resource``; see ``docs/testing/pyvisa-sim-fixtures.md``.
 - Permission denied on serial (Linux): group membership or udev rules for the adapter.

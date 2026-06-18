@@ -6,7 +6,6 @@ Manual: Keysight 53220A/53230A User's Guide — ``MEASure:FREQuency?``, gate tim
 from __future__ import annotations
 
 from colosseum_equipment.instruments.freqcounter.generic import GenericFreqCounter
-from colosseum_equipment.transports.base import Transport
 
 
 class Keysight53220AFreqCounter(GenericFreqCounter):

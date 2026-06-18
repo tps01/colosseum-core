@@ -1,20 +1,30 @@
 from __future__ import annotations
 
-from typing import List
+from collections.abc import Callable
+from typing import Protocol, cast
 
 try:
     from importlib.metadata import entry_points
 except ImportError:  # pragma: no cover
-    from importlib_metadata import entry_points  # type: ignore
+    from importlib_metadata import entry_points  # type: ignore[import-not-found,no-redef]
 
 
-def entry_points_for_group(group: str) -> List[object]:
+class ColosseumPluginEntryPoint(Protocol):
+    name: str
+
+    def load(self) -> Callable[..., None]: ...
+
+
+def entry_points_for_group(group: str) -> list[ColosseumPluginEntryPoint]:
     """Return entry points for *group* (importlib.metadata compat shim)."""
     discovered = entry_points()
     select = getattr(discovered, "select", None)
     if select is not None:
-        return list(select(group=group))
+        return cast(list[ColosseumPluginEntryPoint], list(select(group=group)))
     get = getattr(discovered, "get", None)
     if get is not None:
-        return list(get(group, []))
-    return [ep for ep in discovered if getattr(ep, "group", None) == group]
+        return cast(list[ColosseumPluginEntryPoint], list(get(group, [])))
+    return cast(
+        list[ColosseumPluginEntryPoint],
+        [ep for ep in discovered if getattr(ep, "group", None) == group],
+    )

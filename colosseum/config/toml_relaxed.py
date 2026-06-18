@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Any
 
 try:
-    import tomllib  # type: ignore[attr-defined]
+    import tomllib
 except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib  # type: ignore[no-redef]
 
@@ -49,9 +50,7 @@ def _needs_quoting(value: str) -> bool:
         return False
     if value.lower() in ("true", "false"):
         return False
-    if _is_numeric_literal(value):
-        return False
-    return True
+    return not _is_numeric_literal(value)
 
 
 def prepare_toml_text(text: str) -> str:
@@ -74,9 +73,7 @@ def prepare_toml_text(text: str) -> str:
             continue
 
         escaped = raw_value.replace("\\", "\\\\").replace('"', '\\"')
-        lines.append(
-            f'{match.group("indent")}{match.group("key")} = "{escaped}"{comment_suffix}'
-        )
+        lines.append(f'{match.group("indent")}{match.group("key")} = "{escaped}"{comment_suffix}')
     if text.endswith("\n"):
         return "\n".join(lines) + "\n"
     return "\n".join(lines)
@@ -84,3 +81,12 @@ def prepare_toml_text(text: str) -> str:
 
 def loads_relaxed(text: str) -> dict[str, Any]:
     return tomllib.loads(prepare_toml_text(text))
+
+
+def read_relaxed_toml(path: Path) -> dict[str, Any]:
+    """Read UTF-8 TOML from ``path`` with relaxed bare-word quoting (strips BOM)."""
+    data = path.read_bytes()
+    if data.startswith(b"\xef\xbb\xbf"):
+        data = data[3:]
+    text = data.decode("utf-8")
+    return loads_relaxed(text)

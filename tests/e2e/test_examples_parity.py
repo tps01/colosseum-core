@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
+from tests.support.helpers import REPO_ROOT as REPO
 
 
 def _run_example(name: str, bench_sim: Path, isolated_cwd: Path, env: dict[str, str]) -> int:

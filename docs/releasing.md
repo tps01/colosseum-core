@@ -9,8 +9,8 @@ Releases are automated via [`.github/workflows/release.yml`](../.github/workflow
 3. Tag and push (tag must match the package version, without the `v` prefix):
 
    ```bash
-   git tag v0.3.0
-   git push origin v0.3.0
+   git tag v0.11.1
+   git push origin v0.11.1
    ```
 
 4. The **Release** workflow builds assets and creates a [GitHub Release](https://github.com/tps01/colosseum/releases) with:
@@ -20,7 +20,7 @@ Releases are automated via [`.github/workflows/release.yml`](../.github/workflow
    | `colosseum-<ver>-py3-none-any.whl` | Online install |
    | `colosseum-<ver>.tar.gz` | Source distribution |
    | `colosseum-<ver>-offline-<os>-<arch>-pyXY.tar.gz` | End-user air-gapped bundle (×4: Linux/Windows × py39/py311) |
-   | `colosseum.pdf` | Generated API + guides (PDF) |
+   | `colosseum.pdf` | End-user run guide + public API (commands, measurements, verifications) |
    | `colosseum-docs-html.zip` | Same docs as browsable HTML |
 
    GitHub also attaches its own **Source code** zip/tarball; that archive is not a substitute for the wheel or offline bundles.

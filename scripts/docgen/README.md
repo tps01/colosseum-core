@@ -14,10 +14,13 @@ colosseum.docgen entry points
 build_config_reference.py ──► build/docgen/config_reference.rst
         │                    (from plugin ConfigSectionSpec; SSOT for bench keys)
         ▼
+    build_user_api.py ──► build/docgen/user_api/rst/  (commands, measurements, verifications)
+        │
+        ▼
     stitch.py      ──►  build/docgen/site/source/  (+ docs/sphinx/source guides)
         │
-        ├─► sphinx-build -b html  ──► build/docgen/site/html/
-        └─► sphinx-build -b latex + latexmk ──► build/docgen/site/latex/colosseum.pdf
+        ├─► sphinx-build -b html (index.rst)  ──► build/docgen/site/html/
+        └─► sphinx-build -b latex (index_pdf.rst) + latexmk ──► build/docgen/site/latex/colosseum.pdf
 ```
 
 ## Commands
@@ -47,8 +50,8 @@ python scripts/docgen/stitch.py
 
 Outputs:
 
-- HTML: `build/docgen/site/html/index.html`
-- PDF: `build/docgen/site/latex/colosseum.pdf`
+- HTML: `build/docgen/site/html/index.html` (full guides + developer API reference)
+- PDF: `build/docgen/site/latex/colosseum.pdf` (run-the-bench guides + filtered user API only)
 
 **LaTeX prerequisites (default build):** `latexmk` on `PATH`, plus a TeX distribution (Ubuntu: `latexmk texlive-latex-recommended texlive-fonts-recommended texlive-latex-extra`; Windows: MiKTeX or TeX Live).
 
@@ -89,7 +92,7 @@ No changes to Colosseum scripts are required when the entry point is present.
 Hand-written RST lives in ``docs/sphinx/source/guides/``. The stitch step copies them into the site source tree; API reference comes from autodoc staging.
 
 After ``sphinx-apidoc``, ``build_module.py`` patches ``colosseum.decorators.rst`` with
-``:exclude-members: measurement, verification`` so package re-exports do not duplicate
+``:exclude-members: command, measurement, verification`` so package re-exports do not duplicate
 submodule doc targets (``colosseum.decorators.measurement`` module vs function name).
 
 ## Entry point group

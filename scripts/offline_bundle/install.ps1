@@ -10,7 +10,7 @@ $version = (Get-Content -Raw VERSION).Trim()
 $pyMinor = (Get-Content -Raw PYTHON_MINOR).Trim()
 $venv = Join-Path $PWD '.venv'
 
-Write-Host "Creating $venv and installing colosseum==$version ..."
+Write-Host "Creating $venv and installing colosseum[bench]==$version ..."
 
 if (Get-Command py -ErrorAction SilentlyContinue) {
     & py "-$pyMinor" -m venv $venv
@@ -21,7 +21,7 @@ if (Get-Command py -ErrorAction SilentlyContinue) {
 }
 
 & (Join-Path $venv 'Scripts\Activate.ps1')
-pip install --no-index --find-links=wheels "colosseum==$version"
+pip install --no-index --find-links=wheels "colosseum[bench]==$version"
 
 Write-Host ""
 Write-Host "Installed colosseum $version."

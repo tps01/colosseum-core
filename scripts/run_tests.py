@@ -9,14 +9,15 @@ import sys
 from pathlib import Path
 
 # PyVISA-sim is test-only (.[test] extra) and needs Python 3.10+.
-_PYTEST_MARKER_ARGS = (
-    ["-m", "not visa_sim"]
-    if sys.version_info < (3, 10)
-    else []
-)
+_PYTEST_MARKER_ARGS = ["-m", "not visa_sim"] if sys.version_info < (3, 10) else []
 
 
 def main() -> int:
+    """Run pytest tiers 1–3 and optionally Tier 4A regression scripts.
+
+    :returns: Process exit code (``0`` on success).
+    :rtype: int
+    """
     root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description="Run Colosseum test tiers")
     parser.add_argument(
@@ -62,11 +63,10 @@ def main() -> int:
     if soak != 0:
         return soak
 
-    docgen = subprocess.call(
+    return subprocess.call(
         [sys.executable, str(root / "tests" / "regression" / "run_docgen_check.py")],
         cwd=root,
     )
-    return docgen
 
 
 if __name__ == "__main__":

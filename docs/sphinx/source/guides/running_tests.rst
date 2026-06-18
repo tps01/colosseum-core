@@ -8,3 +8,5 @@ Running test cases
 The CLI does not execute the script's ``if __name__ == "__main__"`` block; only ``main()`` is invoked.
 
 Output is written lazily under ``outputs/<timestamp>_<test_stem>/`` as ``debug.log``, ``execution.sqlite``, and ``summary.txt``.
+
+INFO-level log lines (including run header metadata and measurement/verification summaries) are echoed to stdout. Use ``-d`` or ``--debug`` to include DEBUG on stdout as well; ``debug.log`` always records DEBUG.

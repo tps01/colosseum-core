@@ -36,7 +36,7 @@ Configure direction, drive outputs, and record readbacks as measurements::
    col.io.dio.write_pin(dio_id=1, line=0, value=True)
    level = col.io.dio.read_pin(dio_id=1, line=0, key="reset")
 
-``read_port`` and ``read_pin`` require ``key=`` and persist rows under domain ``io`` in ``execution.sqlite``.
+``read_port`` and ``read_pin`` require ``key=`` and persist measurement rows under domain ``equipment`` in ``execution.sqlite``. ``write_port``, ``write_pin``, and ``configure`` are ``@command`` APIs (optional ``key=``).
 
 Platform notes
 --------------
@@ -45,6 +45,12 @@ Platform notes
 
 **Windows:** install the WinUSB driver for the FT232H (for example with Zadig) so pyftdi can claim the interface. USB serial drivers alone are not sufficient for MPSSE GPIO.
 
-I2C and SPI (``col.io.i2c``, ``col.io.spi``) share the same plugin lifecycle but remain reserved for NI USB-845x until that driver is implemented. FT232H MPSSE I2C/SPI may be added later on the same URL.
+Reserved / experimental surfaces
+--------------------------------
+
+I2C and SPI (``col.io.i2c``, ``col.io.spi``) share the same plugin lifecycle but remain
+reserved for NI USB-845x until that driver is implemented. They are exposed for API
+compatibility and fail immediately with explicit ``IoNotImplementedError`` messages.
+FT232H MPSSE I2C/SPI may be added later on the same URL.
 
 See also :doc:`platform_notes` and :doc:`configuration`.

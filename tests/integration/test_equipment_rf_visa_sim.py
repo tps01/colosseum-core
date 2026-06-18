@@ -31,9 +31,11 @@ def test_load_config_rf_bench(bench_rf, isolated_cwd) -> None:
     store = load_config(bench_rf)
     vsg = store.list_items("equipment.vsg")
     speca = store.list_items("equipment.speca")
+    rtsa = store.list_items("equipment.rtsa")
     assert vsg and vsg[0].get("model") == "keysight-esg"
     assert "driver" not in vsg[0]
-    assert len(speca) == 2
+    assert len(speca) == 1
+    assert rtsa and rtsa[0].get("model") == "tektronix-rsa5100b"
 
 
 def test_vsg_set_frequency_and_output(bench_rf, isolated_cwd) -> None:
@@ -107,12 +109,12 @@ def test_speca_save_trace_data(bench_rf, isolated_cwd) -> None:
     assert "-42.5" in content
 
 
-def test_tek_speca_center_span(bench_rf, isolated_cwd) -> None:
+def test_rtsa_center_span(bench_rf, isolated_cwd) -> None:
     pytest.importorskip("pyvisa_sim")
-    from colosseum_equipment.api import scpi, speca
+    from colosseum_equipment.api import rtsa, scpi
 
     load_config(bench_rf)
-    speca.set_center_frequency(speca_id=2, frequency=2.5e9)
-    speca.set_span(speca_id=2, span=20e6)
-    assert float(scpi.query(command="DISP:SPEC:FREQ:OFFS?", speca_id=2)) == pytest.approx(2.5e9)
-    assert float(scpi.query(command="DISP:SPEC:FREQ:SCAL?", speca_id=2)) == pytest.approx(20e6)
+    rtsa.set_center_freq(rtsa_id=1, frequency_hz=2.5e9)
+    rtsa.set_span(rtsa_id=1, span_hz=20e6)
+    assert float(scpi.query(command="DISP:SPEC:FREQ:OFFS?", rtsa_id=1)) == pytest.approx(2.5e9)
+    assert float(scpi.query(command="DISP:SPEC:FREQ:SCAL?", rtsa_id=1)) == pytest.approx(20e6)

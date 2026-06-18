@@ -1,17 +1,28 @@
 from __future__ import annotations
 
+import json
+import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import json
 from pathlib import Path
-import sqlite3
-from typing import Optional
+from typing import TYPE_CHECKING
 
+from .records import MeasurementRecord, RunMetadataRecord, VerificationRecord
+
+if TYPE_CHECKING:
+    from ..context import RuntimeContext
 from .schema import SCHEMA_SQL
 
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _cursor_rowid(cur: sqlite3.Cursor) -> int:
+    rowid = cur.lastrowid
+    if rowid is None:
+        raise RuntimeError("INSERT did not return a row id")
+    return int(rowid)
 
 
 @dataclass
@@ -21,8 +32,8 @@ class MeasurementRow:
     key: str
     row_index: int = 0
     value: object = None
-    units: Optional[str] = None
-    artifact_path: Optional[str] = None
+    units: str | None = None
+    artifact_path: str | None = None
     status: str = "PASS"
     timestamp: str = ""
 
@@ -40,9 +51,21 @@ class VerificationRow:
     timestamp: str = ""
 
 
+@dataclass
+class CommandRow:
+    domain: str
+    command: str
+    key: str = ""
+    result: object = None
+    status: str = "PASS"
+    optional: bool = False
+    message: str = ""
+    timestamp: str = ""
+
+
 class DatabaseManager:
     def __init__(self) -> None:
-        self._conn: Optional[sqlite3.Connection] = None
+        self._conn: sqlite3.Connection | None = None
 
     def initialize(self, db_path: Path) -> None:
         if self._conn is not None:
@@ -96,7 +119,30 @@ class DatabaseManager:
             ),
         )
         conn.commit()
-        return int(cur.lastrowid)
+        return _cursor_rowid(cur)
+
+    def insert_command(self, row: CommandRow) -> int:
+        conn = self._require_conn()
+        ts = row.timestamp or _utc_now()
+        cur = conn.execute(
+            """
+            INSERT INTO commands
+            (domain, command, key, result_json, status, optional, message, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                row.domain,
+                row.command,
+                row.key,
+                json.dumps(row.result),
+                row.status,
+                1 if row.optional else 0,
+                row.message,
+                ts,
+            ),
+        )
+        conn.commit()
+        return _cursor_rowid(cur)
 
     def insert_verification(self, row: VerificationRow) -> int:
         conn = self._require_conn()
@@ -120,7 +166,7 @@ class DatabaseManager:
             ),
         )
         conn.commit()
-        return int(cur.lastrowid)
+        return _cursor_rowid(cur)
 
     def insert_event(self, level: str, source: str, message: str) -> int:
         conn = self._require_conn()
@@ -129,7 +175,7 @@ class DatabaseManager:
             (level, source, message, _utc_now()),
         )
         conn.commit()
-        return int(cur.lastrowid)
+        return _cursor_rowid(cur)
 
     def insert_run_metadata(self, key: str, value: str) -> None:
         conn = self._require_conn()
@@ -143,13 +189,16 @@ class DatabaseManager:
             (kind, path, description, _utc_now()),
         )
         conn.commit()
-        return int(cur.lastrowid)
+        return _cursor_rowid(cur)
 
-    def get_measurement(self, domain: str, command: str, key: str, row_index: int = 0) -> Optional[MeasurementRow]:
+    def get_measurement(
+        self, domain: str, command: str, key: str, row_index: int = 0
+    ) -> MeasurementRow | None:
         conn = self._require_conn()
         cur = conn.execute(
             """
-            SELECT domain, command, key, row_index, value_json, units, artifact_path, status, timestamp
+            SELECT domain, command, key, row_index, value_json, units,
+                   artifact_path, status, timestamp
             FROM measurements WHERE domain=? AND command=? AND key=? AND row_index=?
             ORDER BY id DESC LIMIT 1
             """,
@@ -174,7 +223,8 @@ class DatabaseManager:
         conn = self._require_conn()
         cur = conn.execute(
             """
-            SELECT domain, command, key, row_index, value_json, units, artifact_path, status, timestamp
+            SELECT domain, command, key, row_index, value_json, units,
+                   artifact_path, status, timestamp
             FROM measurements WHERE domain=? AND command=? AND key=? ORDER BY id ASC
             """,
             (domain, command, key),
@@ -196,17 +246,16 @@ class DatabaseManager:
             )
         return out
 
-    def fetch_all_measurements(self) -> list:
-        from .records import MeasurementRecord
-
+    def fetch_all_measurements(self) -> list[MeasurementRecord]:
         conn = self._require_conn()
         cur = conn.execute(
             """
-            SELECT id, domain, command, key, row_index, value_json, units, artifact_path, status, timestamp
+            SELECT id, domain, command, key, row_index, value_json, units,
+                   artifact_path, status, timestamp
             FROM measurements ORDER BY id ASC
             """
         )
-        rows = []
+        rows: list[MeasurementRecord] = []
         for item in cur.fetchall():
             rows.append(
                 MeasurementRecord(
@@ -224,17 +273,16 @@ class DatabaseManager:
             )
         return rows
 
-    def fetch_all_verifications(self) -> list:
-        from .records import VerificationRecord
-
+    def fetch_all_verifications(self) -> list[VerificationRecord]:
         conn = self._require_conn()
         cur = conn.execute(
             """
-            SELECT id, domain, command, key, expected_json, actual_json, status, optional, message, timestamp
+            SELECT id, domain, command, key, expected_json, actual_json, status,
+                   optional, message, timestamp
             FROM verifications ORDER BY id ASC
             """
         )
-        rows = []
+        rows: list[VerificationRecord] = []
         for item in cur.fetchall():
             rows.append(
                 VerificationRecord(
@@ -252,37 +300,44 @@ class DatabaseManager:
             )
         return rows
 
-    def fetch_run_metadata(self) -> list:
-        from .records import RunMetadataRecord
-
+    def fetch_run_metadata(self) -> list[RunMetadataRecord]:
         conn = self._require_conn()
         cur = conn.execute("SELECT key, value FROM run_metadata ORDER BY key ASC")
         return [RunMetadataRecord(key=item[0], value=item[1]) for item in cur.fetchall()]
 
-    def fetch_table_rows(self, name: str) -> list[dict]:
+    def fetch_table_rows(self, name: str) -> list[dict[str, object]]:
         import re
 
         if not re.match(r"^[A-Za-z0-9_]+$", name):
             raise ValueError(f"Invalid table name: {name}")
         conn = self._require_conn()
-        cur = conn.execute(f"SELECT * FROM {name}")
+        cur = conn.execute(f"SELECT * FROM {name}")  # nosec B608  # name validated above
         columns = [desc[0] for desc in cur.description]
         return [dict(zip(columns, row)) for row in cur.fetchall()]
 
-    def count_rows(self, table: str, where: str = "", params: tuple = ()) -> int:
+    def count_rows(
+        self, table: str, where: str = "", params: tuple[object, ...] = ()
+    ) -> int:
+        import re
+
+        if not re.match(r"^[A-Za-z0-9_]+$", table):
+            raise ValueError(f"Invalid table name: {table}")
         conn = self._require_conn()
-        query = f"SELECT COUNT(*) FROM {table}"
+        query = f"SELECT COUNT(*) FROM {table}"  # nosec B608  # table validated above
         if where:
             query += f" WHERE {where}"
         cur = conn.execute(query, params)
         return int(cur.fetchone()[0])
 
 
-def initialize_database_if_needed(ctx) -> None:
+def initialize_database_if_needed(ctx: RuntimeContext) -> None:
     if ctx.output_dir is None:
         raise RuntimeError("Output directory must be allocated before DB init")
     if not ctx.db.is_initialized():
-        ctx.db.initialize(ctx.output_dir / "execution.sqlite")
+        db_path = ctx.output_dir / "execution.sqlite"
+        ctx.db.initialize(db_path)
+        if ctx.logger is not None:
+            ctx.logger.debug("Initialized execution database: %s", db_path)
         ctx.db.insert_run_metadata("test_case_name", ctx.test_case_name)
         ctx.db.insert_run_metadata("suite_name", ctx.suite_name or "")
         ctx.db.insert_run_metadata("config_path", str(ctx.config_path) if ctx.config_path else "")

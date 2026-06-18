@@ -9,10 +9,10 @@ from __future__ import annotations
 import cProfile
 import pstats
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
 from io import StringIO
 from pathlib import Path
-from typing import Iterable
 
 # pstats restriction regex (OR); matches repo packages and unit tests on Win/POSIX
 _PROJECT_PATH_RE = r"(colosseum[\\/]|colosseum_equipment|colosseum_shared|tests[\\/]unit)"

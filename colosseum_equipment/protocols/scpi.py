@@ -1,20 +1,21 @@
 from __future__ import annotations
 
-import re
+import logging
+
+from colosseum_shared.parsing.text import parse_float as _parse_float
+from colosseum_shared.parsing.text import strip_response
 
 from colosseum_equipment.exceptions import EquipmentResponseError
 from colosseum_equipment.transports.base import Transport
 
-
-def strip_response(text: str) -> str:
-    return text.strip()
+_logger = logging.getLogger("colosseum.equipment")
 
 
 def parse_float(text: str) -> float:
-    match = re.search(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", text)
-    if not match:
-        raise EquipmentResponseError(f"No numeric value in response: {text!r}")
-    return float(match.group(0))
+    try:
+        return _parse_float(text)
+    except ValueError as exc:
+        raise EquipmentResponseError(str(exc)) from exc
 
 
 def format_definite_length_block(payload: bytes) -> bytes:
@@ -37,10 +38,14 @@ class SCPIHelper:
         self._transport = transport
 
     def write(self, command: str) -> None:
+        _logger.debug("SCPI write: %s", command)
         self._transport.write(command)
 
     def query(self, command: str) -> str:
-        return strip_response(self._transport.query(command))
+        _logger.debug("SCPI query: %s", command)
+        response = strip_response(self._transport.query(command))
+        _logger.debug("SCPI response: %s", response[:200] + ("..." if len(response) > 200 else ""))
+        return response
 
     def query_float(self, command: str) -> float:
         return parse_float(self.query(command))

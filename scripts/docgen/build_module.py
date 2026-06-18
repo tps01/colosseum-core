@@ -14,7 +14,6 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 
@@ -22,8 +21,8 @@ from _bootstrap import bootstrap
 
 bootstrap()
 
-from colosseum.docgen_spec import DocgenModuleSpec
-from discover import discover_specs, write_manifest
+from colosseum.docgen_spec import DocgenModuleSpec  # noqa: E402
+from discover import discover_specs, write_manifest  # noqa: E402
 
 
 def _repo_root() -> Path:
@@ -99,9 +98,17 @@ def _patch_decorator_package_autodoc(rst_dir: Path) -> None:
     if not path.is_file():
         return
     text = path.read_text(encoding="utf-8")
-    marker = "   :exclude-members: measurement, verification\n"
+    marker = "   :exclude-members: command, measurement, verification\n"
     if marker in text:
         return
+    for old_marker in (
+        "   :exclude-members: measurement, verification\n",
+        "   :exclude-members: command, measurement, verification\n",
+    ):
+        if old_marker in text:
+            if old_marker != marker:
+                path.write_text(text.replace(old_marker, marker, 1), encoding="utf-8")
+            return
     needle = "   :undoc-members:\n"
     if needle not in text:
         return
@@ -114,6 +121,18 @@ def build_module(
     output_root: Path | None = None,
     clean: bool = False,
 ) -> Path:
+    """Generate autodoc RST and manifest for one docgen module.
+
+    :param spec: Module specification from an entry point.
+    :type spec: DocgenModuleSpec
+    :param output_root: Staging root (default: ``build/docgen``).
+    :type output_root: Path | None, optional
+    :param clean: When ``True``, remove the module staging directory first.
+    :type clean: bool, optional
+
+    :returns: Module staging directory containing ``rst/`` and ``manifest.json``.
+    :rtype: Path
+    """
     staging = _staging_dir(spec.module_id, output_root)
     rst_dir = staging / "rst"
     if clean and staging.exists():
@@ -148,6 +167,14 @@ def build_module(
 
 
 def main(argv: list[str] | None = None) -> int:
+    """CLI entry point for single-module autodoc generation.
+
+    :param argv: Optional argument vector (defaults to ``sys.argv[1:]``).
+    :type argv: list[str] | None, optional
+
+    :returns: Process exit code (``0`` on success).
+    :rtype: int
+    """
     parser = argparse.ArgumentParser(description="Build autodoc RST for one Colosseum module")
     parser.add_argument("--module-id", help="Docgen module_id (e.g. colosseum_equipment)")
     parser.add_argument("--spec", help="Alias for module_id (e.g. equipment)")

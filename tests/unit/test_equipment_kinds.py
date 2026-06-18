@@ -16,6 +16,7 @@ from colosseum_equipment.transports.null_transport import NullTransport
         "eload",
         "freqcounter",
         "vna",
+        "rtsa",
         "sdr",
     ],
 )

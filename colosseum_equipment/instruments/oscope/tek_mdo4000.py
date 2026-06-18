@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from colosseum_equipment.instruments.oscope.generic import GenericOscope
 from colosseum_equipment.protocols.scpi import wait_opc
-from colosseum_equipment.transports.base import Transport
 
 
 class TekMdo4000Oscope(GenericOscope):

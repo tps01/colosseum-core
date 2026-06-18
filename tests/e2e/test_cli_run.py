@@ -10,7 +10,7 @@ import pytest
 
 from tests.support.helpers import latest_output_dir, query_db, verification_row
 
-REPO = Path(__file__).resolve().parents[2]
+from tests.support.helpers import REPO_ROOT as REPO
 
 
 def _cli_run(
@@ -42,6 +42,8 @@ def test_cli_run_power_rails(bench_sim, isolated_cwd, subprocess_env) -> None:
     script = REPO / "examples" / "test_power_rails.py"
     proc = _cli_run(script, bench_sim, isolated_cwd, subprocess_env)
     assert proc.returncode == 0, proc.stderr
+    assert "Colosseum version:" in proc.stdout
+    assert "Overall result:" in proc.stdout
     run_dir = latest_output_dir(isolated_cwd)
     opt = verification_row(run_dir, "engineering_probe_point")
     assert opt is not None and opt[0] == "FAIL" and opt[1] == 1

@@ -1,4 +1,0 @@
-=== Colosseum Yocto/QEMU full regression ===
-Log: /mnt/c/Users/tomlocal/colloseum/infra/yocto/artifacts/full-regression-20260531T225708Z.log
-Waiting for SSH at root@127.0.0.1:2222 (timeout 120s)...
-ERROR: SSH not reachable within 120s

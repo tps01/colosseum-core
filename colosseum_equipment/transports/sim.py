@@ -1,24 +1,25 @@
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
-from colosseum.context import get_context
+from colosseum.context import require_context
 
 from colosseum_equipment.transports.base import Transport
 
 
-def _state_map() -> Dict[str, Dict[str, Any]]:
-    ctx = get_context()
+def _state_map() -> dict[str, dict[str, Any]]:
+    ctx = require_context()
     key = "sim:state"
     if key not in ctx.resource_cache:
         ctx.resource_cache[key] = {}
-    return ctx.resource_cache[key]
+    state: dict[str, dict[str, Any]] = ctx.resource_cache[key]
+    return state
 
 
 class SimTransport(Transport):
     """In-memory transport for offline tests and CI (driver=sim)."""
 
-    def __init__(self, kind: str, equipment_id: int, config: dict) -> None:
+    def __init__(self, kind: str, equipment_id: int, config: dict[str, Any]) -> None:
         self.kind = kind
         self.equipment_id = equipment_id
         self.config = config

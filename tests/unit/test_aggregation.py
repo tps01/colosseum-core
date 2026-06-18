@@ -70,7 +70,7 @@ def test_suite_error_and_teardown_failed_force_fail() -> None:
     _record(agg, "PASS")
     agg.mark_suite_error("setup failed")
     assert agg.overall_pass() is False
-    assert agg.failed_required_verifications()
+    assert agg.failed_required_outcomes()
 
     agg2 = ResultAggregator()
     _record(agg2, "PASS")

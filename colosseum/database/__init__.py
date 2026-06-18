@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from .manager import (
+    CommandRow,
     DatabaseManager,
     MeasurementRow,
     VerificationRow,
@@ -8,6 +11,7 @@ from .records import MeasurementRecord, RunMetadataRecord, VerificationRecord
 
 __all__ = [
     "DatabaseManager",
+    "CommandRow",
     "MeasurementRow",
     "VerificationRow",
     "initialize_database_if_needed",
@@ -16,8 +20,9 @@ __all__ = [
     "RunMetadataRecord",
 ]
 
+
 # Read API loaded lazily to avoid import cycles with context.
-def __getattr__(name: str):
+def __getattr__(name: str) -> object:
     if name in {"read_measurements", "read_verifications", "read_run_metadata", "read_table"}:
         from . import read as read_mod
 

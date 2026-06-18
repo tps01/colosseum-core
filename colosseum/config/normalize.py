@@ -5,8 +5,8 @@ from typing import Any
 from .sections import ConfigSectionSpec
 
 
-def _get_dotted(raw: dict[str, Any], dotted: str) -> Any:
-    cursor: Any = raw
+def _get_dotted(raw: dict[str, Any], dotted: str) -> object | None:
+    cursor: object = raw
     for part in dotted.split("."):
         if not isinstance(cursor, dict) or part not in cursor:
             return None
@@ -14,8 +14,10 @@ def _get_dotted(raw: dict[str, Any], dotted: str) -> Any:
     return cursor
 
 
-def normalize_sections(raw: dict[str, Any], specs: list[ConfigSectionSpec]) -> dict[str, dict[int, dict]]:
-    normalized: dict[str, dict[int, dict]] = {}
+def normalize_sections(
+    raw: dict[str, Any], specs: list[ConfigSectionSpec]
+) -> dict[str, dict[int, dict[str, Any]]]:
+    normalized: dict[str, dict[int, dict[str, Any]]] = {}
     for spec in specs:
         value = _get_dotted(raw, spec.dotted_path)
         if value is None:
@@ -27,7 +29,7 @@ def normalize_sections(raw: dict[str, Any], specs: list[ConfigSectionSpec]) -> d
         else:
             raise ValueError(f"Section `{spec.dotted_path}` must be table or array of tables")
 
-        by_id: dict[int, dict] = {}
+        by_id: dict[int, dict[str, Any]] = {}
         for row in rows:
             if not isinstance(row, dict):
                 raise ValueError(f"Section `{spec.dotted_path}` contains non-table entries")

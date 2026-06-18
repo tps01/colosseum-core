@@ -26,6 +26,14 @@ from unit_test_profiler import profile_pytest_unit_tests  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Profile ``tests/unit`` with cProfile and print timing tables.
+
+    :param argv: Optional argument vector (defaults to ``sys.argv[1:]``).
+    :type argv: list[str] | None, optional
+
+    :returns: Pytest exit code from the profiled run.
+    :rtype: int
+    """
     root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(
         description="Profile Colosseum tests/unit with cProfile",

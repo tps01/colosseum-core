@@ -6,7 +6,6 @@ Manual: Agilent 06060-90005 Programming Manual — ``CURR``, ``VOLT``, ``INPUT``
 from __future__ import annotations
 
 from colosseum_equipment.instruments.eload.generic import GenericEload
-from colosseum_equipment.transports.base import Transport
 
 
 class Agilent6050Eload(GenericEload):
@@ -19,8 +18,11 @@ class Agilent6050Eload(GenericEload):
     def set_voltage(self, voltage: float) -> None:
         self._scpi.write(f"VOLT {voltage}")
 
-    def set_input(self, enabled: bool) -> None:
-        self._scpi.write("INPUT ON" if enabled else "INPUT OFF")
+    def engage(self) -> None:
+        self._scpi.write("INPUT ON")
+
+    def disengage(self) -> None:
+        self._scpi.write("INPUT OFF")
 
     def measure_voltage(self) -> float:
         return self._scpi.query_float("MEAS:VOLT?")

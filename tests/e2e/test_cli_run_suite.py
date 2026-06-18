@@ -10,7 +10,7 @@ import pytest
 
 from tests.support.helpers import latest_output_dir, query_db
 
-REPO = Path(__file__).resolve().parents[2]
+from tests.support.helpers import REPO_ROOT as REPO
 
 
 def _cli_run_suite(suite: Path, config: Path, cwd: Path, env: dict[str, str]) -> subprocess.CompletedProcess[str]:

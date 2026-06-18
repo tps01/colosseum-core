@@ -12,6 +12,9 @@ Or use the CLI::
 
 Test scripts should call ``col.endex()`` at the end of ``__main__`` so results flush and the process exits ``0`` or ``1``.
 
+Extension authors: see :doc:`plugins` and the reference package at ``examples/plugins/myvendor_bench/``.
+Bench PC checks: see :doc:`host_environment` and ``examples/test_host_profile.py``.
+
 Minimal pattern::
 
    import colosseum as col

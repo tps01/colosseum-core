@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import contextlib
+import logging
 from pathlib import Path
+from typing import Any
 
 from colosseum_equipment.exceptions import EquipmentConnectionError
 from colosseum_equipment.transports.base import Transport
 from colosseum_equipment.transports.visa_errors import map_visa_exception, raise_mapped_visa_error
+
+_logger = logging.getLogger("colosseum.equipment")
 
 
 def _find_repo_root() -> Path | None:
@@ -33,6 +38,8 @@ def resolve_sim_definition(path: str) -> Path:
 
 
 class VISATransport(Transport):
+    _inst: Any
+
     def __init__(
         self,
         resource: str,
@@ -46,7 +53,7 @@ class VISATransport(Transport):
             import pyvisa
         except ImportError as exc:  # pragma: no cover
             raise EquipmentConnectionError(
-                "pyvisa is required for driver=visa. Reinstall colosseum."
+                "pyvisa is required for driver=visa. Install with: pip install colosseum[hardware]"
             ) from exc
 
         self._resource = resource
@@ -55,7 +62,9 @@ class VISATransport(Transport):
         try:
             if backend == "sim":
                 if not sim_definition:
-                    raise EquipmentConnectionError("visa_backend=sim requires `sim_definition` in bench config")
+                    raise EquipmentConnectionError(
+                        "visa_backend=sim requires `sim_definition` in bench config"
+                    )
                 sim_path = resolve_sim_definition(sim_definition)
                 self._rm = pyvisa.ResourceManager(f"{sim_path}@sim")
             else:
@@ -80,6 +89,12 @@ class VISATransport(Transport):
             raise EquipmentConnectionError(
                 f"Failed to open VISA resource `{resource}`: {mapped}"
             ) from exc
+        _logger.debug(
+            "VISA resource open: %s backend=%s timeout=%ss",
+            resource,
+            backend or "default",
+            timeout,
+        )
 
     def write(self, data: str) -> None:
         try:
@@ -112,11 +127,7 @@ class VISATransport(Transport):
             raise_mapped_visa_error(exc, resource=self._resource)
 
     def close(self) -> None:
-        try:
+        with contextlib.suppress(Exception):
             self._inst.close()
-        except Exception:
-            pass
-        try:
+        with contextlib.suppress(Exception):
             self._rm.close()
-        except Exception:
-            pass

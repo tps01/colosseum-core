@@ -2,7 +2,7 @@ Offline install
 ===============
 
 Use a pre-built wheel bundle when the **bench or embedded target** has no PyPI or internet access.
-Bundles ship **runtime dependencies only** (the same wheels as ``pip install colosseum``).
+Bundles ship **bench runtime dependencies only** (the same wheels as ``pip install "colosseum[bench]"``).
 They do **not** include pytest, Sphinx, docgen, PyVISA-sim, or other developer tooling.
 
 Developers
@@ -40,7 +40,7 @@ Copy the tarball to the target, extract it, then run the bundled install script 
 
 Linux / macOS::
 
-   tar xzf colosseum-0.3.0-offline-linux-x86_64-py311.tar.gz
+   tar xzf colosseum-0.11.1-offline-linux-x86_64-py311.tar.gz
    cd offline-bundle
    ./install.sh
    source .venv/bin/activate
@@ -63,13 +63,13 @@ In PowerShell (from ``offline-bundle``)::
 
 Command Prompt alternative: run ``install.bat``, then ``.venv\Scripts\activate.bat``.
 
-Advanced: ``tar -xzf colosseum-0.3.0-offline-windows-amd64-py311.tar.gz`` in PowerShell or Windows Terminal also works if you prefer the command line.
+Advanced: ``tar -xzf colosseum-0.11.1-offline-windows-amd64-py311.tar.gz`` in PowerShell or Windows Terminal also works if you prefer the command line.
 
 Manual install (any platform)::
 
    python3 -m venv .venv
    source .venv/bin/activate   # Windows: .venv\Scripts\activate
-   pip install --no-index --find-links=wheels colosseum==0.3.0
+   pip install --no-index --find-links=wheels "colosseum[bench]==0.12.0"
 
 Install **NI-VISA** (or your vendor VISA runtime) before using ``driver = visa`` instruments. Verify with ``python -m pyvisa info`` inside the venv. For Python 3.9 benches, build and install a ``py39`` bundle the same way.
 

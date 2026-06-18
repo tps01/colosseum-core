@@ -1,4 +1,4 @@
-"""Summary artifact content (Wave 3)."""
+"""Summary artifact content."""
 
 from __future__ import annotations
 
