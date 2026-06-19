@@ -2,23 +2,33 @@
 
 from __future__ import annotations
 
-import fcntl
 import ipaddress
 import socket
 import struct
 from pathlib import Path
+from typing import Any
 
 from .network import IPv4NetworkBinding
+
+_fcntl_mod: Any = None
+try:
+    import fcntl
+
+    _fcntl_mod = fcntl
+except ModuleNotFoundError:
+    pass
 
 SIOCGIFADDR = 0x8915
 SIOCGIFNETMASK = 0x891B
 
 
 def _ioctl_ipv4(name: str, request: int) -> str:
+    if _fcntl_mod is None:
+        raise OSError("fcntl is not available on this platform")
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         ifreq = struct.pack("256s", name[:15].encode())
-        result = fcntl.ioctl(sock.fileno(), request, ifreq)
+        result = _fcntl_mod.ioctl(sock.fileno(), request, ifreq)
         return socket.inet_ntoa(result[20:24])
     finally:
         sock.close()

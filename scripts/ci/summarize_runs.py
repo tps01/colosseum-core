@@ -12,6 +12,7 @@ import sys
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 
 def _run_gh(args: list[str]) -> str:
@@ -73,7 +74,7 @@ def _percentile(values: list[float], pct: float) -> float:
     return ordered[lower] * (1.0 - weight) + ordered[upper] * weight
 
 
-def _fetch_runs(*, workflow: str, limit: int, conclusion: str | None) -> list[dict]:
+def _fetch_runs(*, workflow: str, limit: int, conclusion: str | None) -> list[dict[str, Any]]:
     args = [
         "run",
         "list",
@@ -88,7 +89,7 @@ def _fetch_runs(*, workflow: str, limit: int, conclusion: str | None) -> list[di
     return payload if isinstance(payload, list) else []
 
 
-def _fetch_jobs(run_id: int) -> list[dict]:
+def _fetch_jobs(run_id: int) -> list[dict[str, Any]]:
     payload = json.loads(_run_gh(["run", "view", str(run_id), "--json", "jobs"]))
     jobs = payload.get("jobs", [])
     return jobs if isinstance(jobs, list) else []
@@ -140,7 +141,7 @@ def collect_job_durations(
     workflow: str,
     limit: int,
     conclusion: str | None,
-) -> tuple[list[dict], dict[str, list[float]]]:
+) -> tuple[list[dict[str, Any]], dict[str, list[float]]]:
     """Fetch runs and aggregate per-job durations in seconds.
 
     :param workflow: Workflow file name (e.g. ``ci.yml``).
@@ -154,7 +155,7 @@ def collect_job_durations(
     :rtype: tuple[list[dict], dict[str, list[float]]]
     """
     runs = _fetch_runs(workflow=workflow, limit=limit, conclusion=conclusion)
-    run_rows: list[dict] = []
+    run_rows: list[dict[str, Any]] = []
     by_job: dict[str, list[float]] = defaultdict(list)
 
     for run in runs:
@@ -181,8 +182,8 @@ def collect_job_durations(
     return run_rows, by_job
 
 
-def _rank_jobs(by_job: dict[str, list[float]]) -> list[dict]:
-    rows: list[dict] = []
+def _rank_jobs(by_job: dict[str, list[float]]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
     for name, durations in by_job.items():
         rows.append(
             {
@@ -201,8 +202,8 @@ def _write_markdown(
     *,
     path: Path,
     workflow: str,
-    run_rows: list[dict],
-    ranked: list[dict],
+    run_rows: list[dict[str, Any]],
+    ranked: list[dict[str, Any]],
 ) -> None:
     lines = [
         f"# GitHub Actions timing summary ({workflow})",
@@ -237,7 +238,7 @@ def _write_markdown(
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
-def _write_csv(path: Path, ranked: list[dict]) -> None:
+def _write_csv(path: Path, ranked: list[dict[str, Any]]) -> None:
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(
             handle,

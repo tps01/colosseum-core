@@ -18,6 +18,13 @@ def _kernel32() -> Any:  # noqa: ANN401
     return windll.kernel32
 
 
+def _iphlpapi() -> Any:  # noqa: ANN401
+    windll = getattr(ctypes, "windll", None)
+    if windll is None:
+        raise OSError("Windows API unavailable")
+    return windll.iphlpapi
+
+
 class _MEMORYSTATUSEX(ctypes.Structure):
     _fields_ = [
         ("dwLength", wintypes.DWORD),
@@ -36,7 +43,7 @@ class _IP_ADAPTER_ADDRESSES(ctypes.Structure):
     pass
 
 
-_IP_ADAPTER_ADDRESSES._fields_ = [  # type: ignore[attr-defined]
+_IP_ADAPTER_ADDRESSES._fields_ = [
     ("Length", wintypes.ULONG),
     ("IfIndex", wintypes.DWORD),
     ("Next", ctypes.POINTER(_IP_ADAPTER_ADDRESSES)),
@@ -71,7 +78,7 @@ class _IP_ADAPTER_UNICAST_ADDRESS(ctypes.Structure):
     pass
 
 
-_IP_ADAPTER_UNICAST_ADDRESS._fields_ = [  # type: ignore[attr-defined]
+_IP_ADAPTER_UNICAST_ADDRESS._fields_ = [
     ("Length", wintypes.ULONG),
     ("Flags", wintypes.DWORD),
     ("Next", ctypes.POINTER(_IP_ADAPTER_UNICAST_ADDRESS)),
@@ -93,7 +100,7 @@ def list_ipv4_network_bindings() -> list[IPv4NetworkBinding]:
         buffer = ctypes.create_string_buffer(size.value)
         flags = 0
         family = socket.AF_INET
-        result = ctypes.windll.iphlpapi.GetAdaptersAddresses(
+        result = _iphlpapi().GetAdaptersAddresses(
             family,
             flags,
             None,
@@ -102,7 +109,7 @@ def list_ipv4_network_bindings() -> list[IPv4NetworkBinding]:
         )
         if result == 111:
             buffer = ctypes.create_string_buffer(size.value)
-            result = ctypes.windll.iphlpapi.GetAdaptersAddresses(
+            result = _iphlpapi().GetAdaptersAddresses(
                 family,
                 flags,
                 None,

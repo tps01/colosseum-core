@@ -104,7 +104,9 @@ def discover_equipment_config(
     blocked = list(blacklist_resolution.blocked)
 
     if resource_manager is None:
-        rm = pyvisa.ResourceManager(visa_library) if visa_library else pyvisa.ResourceManager()
+        rm: object = (
+            pyvisa.ResourceManager(visa_library) if visa_library else pyvisa.ResourceManager()
+        )
     else:
         rm = resource_manager
 

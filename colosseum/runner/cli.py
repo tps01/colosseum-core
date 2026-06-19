@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -32,7 +31,7 @@ class RunConfigOptions:
     config_path: str | None = None
     use_autoconfig: bool = False
     autoconfig_export: str | None = None
-    autoconfig_blacklist: Sequence[str] | None = None
+    autoconfig_blacklist: list[str] | None = None
 
 
 def parse_autoconfig_blacklist(value: str | None) -> list[str] | None:
