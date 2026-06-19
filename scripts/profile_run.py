@@ -2,11 +2,16 @@
 """
 Profile ``colosseum run`` or ``colosseum run-suite`` with cProfile (runtime, not pytest).
 
-Usage (from repo root):
-  python scripts/profile_run.py scripts/offline_smoke/run_sim.py --config scripts/offline_smoke/bench.sim.toml
-  python scripts/profile_run.py --suite tests/fixtures/suites/smoke.toml --config examples/configs/bench.sim.toml
-  python scripts/profile_run.py --tracemalloc scripts/offline_smoke/run_sim.py --config scripts/offline_smoke/bench.sim.toml
-  python scripts/profile_run.py --stats build/profile/run.prof examples/test_power_rails.py --config examples/configs/bench.sim.toml
+Usage (from repo root)::
+
+  python scripts/profile_run.py scripts/offline_smoke/run_sim.py \\
+    --config scripts/offline_smoke/bench.sim.toml
+  python scripts/profile_run.py --suite tests/fixtures/suites/smoke.toml \\
+    --config examples/configs/bench.sim.toml
+  python scripts/profile_run.py --tracemalloc scripts/offline_smoke/run_sim.py \\
+    --config scripts/offline_smoke/bench.sim.toml
+  python scripts/profile_run.py --stats build/profile/run.prof \\
+    examples/test_power_rails.py --config examples/configs/bench.sim.toml
 """
 
 from __future__ import annotations

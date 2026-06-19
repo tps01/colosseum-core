@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable, Iterable
 from dataclasses import FrozenInstanceError
 from inspect import signature
-from typing import Any, get_overloads, get_type_hints
+from typing import Any, get_type_hints
 
 import pytest
 
@@ -159,14 +160,19 @@ def test_missing_measurement_result_defaults_required() -> None:
 
 
 def test_verification_overloads_and_annotations() -> None:
+    impl_hints = get_type_hints(verification)
+    assert impl_hints["_func"] == Callable[..., Any] | None
+    assert impl_hints["sources"] == Iterable[MeasurementSource] | None
+
+    if sys.version_info < (3, 11):
+        pytest.skip("typing.get_overloads requires Python 3.11+")
+
+    from typing import get_overloads
+
     overloads = get_overloads(verification)
     assert len(overloads) == 2
     for overload in overloads:
         assert get_type_hints(overload)["sources"] == Iterable[MeasurementSource] | None
-
-    impl_hints = get_type_hints(verification)
-    assert impl_hints["_func"] == Callable[..., Any] | None
-    assert impl_hints["sources"] == Iterable[MeasurementSource] | None
 
 
 def test_decorator_metadata() -> None:
