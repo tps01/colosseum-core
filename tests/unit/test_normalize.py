@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from colosseum.config.normalize import normalize_sections
+from colosseum.config.normalize import _get_dotted, normalize_sections
 from colosseum.config.sections import ConfigSectionSpec
 
 
@@ -89,4 +89,20 @@ def test_missing_id_field_raises() -> None:
 def test_non_int_id_raises() -> None:
     raw = {"equipment": {"psu": {"psu_id": "one", "driver": "sim", "resource": "A"}}}
     with pytest.raises(ValueError, match="must be int"):
+        normalize_sections(raw, [PSU_SPEC])
+
+
+def test_get_dotted_return_type_is_object_or_none() -> None:
+    assert _get_dotted.__annotations__["return"] == "object | None"
+
+
+def test_invalid_section_type_raises() -> None:
+    raw = {"equipment": {"psu": "not-a-table"}}
+    with pytest.raises(ValueError, match="must be table or array of tables"):
+        normalize_sections(raw, [PSU_SPEC])
+
+
+def test_non_table_array_entry_raises() -> None:
+    raw = {"equipment": {"psu": [{"psu_id": 1, "driver": "sim", "resource": "A"}, "bad"]}}
+    with pytest.raises(ValueError, match="non-table entries"):
         normalize_sections(raw, [PSU_SPEC])

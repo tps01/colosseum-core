@@ -10,7 +10,7 @@ How to measure GitHub Actions job duration for this repository, interpret result
 | Documentation | [`.github/workflows/docs.yml`](../../.github/workflows/docs.yml) | Manual (`workflow_dispatch`) |
 | Release | [`.github/workflows/release.yml`](../../.github/workflows/release.yml) | Version tags / manual |
 
-The **CI** workflow runs ten parallel jobs on each PR (test matrix ×4, visa_sim ×2, docgen, static analysis, packaging, offline bundle smoke). **Wall-clock** for a PR is roughly the slowest job, not the sum of all jobs. **Billable minutes** are the sum of all job durations.
+The **CI** workflow runs thirteen parallel jobs on each PR (test matrix ×4, visa_sim ×2, docgen, static analysis, packaging, soak-sim, offline bundle smoke ×2). **Wall-clock** for a PR is roughly the slowest job, not the sum of all jobs. **Billable minutes** are the sum of all job durations.
 
 ## Per-run step timing (instrumented CI)
 
@@ -48,9 +48,11 @@ python scripts/ci/profile_local.py --job test
 python scripts/ci/profile_local.py --job static
 python scripts/ci/profile_local.py --job offline
 python scripts/ci/profile_local.py --job packaging
+python scripts/ci/profile_local.py --job soak
+python scripts/ci/profile_local.py --job mutation
 ```
 
-Set `COLOSSEUM_CI_TIMING=1` is applied automatically for `docgen` and `offline`. For slow unit tests locally, use [`scripts/profile_unit_tests.py`](../../scripts/profile_unit_tests.py).
+Set `COLOSSEUM_CI_TIMING=1` is applied automatically for `docgen` and `offline`. For slow tests locally, use [`scripts/profile_tests.py`](../../scripts/profile_tests.py) or [`docs/testing/analysis.md`](analysis.md).
 
 ## Measured baseline
 
@@ -88,17 +90,17 @@ Recorded from workflow structure and typical `ubuntu-latest` runs **before** the
 
 Log lines (`COLOSSEUM_CI_TIMING=1`): `TIMING staging=…`, `TIMING html=…`, `TIMING latex=…`, `TIMING latexmk=…`.
 
-**Decision:** LaTeX apt install is expected to exceed Docgen PDF → first optimization is **apt/texlive cache** in [`ci.yml`](../../.github/workflows/ci.yml) (added June 2026).
+**Decision:** LaTeX apt install is expected to exceed Docgen PDF → first optimization is a workspace-owned **APT archive cache** in [`ci.yml`](../../.github/workflows/ci.yml) (added June 2026). The cache stores downloaded `.deb` files under `.cache/apt/archives`, not installed system directories, so GitHub's artifact tar step can save it without traversing root-owned `/usr` or `/var` paths.
 
-### Post-optimization (LaTeX apt cache)
+### Post-optimization (LaTeX APT archive cache)
 
 After merging the cache step, re-run CI and compare **Install LaTeX toolchain** in the docgen job Summary:
 
 | Step | Pre-cache (cold) | Post-cache (2nd+ run) | Target |
 |------|------------------|------------------------|--------|
-| Install LaTeX toolchain | 180–480 s | **10–60 s** | Cache hit on `/var/cache/apt/archives` + `/usr/share/texlive` |
+| Install LaTeX toolchain | 180–480 s | **90–240 s** | Cache hit on `.cache/apt/archives`; package install still runs |
 | Docgen staging / HTML / PDF | unchanged | unchanged | — |
-| documentation pdf artifact (job total) | 8–15 min | **4–8 min** | ~50% job time reduction |
+| documentation pdf artifact (job total) | 8–15 min | **6–11 min** | Avoids repeated TeX package downloads |
 
 Update this table with measured values from the first cached run (`Actions → CI → documentation pdf artifact → Summary`) and paste job medians from:
 
@@ -122,7 +124,7 @@ Do not apply these until step summaries or `summarize_runs.py` confirm the bottl
 
 | If data shows… | Candidate change |
 |----------------|------------------|
-| LaTeX apt ≫ PDF build | Cache apt/texlive (**done** — see Measured baseline); prebuilt TeX action if cache insufficient |
+| LaTeX apt ≫ PDF build | Cache APT archives (**done** — see Measured baseline); consider a vetted prebuilt TeX action only if measured cache results are insufficient |
 | Staging/autodoc ≫ sphinx | Cache `build/docgen/` keyed on source hashes |
 | PDF slow on every PR | Build PDF on release/tags only; keep HTML in CI (`--skip-pdf`, as in `docs.yml`) |
 | Offline job slow | Cache wheelhouse; path-filter to packaging-related changes |

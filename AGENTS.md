@@ -52,13 +52,46 @@ Core runtime is implemented: single-test + suite runners, plugins, optional veri
 | `scripts/docgen/build_all.py` | Full Sphinx site → `build/docgen/site/html/` |
 | `scripts/docgen/build_module.py` | Autodoc RST for one package |
 | `scripts/cleanup.py` | Remove `outputs/`, `build/`, `__pycache__`, etc. — **`--dry-run` first** |
-| `scripts/run_tests.py` | `pytest` tiers 1–3; `--regression` for soak + docgen |
+| `scripts/run_tests.py` | `pytest` tiers 1–3; `--regression` for soak + docgen + offline |
 | `scripts/run_static.py` | Ruff, mypy, bandit, vulture on production packages + `scripts/` (strict; CI gate) |
-| `scripts/profile_unit_tests.py` | cProfile unit tests; use before long mutation runs |
+| `scripts/profile_tests.py` | cProfile pytest tiers (unit/integration/e2e); use before long mutation runs |
+| `scripts/profile_unit_tests.py` | Alias for `profile_tests.py --tier unit` |
+| `scripts/profile_run.py` | cProfile or tracemalloc for `colosseum run` / `run-suite` (runtime, not pytest) |
 | `tests/regression/*.py` | Tier 4A (sim soak, docgen; optional Cosmic Ray mutation) |
 | `tests/static/*.py` | Per-tool static analysis runners |
 
-Install: `pip install -e .` for runtime; `pip install -r requirements-dev.txt` for pytest, docs, static analysis, and mutation checks. See `docs/testing/README.md` and `docs/testing/regression-test-procedure.md`.
+Install: `pip install -e .` for runtime; `pip install -r requirements-dev.txt` for pytest, docs, static analysis, and mutation checks. See [`docs/testing/README.md`](docs/testing/README.md), [`docs/testing/analysis.md`](docs/testing/analysis.md) (runtime vs pytest profiling), and [`docs/testing/regression-test-procedure.md`](docs/testing/regression-test-procedure.md).
+
+## Regression (agent runnability)
+
+| Tier | Runnable by agents? | Command / notes |
+|------|----------------------|-----------------|
+| Tiers 1–3 pytest | Yes | `python scripts/run_tests.py` |
+| Static analysis | Yes | `python scripts/run_static.py` |
+| R-SOAK-01 (sim soak) | Yes | `--regression` or `python tests/regression/run_soak_sim.py --count 5` |
+| R-DOC-01 (docgen) | Yes (HTML) | `python tests/regression/run_docgen_check.py --skip-pdf` |
+| R-OFFLINE-00 (host bundle) | Yes (slow) | `python tests/regression/run_offline_install_check.py`; skip with `--skip-offline` |
+| R-MUT-01 (mutation) | Partial | `--run --target colosseum/results/aggregation.py`; `--verify-only` on existing reports |
+| R-DOC-01 PDF | Caveat | Needs `latexmk`; CI builds PDF on Linux |
+| Tier 4B hardware | No | Real instruments; `configs/bench.local.toml` |
+| Tier 4C QEMU/Yocto | No | Manual lab; see `docs/testing/qemu-yocto-regression.md` |
+| CI timing (`summarize_runs.py`) | No | Requires `gh auth login` |
+
+**Recommended fast checks:**
+
+```bash
+python scripts/run_tests.py
+python scripts/run_tests.py --regression --skip-offline          # soak (×10) + docgen
+python tests/regression/run_docgen_check.py --skip-pdf
+pip install -e ".[mutation]"
+python tests/regression/run_mutation.py --run --target colosseum/results/aggregation.py
+python tests/regression/run_mutation.py --verify-only --target colosseum/results/aggregation.py
+python scripts/profile_tests.py --tier unit --sort tottime
+python scripts/profile_run.py examples/test_power_rails.py --config examples/configs/bench.sim.toml
+python scripts/profile_run.py --suite tests/fixtures/suites/smoke.toml --config examples/configs/bench.sim.toml
+```
+
+Mutation mutates the working tree during `--run`; use a git worktree if the main checkout must stay clean. Do not add mutation to default `--regression` or blocking PR CI.
 
 ## Doc hygiene
 

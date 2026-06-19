@@ -66,10 +66,23 @@ class CommandRow:
 class DatabaseManager:
     def __init__(self) -> None:
         self._conn: sqlite3.Connection | None = None
+        self.defer_commits: bool = False
+
+    def _maybe_commit(self) -> None:
+        if not self.defer_commits:
+            self._require_conn().commit()
+
+    def flush(self) -> None:
+        """Commit pending writes (no-op when ``defer_commits`` is false)."""
+        if self._conn is not None:
+            self._conn.commit()
 
     def initialize(self, db_path: Path) -> None:
         if self._conn is not None:
             return
+        import os
+
+        self.defer_commits = os.environ.get("COLOSSEUM_DEFER_DB_COMMITS") == "1"
         self._conn = sqlite3.connect(str(db_path))
         self._conn.executescript(SCHEMA_SQL)
         self._conn.commit()
@@ -89,8 +102,11 @@ class DatabaseManager:
 
     def close(self) -> None:
         if self._conn is not None:
+            if self.defer_commits:
+                self._conn.commit()
             self._conn.close()
             self._conn = None
+            self.defer_commits = False
 
     def _require_conn(self) -> sqlite3.Connection:
         if self._conn is None:
@@ -118,7 +134,7 @@ class DatabaseManager:
                 ts,
             ),
         )
-        conn.commit()
+        self._maybe_commit()
         return _cursor_rowid(cur)
 
     def insert_command(self, row: CommandRow) -> int:
@@ -141,7 +157,7 @@ class DatabaseManager:
                 ts,
             ),
         )
-        conn.commit()
+        self._maybe_commit()
         return _cursor_rowid(cur)
 
     def insert_verification(self, row: VerificationRow) -> int:
@@ -165,7 +181,7 @@ class DatabaseManager:
                 ts,
             ),
         )
-        conn.commit()
+        self._maybe_commit()
         return _cursor_rowid(cur)
 
     def insert_event(self, level: str, source: str, message: str) -> int:
@@ -174,13 +190,13 @@ class DatabaseManager:
             "INSERT INTO events(level, source, message, timestamp) VALUES (?, ?, ?, ?)",
             (level, source, message, _utc_now()),
         )
-        conn.commit()
+        self._maybe_commit()
         return _cursor_rowid(cur)
 
     def insert_run_metadata(self, key: str, value: str) -> None:
         conn = self._require_conn()
         conn.execute("INSERT OR REPLACE INTO run_metadata(key, value) VALUES (?, ?)", (key, value))
-        conn.commit()
+        self._maybe_commit()
 
     def insert_artifact(self, kind: str, path: str, description: str = "") -> int:
         conn = self._require_conn()
@@ -188,7 +204,7 @@ class DatabaseManager:
             "INSERT INTO artifacts(kind, path, description, timestamp) VALUES (?, ?, ?, ?)",
             (kind, path, description, _utc_now()),
         )
-        conn.commit()
+        self._maybe_commit()
         return _cursor_rowid(cur)
 
     def get_measurement(

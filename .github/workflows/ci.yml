@@ -16,8 +16,8 @@ jobs:
         os: [ubuntu-latest, windows-latest]
         python-version: ["3.9", "3.11"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -61,8 +61,8 @@ jobs:
       matrix:
         python-version: ["3.10", "3.11"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -85,8 +85,8 @@ jobs:
     env:
       COLOSSEUM_CI_TIMING: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -97,22 +97,22 @@ jobs:
         with:
           label: Install
           command: python -m pip install -U pip setuptools wheel && python -m pip install -e ".[docs,test]"
-      - name: Cache LaTeX apt and texlive
-        uses: actions/cache@v4
+      - name: Cache LaTeX apt archives
+        uses: actions/cache@v5
         with:
-          path: |
-            /var/cache/apt/archives
-            /var/lib/apt/lists
-            /usr/share/texlive
-            /usr/share/texmf
-            /usr/share/texmf-var
-          key: latex-ubuntu-${{ hashFiles('.github/workflows/ci.yml') }}-v1
+          path: .cache/apt/archives
+          key: latex-ubuntu-${{ hashFiles('.github/workflows/ci.yml') }}-v2
           restore-keys: latex-ubuntu-
       - name: Install LaTeX toolchain
         uses: ./.github/actions/step-timer
         with:
           label: Install LaTeX toolchain
-          command: sudo apt-get update && sudo apt-get install -y latexmk texlive-latex-recommended texlive-fonts-recommended texlive-latex-extra
+          command: |
+            mkdir -p "$PWD/.cache/apt/archives/partial"
+            sudo apt-get update
+            sudo apt-get -o Dir::Cache::archives="$PWD/.cache/apt/archives" install -y latexmk texlive-latex-recommended texlive-fonts-recommended texlive-latex-extra
+            sudo chown -R "$USER":"$USER" "$PWD/.cache/apt"
+            rm -rf "$PWD/.cache/apt/archives/partial"
       - name: Docgen staging
         uses: ./.github/actions/step-timer
         with:
@@ -128,17 +128,23 @@ jobs:
         with:
           label: Docgen PDF
           command: python scripts/docgen/build_all.py --pdf-only
-      - uses: actions/upload-artifact@v4
+      - name: Docgen content checks
+        uses: ./.github/actions/step-timer
+        with:
+          label: Docgen content checks
+          command: python tests/regression/run_docgen_check.py --verify-only
+      - uses: actions/upload-artifact@v7
         with:
           name: colosseum-docs-pdf
           path: build/docgen/site/latex/*.pdf
+          if-no-files-found: error
 
   static-analysis:
     name: static analysis (py3.11)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -159,8 +165,8 @@ jobs:
     name: packaging smoke
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -187,26 +193,71 @@ jobs:
             /tmp/colosseum-packaging-venv/bin/python -c "import pyvisa, paramiko, customtkinter"
             /tmp/colosseum-packaging-venv/bin/colosseum --help
 
-  offline-install:
-    name: offline bundle smoke
+  soak-sim:
+    name: sim soak (py3.11)
     runs-on: ubuntu-latest
-    env:
-      COLOSSEUM_CI_TIMING: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
       - name: Job timing summary header
         run: 'echo "## Job timing (${{ job.name }})" >> "$GITHUB_STEP_SUMMARY"'
+      - name: Install
+        uses: ./.github/actions/step-timer
+        with:
+          label: Install
+          command: python -m pip install -U pip setuptools wheel && python -m pip install -e ".[test]"
+      - name: Sim soak regression
+        uses: ./.github/actions/step-timer
+        with:
+          label: Sim soak regression
+          command: python tests/regression/run_soak_sim.py --count 5
+
+  offline-install:
+    name: offline bundle smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      COLOSSEUM_CI_TIMING: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Job timing summary header
+        if: runner.os == 'Linux'
+        run: 'echo "## Job timing (${{ job.name }})" >> "$GITHUB_STEP_SUMMARY"'
+      - name: Job timing summary header
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: '"## Job timing (${{ job.name }})" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8'
       - name: Install project for packaging script
+        if: runner.os == 'Linux'
         uses: ./.github/actions/step-timer
         with:
           label: Install project for packaging script
           command: python -m pip install -U pip setuptools wheel && python -m pip install -e .
+      - name: Install project for packaging script
+        if: runner.os == 'Windows'
+        uses: ./.github/actions/step-timer-pwsh
+        with:
+          label: Install project for packaging script
+          command: python -m pip install -U pip setuptools wheel; python -m pip install -e .
       - name: Offline bundle regression
+        if: runner.os == 'Linux'
         uses: ./.github/actions/step-timer
+        with:
+          label: Offline bundle regression
+          command: python tests/regression/run_offline_install_check.py
+      - name: Offline bundle regression
+        if: runner.os == 'Windows'
+        uses: ./.github/actions/step-timer-pwsh
         with:
           label: Offline bundle regression
           command: python tests/regression/run_offline_install_check.py

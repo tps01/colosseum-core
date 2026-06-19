@@ -72,6 +72,7 @@ The supported end-of-run API is `col.endex()`. It writes final metadata, writes 
 ### Evidence And Read APIs
 
 - SQLite tables store commands, measurements, verifications, events, artifacts, and run metadata.
+- During normal bench runs, each insert commits immediately so partial evidence survives process crash. Pytest sets `COLOSSEUM_DEFER_DB_COMMITS=1` to batch commits until `col.endex()` / DB close (subprocess e2e clears the variable).
 - Public read helpers are implemented:
   - `col.database.read_measurements()`
   - `col.database.read_verifications()`
@@ -109,11 +110,12 @@ The supported end-of-run API is `col.endex()`. It writes final metadata, writes 
 
 ### Testing And Regression
 
-- `scripts/run_tests.py` runs the standard pytest tiers.
-- `scripts/profile_unit_tests.py` profiles unit tests and prints project-scoped `pstats` output.
-- `tests/regression/run_docgen_check.py` checks doc generation.
-- `tests/regression/run_soak_sim.py` runs simulated soak coverage.
-- `tests/regression/run_mutation.py` runs optional Cosmic Ray mutation tests and writes reports under `build/mutation/`.
+- `scripts/run_tests.py` runs the standard pytest tiers; `--regression` runs Tier 4A soak, docgen, and offline bundle checks (mutation is separate).
+- `scripts/profile_tests.py` profiles pytest tiers with project-scoped `pstats` output; `profile_run.py` profiles `colosseum run` or `run-suite` (runtime, not pytest). See [`docs/testing/analysis.md`](testing/analysis.md).
+- `tests/regression/run_soak_sim.py` runs repeated sim `run-suite` stability checks (default suite: `smoke.toml`).
+- `tests/regression/run_docgen_check.py` builds and/or verifies doc generation output (`--verify-only` for CI after phased build).
+- `tests/regression/run_offline_install_check.py` builds an offline bundle, smoke-installs from staging, then extracts the release `.tar.gz` and repeats (R-OFFLINE-00; CI on Linux and Windows).
+- `tests/regression/run_mutation.py` runs optional Cosmic Ray mutation tests, supports `--verify-only` on existing reports, and writes artifacts under `build/mutation/` (advisory `mutation-nightly` workflow).
 - The mutation runner serializes itself with a lock because Cosmic Ray mutates the working tree while testing.
 
 ## Current User Documentation

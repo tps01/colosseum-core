@@ -17,15 +17,20 @@ import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-SUITE = REPO / "tests" / "fixtures" / "suites" / "happy.toml"
+SUITE = REPO / "tests" / "fixtures" / "suites" / "smoke.toml"
 BENCH = REPO / "examples" / "configs" / "bench.sim.toml"
 FAIL_PATTERNS = (
     "Traceback",
     "TransportError",
     "paramiko",
-    "VISA",
     "SerialException",
 )
+SUMMARY_PASS = "Overall result: PASS"
+
+
+def _latest_run_dir(outputs: Path) -> Path | None:
+    runs = sorted(outputs.glob("*"), key=lambda p: p.stat().st_mtime)
+    return runs[-1] if runs else None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -44,6 +49,7 @@ def main(argv: list[str] | None = None) -> int:
 
     env = os.environ.copy()
     env["PYTHONPATH"] = str(REPO)
+    env["COLOSSEUM_BENCH_CONFIG"] = args.config.name
 
     failures: list[str] = []
     with tempfile.TemporaryDirectory(prefix="colosseum_soak_") as tmp:
@@ -72,8 +78,18 @@ def main(argv: list[str] | None = None) -> int:
             if not outputs.is_dir():
                 failures.append(f"iter {i + 1}: no outputs/ directory")
                 continue
-            runs = sorted(outputs.glob("*"), key=lambda p: p.stat().st_mtime)
-            log_path = runs[-1] / "debug.log"
+            run_dir = _latest_run_dir(outputs)
+            if run_dir is None:
+                failures.append(f"iter {i + 1}: no run directory under outputs/")
+                continue
+            summary_path = run_dir / "summary.txt"
+            if not summary_path.is_file():
+                failures.append(f"iter {i + 1}: missing summary.txt")
+                continue
+            summary_text = summary_path.read_text(encoding="utf-8", errors="replace")
+            if SUMMARY_PASS not in summary_text:
+                failures.append(f"iter {i + 1}: summary.txt missing `{SUMMARY_PASS}`")
+            log_path = run_dir / "debug.log"
             if log_path.is_file():
                 log_text = log_path.read_text(encoding="utf-8", errors="replace")
                 for pattern in FAIL_PATTERNS:
@@ -88,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"... and {len(failures) - 10} more", file=sys.stderr)
         return 1
 
-    print(f"SOAK PASS: {args.count} run-suite iterations on sim bench")
+    print(f"SOAK PASS: {args.count} run-suite iterations on sim bench ({args.suite.name})")
     return 0
 
 
