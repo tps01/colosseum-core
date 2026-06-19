@@ -22,11 +22,11 @@ jobs:
           cache: pip
       - name: Job timing summary header
         if: runner.os == 'Linux'
-        run: echo "## Job timing (${{ job.name }})" >> "$GITHUB_STEP_SUMMARY"
+        run: 'echo "## Job timing (${{ job.name }})" >> "$GITHUB_STEP_SUMMARY"'
       - name: Job timing summary header
         if: runner.os == 'Windows'
         shell: pwsh
-        run: "## Job timing (${{ job.name }})" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8
+        run: '"## Job timing (${{ job.name }})" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8'
       - name: Install
         if: runner.os == 'Linux'
         uses: ./.github/actions/step-timer
@@ -66,7 +66,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
       - name: Job timing summary header
-        run: echo "## Job timing (${{ job.name }})" >> "$GITHUB_STEP_SUMMARY"
+        run: 'echo "## Job timing (${{ job.name }})" >> "$GITHUB_STEP_SUMMARY"'
       - name: Install
         uses: ./.github/actions/step-timer
         with:
@@ -90,7 +90,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - name: Job timing summary header
-        run: echo "## Job timing (${{ job.name }})" >> "$GITHUB_STEP_SUMMARY"
+        run: 'echo "## Job timing (${{ job.name }})" >> "$GITHUB_STEP_SUMMARY"'
       - name: Install
         uses: ./.github/actions/step-timer
         with:
@@ -142,7 +142,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - name: Job timing summary header
-        run: echo "## Job timing (${{ job.name }})" >> "$GITHUB_STEP_SUMMARY"
+        run: 'echo "## Job timing (${{ job.name }})" >> "$GITHUB_STEP_SUMMARY"'
       - name: Install
         uses: ./.github/actions/step-timer
         with:
@@ -164,7 +164,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - name: Job timing summary header
-        run: echo "## Job timing (${{ job.name }})" >> "$GITHUB_STEP_SUMMARY"
+        run: 'echo "## Job timing (${{ job.name }})" >> "$GITHUB_STEP_SUMMARY"'
       - name: Install build tooling
         uses: ./.github/actions/step-timer
         with:
@@ -198,7 +198,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - name: Job timing summary header
-        run: echo "## Job timing (${{ job.name }})" >> "$GITHUB_STEP_SUMMARY"
+        run: 'echo "## Job timing (${{ job.name }})" >> "$GITHUB_STEP_SUMMARY"'
       - name: Install project for packaging script
         uses: ./.github/actions/step-timer
         with:
