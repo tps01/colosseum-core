@@ -32,6 +32,8 @@ def main() -> int:
         help="Iterations for sim soak when --regression (default 50)",
     )
     args, pytest_argv = parser.parse_known_args()
+    if pytest_argv and pytest_argv[0] == "--":
+        pytest_argv = pytest_argv[1:]
 
     cmd = [
         sys.executable,

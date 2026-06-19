@@ -25,7 +25,7 @@ class RuntimeContext:
     result_aggregator: ResultAggregator
     test_case_name: str
     suite_name: str | None
-    config_path: Path | None
+    config_path: Path | str | None
     framework_version: str
     phase: str = "test"
     finalized: bool = False
@@ -58,7 +58,7 @@ def init_context(
     *,
     test_case_name: str,
     suite_name: str | None = None,
-    config_path: Path | None = None,
+    config_path: Path | str | None = None,
 ) -> RuntimeContext:
     from . import __version__
     from .plugins.registry import PluginRegistry

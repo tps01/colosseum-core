@@ -40,6 +40,7 @@ The supported end-of-run API is `col.endex()`. It writes final metadata, writes 
 ### Configuration
 
 - TOML loading uses `tomllib` on Python 3.11+ and `tomli` on older Python.
+- `col.config.autoconfig()` scans VISA INSTR resources, probes `*IDN?`, classifies instruments, and builds in-memory bench config without a TOML file. Optional `export_path` writes a reviewable bench TOML snapshot; CLI supports `--autoconfig`, `--autoconfig-export`, and comma-separated `--autoconfig-blacklist`. Assignments are logged at INFO in `debug.log`. When multiple devices share a kind, IDs follow connection order TCPIP → USB → GPIB → ASRL → PXI, then numeric address within each type. Optional `blacklist` accepts interface names (for example `eth0`, `Ethernet 1`) or a local IPv4 address to exclude that adapter's subnet from TCPIP autoconfig (GPIB/USB/ASRL are unaffected). Requires `colosseum[hardware]`.
 - Plugin-registered config sections are normalized from either a single table or an array of tables.
 - Implemented first-party sections include `equipment.psu`, `equipment.dmm`, `equipment.serial`, `equipment.vsg`, `equipment.speca`, and `shared.ssh`. Lab entries omit `driver` to use default VISA/SCPI.
 - Required keys are enforced when resources are required.

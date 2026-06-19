@@ -107,6 +107,15 @@ See [qemu-yocto-regression.md](qemu-yocto-regression.md) and [infra/yocto/README
 ./infra/yocto/run_all_regression.sh --skip-gui-interactive
 ```
 
+## CI timing
+
+GitHub Actions job profiling (historical summaries, per-step run summaries, local mirrors): [ci-timing.md](ci-timing.md).
+
+```bash
+python scripts/ci/summarize_runs.py --limit 20
+python scripts/ci/profile_local.py --job docgen
+```
+
 ## Environment
 
 - Sim config: `examples/configs/bench.sim.toml`

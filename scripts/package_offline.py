@@ -23,6 +23,12 @@ import sys
 import tarfile
 from pathlib import Path
 
+_scripts_dir = Path(__file__).resolve().parent
+if str(_scripts_dir) not in sys.path:
+    sys.path.insert(0, str(_scripts_dir))
+
+from ci.timing import ci_phase  # noqa: E402
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DIST_DIR = REPO_ROOT / "dist"
 WHEELHOUSE = REPO_ROOT / "wheelhouse"
@@ -256,11 +262,15 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         wheel = wheels[-1]
     else:
-        _, wheel = _build_artifacts()
+        with ci_phase("build_artifacts"):
+            _, wheel = _build_artifacts()
 
-    _download_wheels(wheel)
-    _stage_bundle(version)
-    archive = _create_tarball(version)
+    with ci_phase("download_wheels"):
+        _download_wheels(wheel)
+    with ci_phase("stage_bundle"):
+        _stage_bundle(version)
+    with ci_phase("create_tarball"):
+        archive = _create_tarball(version)
 
     print(f"\nOffline bundle: {archive}")
     print(f"Staging dir:    {STAGING}")

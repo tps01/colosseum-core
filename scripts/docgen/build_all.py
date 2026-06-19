@@ -19,15 +19,39 @@ from _bootstrap import bootstrap
 
 bootstrap()
 
+_scripts_dir = Path(__file__).resolve().parents[1]
+if str(_scripts_dir) not in sys.path:
+    sys.path.insert(0, str(_scripts_dir))
+
 from build_config_reference import build_config_reference_rst  # noqa: E402
 from build_module import build_module  # noqa: E402
 from build_pdf import build_pdf  # noqa: E402
 from discover import discover_specs  # noqa: E402
 from stitch import stitch  # noqa: E402
 
+from ci.timing import ci_phase  # noqa: E402
+
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
+
+
+def _default_docgen_root(docgen_root: Path | None) -> Path:
+    return docgen_root or (_repo_root() / "build" / "docgen")
+
+
+def _site_root(docgen_root: Path | None) -> Path:
+    return _default_docgen_root(docgen_root) / "site"
+
+
+def _require_staged_site(docgen_root: Path | None) -> tuple[Path, Path]:
+    site_root = _site_root(docgen_root)
+    site_source = site_root / "source"
+    if not site_source.is_dir():
+        raise SystemExit(
+            f"Staged Sphinx source not found at {site_source}; run --stage-only first"
+        )
+    return site_root, site_source
 
 
 def build_staged_site(
@@ -46,23 +70,24 @@ def build_staged_site(
     :rtype: Path
     """
     repo_root = _repo_root()
-    docgen_root = docgen_root or (repo_root / "build" / "docgen")
+    docgen_root = _default_docgen_root(docgen_root)
     if str(repo_root) not in sys.path:
         sys.path.insert(0, str(repo_root))
 
-    specs = discover_specs()
-    if not specs:
-        raise SystemExit("No docgen module specs discovered")
+    with ci_phase("staging"):
+        specs = discover_specs()
+        if not specs:
+            raise SystemExit("No docgen module specs discovered")
 
-    for spec in specs:
-        print(f"Building module docs: {spec.module_id} ({spec.title})")
-        build_module(spec, output_root=docgen_root, clean=clean)
+        for spec in specs:
+            print(f"Building module docs: {spec.module_id} ({spec.title})")
+            build_module(spec, output_root=docgen_root, clean=clean)
 
-    config_ref = docgen_root / "config_reference.rst"
-    print("Building bench config reference")
-    build_config_reference_rst(output_path=config_ref)
+        config_ref = docgen_root / "config_reference.rst"
+        print("Building bench config reference")
+        build_config_reference_rst(output_path=config_ref)
 
-    return stitch(docgen_root=docgen_root, clean=clean)
+        return stitch(docgen_root=docgen_root, clean=clean)
 
 
 def build_sphinx_html(*, site_source: Path, html_dir: Path, repo_root: Path) -> Path:
@@ -79,19 +104,20 @@ def build_sphinx_html(*, site_source: Path, html_dir: Path, repo_root: Path) -> 
     :rtype: Path
     """
     html_dir.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "sphinx",
-            "-b",
-            "html",
-            str(site_source),
-            str(html_dir),
-        ],
-        cwd=repo_root,
-        check=True,
-    )
+    with ci_phase("html"):
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "sphinx",
+                "-b",
+                "html",
+                str(site_source),
+                str(html_dir),
+            ],
+            cwd=repo_root,
+            check=True,
+        )
     return html_dir / "index.html"
 
 
@@ -135,14 +161,58 @@ def build_docs(
     if not skip_pdf:
         latex_dir = site_root / "latex"
         print("Running sphinx-build (latex) and latexmk...")
-        pdf_path = build_pdf(
-            site_source=site_source,
-            latex_dir=latex_dir,
-            repo_root=repo_root,
-        )
+        with ci_phase("pdf"):
+            pdf_path = build_pdf(
+                site_source=site_source,
+                latex_dir=latex_dir,
+                repo_root=repo_root,
+            )
         print(f"PDF output: {pdf_path}")
 
     return html_index, pdf_path
+
+
+def build_html_only(*, docgen_root: Path | None = None) -> Path:
+    """Build HTML from an already-staged Sphinx source tree.
+
+    :param docgen_root: Staging root (default: ``build/docgen``).
+    :type docgen_root: Path | None, optional
+
+    :returns: Path to ``index.html``.
+    :rtype: Path
+    """
+    site_root, site_source = _require_staged_site(docgen_root)
+    html_dir = site_root / "html"
+    print("Running sphinx-build (html)...")
+    html_index = build_sphinx_html(
+        site_source=site_source,
+        html_dir=html_dir,
+        repo_root=_repo_root(),
+    )
+    print(f"HTML output: {html_index}")
+    return html_index
+
+
+def build_pdf_only(*, docgen_root: Path | None = None) -> Path:
+    """Build PDF from an already-staged Sphinx source tree.
+
+    :param docgen_root: Staging root (default: ``build/docgen``).
+    :type docgen_root: Path | None, optional
+
+    :returns: Path to the generated PDF file.
+    :rtype: Path
+    """
+    site_root, site_source = _require_staged_site(docgen_root)
+    latex_dir = site_root / "latex"
+    print("Running sphinx-build (latex) and latexmk...")
+    with ci_phase("pdf"):
+        pdf_path = build_pdf(
+            site_source=site_source,
+            latex_dir=latex_dir,
+            repo_root=_repo_root(),
+        )
+    print(f"PDF output: {pdf_path}")
+    return pdf_path
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -163,10 +233,42 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--skip-pdf", action="store_true", help="Build HTML only (no LaTeX required)"
     )
+    parser.add_argument(
+        "--stage-only",
+        action="store_true",
+        help="Run autodoc staging and stitch only (no sphinx-build)",
+    )
+    parser.add_argument(
+        "--html-only",
+        action="store_true",
+        help="Build HTML only; requires prior --stage-only output",
+    )
+    parser.add_argument(
+        "--pdf-only",
+        action="store_true",
+        help="Build PDF only; requires prior --stage-only output",
+    )
     args = parser.parse_args(argv)
 
+    phase_flags = sum(
+        1 for flag in (args.stage_only, args.html_only, args.pdf_only) if flag
+    )
+    if phase_flags and (args.skip_html or args.skip_pdf):
+        parser.error("Phase flags cannot be combined with --skip-html or --skip-pdf")
+    if phase_flags > 1:
+        parser.error("Use only one of --stage-only, --html-only, or --pdf-only")
     if args.skip_html and args.skip_pdf:
         parser.error("Cannot use both --skip-html and --skip-pdf")
+
+    if args.stage_only:
+        build_staged_site(docgen_root=args.docgen_root, clean=args.clean)
+        return 0
+    if args.html_only:
+        build_html_only(docgen_root=args.docgen_root)
+        return 0
+    if args.pdf_only:
+        build_pdf_only(docgen_root=args.docgen_root)
+        return 0
 
     build_docs(
         docgen_root=args.docgen_root,

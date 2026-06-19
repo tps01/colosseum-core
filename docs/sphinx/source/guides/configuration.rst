@@ -45,3 +45,33 @@ For repository developers and CI (git clone + ``.[test]`` extra, not offline tar
 * ``examples/configs/bench.rf.visa-sim.toml`` — PyVISA-sim for VSG and speca (dev/CI; Python 3.10+)
 
 See :doc:`rf_equipment` for RF workflow examples.
+
+Automatic configuration
+-----------------------
+
+When a bench TOML file is not needed, call ``col.config.autoconfig()`` after ``import colosseum as col``. This scans VISA INSTR resources, queries ``*IDN?`` on each, maps responses to equipment kinds/models, and populates the same internal config store used by ``load_config()``. Requires ``pip install colosseum[hardware]``.
+
+ID assignment when several devices share a kind uses connection order **TCPIP → USB → GPIB → ASRL → PXI**, then numeric address within each connection type. The generated configuration is written to ``debug.log`` (INFO lines per assignment).
+
+Example::
+
+   col.config.autoconfig()
+   col.equipment.psu.set_voltage(psu_id=1, voltage=3.3)
+
+On a multi-homed PC, pass ``blacklist`` with an interface name or local IPv4 address to skip TCPIP discovery on that network (GPIB/USB/ASRL are still scanned)::
+
+   col.config.autoconfig(blacklist="Ethernet 1")
+   col.config.autoconfig(blacklist="192.168.1.10")
+   col.config.autoconfig(blacklist=["eth0", "192.168.50.2"])
+
+Unrecognized instruments are skipped with a log warning; autoconfig fails if no classifiable resources remain.
+
+Export a generated TOML file for review or later ``load_config`` use::
+
+   col.config.autoconfig(export_path="bench.generated.toml")
+
+CLI equivalents for ``colosseum run`` and ``colosseum run-suite``::
+
+   colosseum run my_test.py --autoconfig
+   colosseum run my_test.py --autoconfig --autoconfig-export bench.generated.toml
+   colosseum run-suite suite.toml --autoconfig --autoconfig-blacklist "Ethernet 1,192.168.1.10"
