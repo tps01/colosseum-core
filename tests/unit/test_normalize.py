@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import get_type_hints
-
 import pytest
 
 from colosseum.config.normalize import _get_dotted, normalize_sections
@@ -95,7 +93,7 @@ def test_non_int_id_raises() -> None:
 
 
 def test_get_dotted_return_type_is_object_or_none() -> None:
-    assert get_type_hints(_get_dotted)["return"] == object | None
+    assert _get_dotted.__annotations__["return"] == "object | None"
 
 
 def test_invalid_section_type_raises() -> None:
