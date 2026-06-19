@@ -84,7 +84,7 @@ def _fetch_runs(*, workflow: str, limit: int, conclusion: str | None) -> list[di
         "databaseId,conclusion,createdAt,updatedAt,displayTitle,event",
     ]
     if conclusion:
-        args.append(f"--{conclusion}")
+        args.extend(["--status", conclusion])
     payload = json.loads(_run_gh(args))
     return payload if isinstance(payload, list) else []
 
@@ -281,7 +281,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--conclusion",
         choices=("success", "failure"),
-        help="Filter runs by conclusion (default: all)",
+        help="Filter runs by status (maps to gh run list --status; default: all)",
     )
     parser.add_argument(
         "--markdown",

@@ -29,17 +29,22 @@ pytest tests/unit tests/integration tests/e2e -q
 
 Tests use pytest `tmp_path` for `outputs/` (not the repo tree).
 
-## Profiling unit tests
+## Profiling and analysis
 
-Mutation testing and repeated pytest runs are only as fast as the unit suite. Profile hot paths with:
+Speed profiling (cProfile), wall-clock CI mirrors, and the static vs dynamic analysis layer map: [analysis.md](analysis.md). For **Colosseum runtime** (not pytest), see [Runtime profiling](analysis.md#runtime-profiling-colosseum-not-pytest) in that guide.
 
 ```bash
-python scripts/profile_unit_tests.py
-python scripts/profile_unit_tests.py --sort tottime --limit 50
-python scripts/profile_unit_tests.py --stats build/profile/unit_tests.prof
+python scripts/profile_tests.py --tier unit
+python scripts/profile_run.py examples/test_power_rails.py --config examples/configs/bench.sim.toml
+python scripts/profile_run.py --suite tests/fixtures/suites/smoke.toml --config examples/configs/bench.sim.toml
 ```
 
-The script runs `tests/unit` under `cProfile`, prints project-scoped `pstats` tables (cumulative and self time), and includes pytest’s slowest-test report (`--durations=15`). Optional `.prof` output works with [snakeviz](https://jiffyclub.github.io/snakeviz/) if installed.
+[`profile_unit_tests.py`](../../scripts/profile_unit_tests.py) is a backward-compatible alias for `--tier unit`.
+
+The profiler runs pytest under cProfile, prints project-scoped `pstats` tables, and includes pytest slowest-test report (`--durations=15`). Optional `.prof` output works with [snakeviz](https://jiffyclub.github.io/snakeviz/) if installed.
+
+**E2E note:** cProfile on pytest does not profile `colosseum` subprocesses; use `profile_run.py` for single CLI runs.
+
 
 ## Static analysis (ruff, mypy, bandit, vulture)
 
@@ -68,15 +73,20 @@ Configuration lives in [`pyproject.toml`](../../pyproject.toml) (`[tool.ruff]`, 
 
 ## Tier 4A — Scripted regression (no hardware)
 
-| Script | Requirement | Notes |
-|--------|-------------|--------|
-| `tests/regression/run_soak_sim.py` | R-SOAK-01 | Default 50× `run-suite` on sim; `--count N` |
-| `tests/regression/run_docgen_check.py` | R-DOC-01 | Runs `scripts/docgen/build_all.py` |
-| `tests/regression/run_mutation.py` | R-MUT-01 | Optional; `--run` needs `.[mutation]`; reports go under `build/mutation/` |
+| Script | ID | In `run_tests.py --regression` | In CI |
+|--------|-----|-------------------------------|-------|
+| [`run_soak_sim.py`](../../tests/regression/run_soak_sim.py) | R-SOAK-01 | Yes (`--soak-count`, default 10 via `run_tests.py`) | `soak-sim` job (`--count 5`) |
+| [`run_docgen_check.py`](../../tests/regression/run_docgen_check.py) | R-DOC-01 | Yes (full build) | `docgen` job (`--verify-only` after build) |
+| [`run_offline_install_check.py`](../../tests/regression/run_offline_install_check.py) | R-OFFLINE-00 | Yes (skip with `--skip-offline`) | `offline-install` matrix (Linux + Windows) |
+| [`run_mutation.py`](../../tests/regression/run_mutation.py) | R-MUT-01 | No (`--run` optional; `--verify-only` on reports) | `mutation-nightly` workflow (advisory) |
 
 ```bash
 python scripts/run_tests.py --regression
+python scripts/run_tests.py --regression --skip-offline   # faster local pre-release check
+python scripts/run_tests.py --regression --soak-count 10
 ```
+
+R-OFFLINE-00 builds the host offline bundle, smoke-installs from the staging dir, then extracts the release `.tar.gz` and repeats install + smoke. R-OFFLINE-01 (Yocto guest install) is manual Tier 4C — see [qemu-yocto-regression.md](qemu-yocto-regression.md).
 
 ## PyVISA-sim (Python 3.10+)
 
@@ -114,7 +124,11 @@ GitHub Actions job profiling (historical summaries, per-step run summaries, loca
 ```bash
 python scripts/ci/summarize_runs.py --limit 20
 python scripts/ci/profile_local.py --job docgen
+python scripts/ci/profile_local.py --job soak
+python scripts/ci/profile_local.py --job mutation
 ```
+
+See also [analysis.md](analysis.md) for the full layer map.
 
 ## Environment
 

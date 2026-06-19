@@ -22,8 +22,8 @@ jobs:
     name: sdist and wheel
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -32,10 +32,11 @@ jobs:
           python -m pip install -U pip setuptools wheel build
           python -m build
       - name: Upload dist artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: colosseum-dist
           path: dist/*
+          if-no-files-found: error
 
   build-offline-bundles:
     name: offline bundle (${{ matrix.os }}, py${{ matrix.python-version }})
@@ -46,8 +47,8 @@ jobs:
         os: [ubuntu-latest, windows-latest]
         python-version: ["3.9", "3.11"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -56,7 +57,7 @@ jobs:
       - name: Build end-user offline bundle
         run: python scripts/package_offline.py
       - name: Upload offline bundle artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: colosseum-offline-${{ matrix.os }}-py${{ matrix.python-version }}
           path: colosseum-*-offline-*.tar.gz
@@ -66,15 +67,26 @@ jobs:
     name: documentation (HTML + PDF)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
       - name: Install
         run: python -m pip install -U pip setuptools wheel && python -m pip install -e ".[docs,test]"
+      - name: Cache LaTeX apt archives
+        uses: actions/cache@v5
+        with:
+          path: .cache/apt/archives
+          key: latex-release-ubuntu-${{ hashFiles('.github/workflows/release.yml') }}-v2
+          restore-keys: latex-release-ubuntu-
       - name: Install LaTeX toolchain
-        run: sudo apt-get update && sudo apt-get install -y latexmk texlive-latex-recommended texlive-fonts-recommended texlive-latex-extra zip
+        run: |
+          mkdir -p "$PWD/.cache/apt/archives/partial"
+          sudo apt-get update
+          sudo apt-get -o Dir::Cache::archives="$PWD/.cache/apt/archives" install -y latexmk texlive-latex-recommended texlive-fonts-recommended texlive-latex-extra zip
+          sudo chown -R "$USER":"$USER" "$PWD/.cache/apt"
+          rm -rf "$PWD/.cache/apt/archives/partial"
       - name: Build documentation
         run: python scripts/docgen/build_all.py
       - name: Archive HTML site
@@ -82,12 +94,13 @@ jobs:
           cd build/docgen/site/html
           zip -r "${GITHUB_WORKSPACE}/colosseum-docs-html.zip" .
       - name: Upload documentation artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: colosseum-docs
           path: |
             build/docgen/site/latex/*.pdf
             colosseum-docs-html.zip
+          if-no-files-found: error
 
   publish:
     name: publish GitHub release
@@ -95,7 +108,7 @@ jobs:
     needs: [build-sdist-wheel, build-offline-bundles, build-docs]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Verify tag matches pyproject version
         run: |
@@ -106,7 +119,7 @@ jobs:
           test "$TAG" = "$VER"
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: release-assets
           merge-multiple: true

@@ -57,3 +57,35 @@ def unit_runtime_context(
     finally:
         ctx.db.close()
         truncate_unit_test_db(unit_test_db)
+
+
+@pytest.fixture
+def io_runtime_context(
+    tmp_path,
+    unit_test_db: sqlite3.Connection,
+    unit_test_db_uri: str,
+    request: pytest.FixtureRequest,
+) -> context_module.RuntimeContext:
+    """In-memory runtime with output dir for I/O plugin unit tests."""
+    truncate_unit_test_db(unit_test_db)
+    name = request.node.name.removeprefix("test_")
+    ctx = context_module.init_context(test_case_name=name)
+    ctx.output_dir = tmp_path
+    connect_unit_test_db(ctx.db, unit_test_db_uri)
+    try:
+        yield ctx
+    finally:
+        ctx.db.close()
+        truncate_unit_test_db(unit_test_db)
+
+
+@pytest.fixture
+def io_bench(tmp_path: Path):
+    """Write a bench TOML snippet under ``tmp_path`` and return its path."""
+
+    def _write(body: str) -> Path:
+        path = tmp_path / "bench.toml"
+        path.write_text(body.strip() + "\n", encoding="utf-8")
+        return path
+
+    return _write

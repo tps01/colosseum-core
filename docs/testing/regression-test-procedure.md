@@ -254,7 +254,9 @@ Copy [templates/regression-signoff.md](templates/regression-signoff.md), complet
 
 | ID | Command |
 |----|---------|
-| R-SOAK-01 | `python tests/regression/run_soak_sim.py` (default 50 iterations; use `--count 5` for a quick check) |
-| R-DOC-01 | `python tests/regression/run_docgen_check.py` (requires `requirements-dev.txt`) |
-| R-OFFLINE-00 | `python tests/regression/run_offline_install_check.py` |
-| R-MUT-01 | `python tests/regression/run_mutation.py` (instructions only); install `requirements-dev.txt`, then run `python tests/regression/run_mutation.py --run` |
+| R-SOAK-01 | `python tests/regression/run_soak_sim.py` (default 50 iterations, `smoke.toml` suite; use `--count 5` for a quick check) |
+| R-DOC-01 | `python tests/regression/run_docgen_check.py` (requires `requirements-dev.txt`; CI uses `--verify-only` after phased build) |
+| R-OFFLINE-00 | `python tests/regression/run_offline_install_check.py` (staging + tarball extract; also in `run_tests.py --regression`) |
+| R-MUT-01 | `python tests/regression/run_mutation.py --run --target …`; `--verify-only` on `build/mutation/` reports; advisory `mutation-nightly` CI |
+
+**R-OFFLINE-00 vs R-OFFLINE-01:** R-OFFLINE-00 validates staging install and release tarball extract on the host. R-OFFLINE-01 is manual Tier 4C (offline pip install on the Yocto QEMU guest).

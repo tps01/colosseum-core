@@ -82,6 +82,28 @@ def test_measure_bandwidth_hz_flat_top_trace() -> None:
     assert bandwidth_hz == pytest.approx(100e6, rel=0.01)
 
 
+def test_save_trace_data_csv_only(unit_runtime_context) -> None:
+    transport = RfStubTransport(
+        {
+            "*OPC?": "1",
+            "FREQ:CENT?": "1500000000.0",
+            "FREQ:SPAN?": "200000000.0",
+            "TRAC:DATA? TRACE1": "-10.0,-20.0,-30.0",
+        }
+    )
+    inst = build_instrument("speca", 1, {"model": "generic"}, transport)
+    csv_path = inst.save_trace_data("traces/speca.csv", save_plot=False)
+
+    assert csv_path.exists()
+    assert not csv_path.with_suffix(".png").exists()
+    with csv_path.open(encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    assert len(rows) == 3
+    assert rows[0]["frequency_hz"] == "1400000000.000000"
+    assert rows[0]["amplitude_dbm"] == "-10.000000"
+
+
+@pytest.mark.plot
 def test_save_trace_data_with_plot(unit_runtime_context) -> None:
     transport = RfStubTransport(
         {

@@ -14,9 +14,10 @@
 | Check | Command | Pass |
 |-------|---------|------|
 | Tiers 1–3 | `python scripts/run_tests.py` | [ ] |
-| Sim soak (optional) | `python tests/regression/run_soak_sim.py --count 10` | [ ] |
-| Docgen (optional) | `python tests/regression/run_docgen_check.py` | [ ] |
-| Offline bundle (optional) | `python tests/regression/run_offline_install_check.py` | [ ] |
+| Tier 4A (soak + docgen + offline) | `python scripts/run_tests.py --regression` | [ ] |
+| Sim soak only (optional) | `python tests/regression/run_soak_sim.py --count 10` | [ ] |
+| Docgen only (optional) | `python tests/regression/run_docgen_check.py` | [ ] |
+| Offline bundle only (optional) | `python tests/regression/run_offline_install_check.py` | [ ] |
 
 ## Manual procedure cases
 

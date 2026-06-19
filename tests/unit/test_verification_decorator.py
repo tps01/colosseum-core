@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from dataclasses import FrozenInstanceError
+from inspect import signature
+from typing import Any, get_overloads, get_type_hints
 
 import pytest
 
 from colosseum.decorators.measurement import measurement
 from colosseum.decorators._common import resolve_domain
+from colosseum.decorators.command import COLOSSEUM_DECORATOR
 from colosseum.decorators.verification import (
     MeasurementSource,
     VerificationResult,
+    missing_measurement_result,
     verification,
 )
 
@@ -145,3 +150,71 @@ def test_sources_must_be_passed_by_keyword() -> None:
 
     with pytest.raises(TypeError):
         verification(bare, [])
+
+
+def test_missing_measurement_result_defaults_required() -> None:
+    result = missing_measurement_result(key="rail")
+    assert result.optional is False
+    assert signature(missing_measurement_result).parameters["optional"].default is False
+
+
+def test_verification_overloads_and_annotations() -> None:
+    overloads = get_overloads(verification)
+    assert len(overloads) == 2
+    for overload in overloads:
+        assert get_type_hints(overload)["sources"] == Iterable[MeasurementSource] | None
+
+    impl_hints = get_type_hints(verification)
+    assert impl_hints["_func"] == Callable[..., Any] | None
+    assert impl_hints["sources"] == Iterable[MeasurementSource] | None
+
+
+def test_decorator_metadata() -> None:
+    assert getattr(_bool_verify, COLOSSEUM_DECORATOR) == "verification"
+
+
+def test_bool_pass_records_verification_row(ctx) -> None:
+    result = _bool_verify(key="rail", expected=True)
+    assert result.status == "PASS"
+    row = ctx.db.fetch_table_rows("verifications")[-1]
+    assert row["key"] == "rail"
+    assert row["status"] == "PASS"
+    assert ctx.result_aggregator.overall_pass() is True
+
+
+def test_non_bool_return_becomes_pass_with_message(ctx) -> None:
+    @verification()
+    def returns_text(*, key: str) -> str:
+        return "ok"
+
+    result = returns_text(key="k")
+    assert result.status == "PASS"
+    assert result.message == "ok"
+
+
+def test_present_source_allows_verification(ctx) -> None:
+    _capture_value(key="rail", value=3.3)
+
+    @verification(sources=[MeasurementSource(domain="core", command="_capture_value")])
+    def needs_measure(*, key: str) -> bool:
+        return True
+
+    result = needs_measure(key="rail")
+    assert result.status == "PASS"
+    assert ctx.result_aggregator.overall_pass() is True
+
+
+def test_expected_val_and_minimum_persisted(ctx) -> None:
+    import json
+
+    @verification()
+    def with_limits(*, key: str, expected_val: float = 0.0, minimum: float = 0.0) -> bool:
+        return True
+
+    with_limits(key="rail", expected_val=3.3)
+    row = ctx.db.fetch_table_rows("verifications")[-1]
+    assert json.loads(row["expected_json"]) == 3.3
+
+    with_limits(key="rail", minimum=1.5)
+    row = ctx.db.fetch_table_rows("verifications")[-1]
+    assert json.loads(row["expected_json"]) == 1.5

@@ -15,6 +15,7 @@ def connect_unit_test_db(manager: DatabaseManager, uri: str = UNIT_TEST_DB_URI) 
     if manager.is_initialized():
         return
     manager._conn = sqlite3.connect(uri, uri=True)
+    manager.defer_commits = True
 
 
 def truncate_unit_test_db(db: Union[sqlite3.Connection, str] = UNIT_TEST_DB_URI) -> None:

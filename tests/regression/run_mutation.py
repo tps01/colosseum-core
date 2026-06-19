@@ -127,7 +127,8 @@ def _release_mutation_lock() -> None:
     LOCK_FILE.unlink(missing_ok=True)
 
 
-def _mutation_summary(session_file: Path) -> tuple[int, int, int] | None:
+def _mutation_summary(session_file: Path) -> tuple[int, int, int, int, int] | None:
+    """Return ``(survived, incomplete, bad_worker, killed, total)`` or ``None``."""
     cosmic_ray = _console_script("cosmic-ray")
     proc = subprocess.run(
         [cosmic_ray, "dump", str(session_file)],
@@ -142,6 +143,7 @@ def _mutation_summary(session_file: Path) -> tuple[int, int, int] | None:
     survived = 0
     incomplete = 0
     bad_worker = 0
+    killed = 0
     parsed = 0
     for line in proc.stdout.splitlines():
         try:
@@ -158,13 +160,67 @@ def _mutation_summary(session_file: Path) -> tuple[int, int, int] | None:
         worker_outcome = result.get("worker_outcome")
         if test_outcome == "survived":
             survived += 1
+        elif test_outcome == "killed":
+            killed += 1
         if test_outcome in {None, "incompetent"}:
             incomplete += 1
         if worker_outcome not in {None, "normal"}:
             bad_worker += 1
     if parsed == 0:
         return None
-    return survived, incomplete, bad_worker
+    return survived, incomplete, bad_worker, killed, parsed
+
+
+def verify_mutation_reports(*, target: str | None) -> int:
+    """Assert existing Cosmic Ray session reports pass R-MUT-01 gates.
+
+    :param target: One configured target path, or ``None`` for all configured targets.
+    :type target: str | None
+
+    :returns: Process exit code (``0`` on success).
+    :rtype: int
+    """
+    try:
+        import cosmic_ray  # noqa: F401
+    except ImportError:
+        print('cosmic-ray is not installed. Run: pip install -e ".[mutation]"', file=sys.stderr)
+        return 2
+
+    selected_targets = (target,) if target else TARGETS
+    paths = _paths(_run_id(selected_targets))
+    session_file = paths["session"]
+    if not session_file.is_file():
+        print(f"MUTATION FAIL: missing session file {session_file}", file=sys.stderr)
+        print("Run Cosmic Ray first or download CI mutation artifacts.", file=sys.stderr)
+        return 1
+
+    summary = _mutation_summary(session_file)
+    if summary is None:
+        print("MUTATION FAIL: could not parse Cosmic Ray dump", file=sys.stderr)
+        print(f"Report: {paths['report']}", file=sys.stderr)
+        return 1
+
+    survived, incomplete, bad_worker, killed, total = summary
+    score = (100.0 * killed / total) if total else 0.0
+    print(f"Mutation score: {score:.1f}% ({killed}/{total} killed)")
+
+    if survived or incomplete or bad_worker:
+        print(
+            "MUTATION FAIL: "
+            f"survived={survived}, incomplete={incomplete}, worker_errors={bad_worker}",
+            file=sys.stderr,
+        )
+        print(f"Report:    {paths['report']}", file=sys.stderr)
+        print(f"Survivors: {paths['survivors']}", file=sys.stderr)
+        if paths["html"].is_file():
+            print(f"HTML:      {paths['html']}", file=sys.stderr)
+        return 1
+
+    print(f"Report: {paths['report']}")
+    if paths["html"].is_file():
+        print(f"HTML:   {paths['html']}")
+    print("MUTATION PASS: existing reports meet configured targets")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -186,18 +242,27 @@ def main(argv: list[str] | None = None) -> int:
         help="Cosmic Ray per-mutant test timeout in seconds (default 10)",
     )
     parser.add_argument(
+        "--verify-only",
+        action="store_true",
+        help="Skip Cosmic Ray run; assert pass/fail from existing build/mutation/ reports",
+    )
+    parser.add_argument(
         "--skip-preflight",
         action="store_true",
         help="Skip the unit-test preflight before mutation testing",
     )
     args = parser.parse_args(argv)
 
+    if args.verify_only:
+        return verify_mutation_reports(target=args.target)
+
     if not args.run:
         print("Mutation testing is optional for Colosseum regression.")
         print('Install: pip install -e ".[mutation]"')
         print("Run:     python tests/regression/run_mutation.py --run")
         print("Single:  python tests/regression/run_mutation.py --run --target", TARGETS[0])
-        print("Profile: python scripts/profile_unit_tests.py  (speed up unit tests first)")
+        print("Verify:  python tests/regression/run_mutation.py --verify-only --target", TARGETS[0])
+        print("Profile: python scripts/profile_tests.py --tier unit  (speed up unit tests first)")
         print("Reports: build/mutation/<target>-report.txt")
         print("Targets:", ", ".join(TARGETS))
         return 0
@@ -266,7 +331,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Report: {paths['report']}")
             return 0
 
-        survived, incomplete, bad_worker = summary
+        survived, incomplete, bad_worker, killed, total = summary
+        score = (100.0 * killed / total) if total else 0.0
+        print(f"Mutation score: {score:.1f}% ({killed}/{total} killed)")
         if survived or incomplete or bad_worker:
             print(
                 "MUTATION FAIL: "

@@ -42,6 +42,7 @@ def endex() -> NoReturn:
         )
     ctx.db.insert_run_metadata("overall_status", overall)
     ctx.db.insert_run_metadata("exit_code", str(code))
+    ctx.db.flush()
     if ctx.output_dir is not None:
         from ..summary.writer import SummaryWriter
 
