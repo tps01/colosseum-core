@@ -1,0 +1,19 @@
+name: Step timer
+description: Run a bash command and record its duration in the job summary.
+inputs:
+  label:
+    description: Label shown in the job summary.
+    required: true
+  command:
+    description: Bash command to execute.
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+        start=$(date +%s)
+        ${{ inputs.command }}
+        elapsed=$(($(date +%s) - start))
+        echo "**${{ inputs.label }}**: ${elapsed}s" >> "$GITHUB_STEP_SUMMARY"

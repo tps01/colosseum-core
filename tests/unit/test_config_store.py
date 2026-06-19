@@ -88,6 +88,25 @@ def test_config_is_loaded_reports_runtime_state(bench_sim) -> None:
     assert col.config.is_loaded() is True
 
 
+def test_apply_raw_config_attaches_store() -> None:
+    from colosseum.config.loader import _apply_raw_config
+    from colosseum.context import init_context, require_context
+    import colosseum.context as context_module
+
+    context_module._ACTIVE_CONTEXT = None
+    ctx = init_context(test_case_name="apply_raw")
+    raw = {
+        "equipment": {
+            "psu": [
+                {"psu_id": 1, "resource": "GPIB0::1::INSTR", "model": "generic"},
+            ]
+        }
+    }
+    store = _apply_raw_config(ctx, raw, source_label="(test)")
+    assert require_context().config_path == "(test)"
+    assert store.require_item("equipment.psu", 1)["resource"] == "GPIB0::1::INSTR"
+
+
 def test_load_config_reload_updates_run_metadata(bench_sim, isolated_cwd, tmp_path) -> None:
     load_config(bench_sim)
     ctx = require_context()

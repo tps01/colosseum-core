@@ -1,0 +1,21 @@
+name: Step timer (PowerShell)
+description: Run a PowerShell command and record its duration in the job summary.
+inputs:
+  label:
+    description: Label shown in the job summary.
+    required: true
+  command:
+    description: PowerShell command to execute.
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: pwsh
+      env:
+        STEP_TIMER_COMMAND: ${{ inputs.command }}
+      run: |
+        $start = Get-Date
+        Invoke-Expression $env:STEP_TIMER_COMMAND
+        if ($LASTEXITCODE) { exit $LASTEXITCODE }
+        $elapsed = [math]::Round(((Get-Date) - $start).TotalSeconds, 1)
+        "**${{ inputs.label }}**: ${elapsed}s" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8

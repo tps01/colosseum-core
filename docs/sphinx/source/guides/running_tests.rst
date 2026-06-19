@@ -5,6 +5,11 @@ Running test cases
 
 **CLI:** ``colosseum run my_test.py --config bench.toml`` initializes the runtime, calls ``main()``, then ``col.endex()``.
 
+To scan VISA resources instead of a bench file, use ``--autoconfig`` (requires ``colosseum[hardware]``)::
+
+   colosseum run my_test.py --autoconfig
+   colosseum run my_test.py --autoconfig --autoconfig-export bench.generated.toml
+
 The CLI does not execute the script's ``if __name__ == "__main__"`` block; only ``main()`` is invoked.
 
 Output is written lazily under ``outputs/<timestamp>_<test_stem>/`` as ``debug.log``, ``execution.sqlite``, and ``summary.txt``.

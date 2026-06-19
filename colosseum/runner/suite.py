@@ -75,8 +75,16 @@ def _set_phase(phase: str) -> None:
         ctx.logger.info("Suite phase: %s", phase)
 
 
-def run_suite(suite_path: Path, config_path: Path | None = None, *, debug: bool = False) -> int:
-    from ..config import load_config
+def run_suite(
+    suite_path: Path,
+    config_path: Path | None = None,
+    *,
+    debug: bool = False,
+    use_autoconfig: bool = False,
+    autoconfig_export: Path | None = None,
+    autoconfig_blacklist: list[str] | None = None,
+) -> int:
+    from ..config import autoconfig, load_config
     from ..context import init_context, require_context
     from ..output import ensure_output_dir
     from ..results import endex
@@ -90,7 +98,12 @@ def run_suite(suite_path: Path, config_path: Path | None = None, *, debug: bool 
     )
     ctx = require_context()
     ctx.debug_logging = debug
-    if config_path:
+    if use_autoconfig:
+        autoconfig(
+            export_path=autoconfig_export,
+            blacklist=autoconfig_blacklist,
+        )
+    elif config_path:
         load_config(config_path)
 
     logical = ctx.suite_name or ctx.test_case_name

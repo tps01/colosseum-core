@@ -20,10 +20,37 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
+      - name: Job timing summary header
+        if: runner.os == 'Linux'
+        run: echo "## Job timing (${{ job.name }})" >> "$GITHUB_STEP_SUMMARY"
+      - name: Job timing summary header
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: "## Job timing (${{ job.name }})" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8
       - name: Install
-        run: python -m pip install -U pip setuptools wheel && python -m pip install -e ".[test,plot]"
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/step-timer
+        with:
+          label: Install
+          command: python -m pip install -U pip setuptools wheel && python -m pip install -e ".[test,plot]"
+      - name: Install
+        if: runner.os == 'Windows'
+        uses: ./.github/actions/step-timer-pwsh
+        with:
+          label: Install
+          command: python -m pip install -U pip setuptools wheel; python -m pip install -e ".[test,plot]"
       - name: Run tiers 1-3
-        run: python scripts/run_tests.py
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/step-timer
+        with:
+          label: Run tiers 1-3
+          command: python scripts/run_tests.py -- --durations=15
+      - name: Run tiers 1-3
+        if: runner.os == 'Windows'
+        uses: ./.github/actions/step-timer-pwsh
+        with:
+          label: Run tiers 1-3
+          command: python scripts/run_tests.py -- --durations=15
 
   visa-sim:
     name: pytest visa_sim (py${{ matrix.python-version }})
@@ -38,28 +65,69 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
+      - name: Job timing summary header
+        run: echo "## Job timing (${{ job.name }})" >> "$GITHUB_STEP_SUMMARY"
       - name: Install
-        run: python -m pip install -U pip setuptools wheel && python -m pip install -e ".[test]"
+        uses: ./.github/actions/step-timer
+        with:
+          label: Install
+          command: python -m pip install -U pip setuptools wheel && python -m pip install -e ".[test]"
       - name: PyVISA-sim tests
-        run: python -m pytest -m visa_sim -q
+        uses: ./.github/actions/step-timer
+        with:
+          label: PyVISA-sim tests
+          command: python -m pytest -m visa_sim -q
 
   docgen:
     name: documentation pdf artifact
     runs-on: ubuntu-latest
+    env:
+      COLOSSEUM_CI_TIMING: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
+      - name: Job timing summary header
+        run: echo "## Job timing (${{ job.name }})" >> "$GITHUB_STEP_SUMMARY"
       - name: Install
-        run: python -m pip install -U pip setuptools wheel && python -m pip install -e ".[docs,test]"
+        uses: ./.github/actions/step-timer
+        with:
+          label: Install
+          command: python -m pip install -U pip setuptools wheel && python -m pip install -e ".[docs,test]"
+      - name: Cache LaTeX apt and texlive
+        uses: actions/cache@v4
+        with:
+          path: |
+            /var/cache/apt/archives
+            /var/lib/apt/lists
+            /usr/share/texlive
+            /usr/share/texmf
+            /usr/share/texmf-var
+          key: latex-ubuntu-${{ hashFiles('.github/workflows/ci.yml') }}-v1
+          restore-keys: latex-ubuntu-
       - name: Install LaTeX toolchain
-        run: sudo apt-get update && sudo apt-get install -y latexmk texlive-latex-recommended texlive-fonts-recommended texlive-latex-extra
-      - name: Build documentation (HTML + PDF)
-        run: python scripts/docgen/build_all.py
-      - name: Upload PDF artifact
-        uses: actions/upload-artifact@v4
+        uses: ./.github/actions/step-timer
+        with:
+          label: Install LaTeX toolchain
+          command: sudo apt-get update && sudo apt-get install -y latexmk texlive-latex-recommended texlive-fonts-recommended texlive-latex-extra
+      - name: Docgen staging
+        uses: ./.github/actions/step-timer
+        with:
+          label: Docgen staging
+          command: python scripts/docgen/build_all.py --stage-only
+      - name: Docgen HTML
+        uses: ./.github/actions/step-timer
+        with:
+          label: Docgen HTML
+          command: python scripts/docgen/build_all.py --html-only
+      - name: Docgen PDF
+        uses: ./.github/actions/step-timer
+        with:
+          label: Docgen PDF
+          command: python scripts/docgen/build_all.py --pdf-only
+      - uses: actions/upload-artifact@v4
         with:
           name: colosseum-docs-pdf
           path: build/docgen/site/latex/*.pdf
@@ -73,10 +141,18 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
+      - name: Job timing summary header
+        run: echo "## Job timing (${{ job.name }})" >> "$GITHUB_STEP_SUMMARY"
       - name: Install
-        run: python -m pip install -U pip setuptools wheel && python -m pip install -e ".[static]"
+        uses: ./.github/actions/step-timer
+        with:
+          label: Install
+          command: python -m pip install -U pip setuptools wheel && python -m pip install -e ".[static]"
       - name: Static analysis
-        run: python scripts/run_static.py
+        uses: ./.github/actions/step-timer
+        with:
+          label: Static analysis
+          command: python scripts/run_static.py
 
   packaging:
     name: packaging smoke
@@ -87,28 +163,49 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
+      - name: Job timing summary header
+        run: echo "## Job timing (${{ job.name }})" >> "$GITHUB_STEP_SUMMARY"
       - name: Install build tooling
-        run: python -m pip install -U pip setuptools wheel build
+        uses: ./.github/actions/step-timer
+        with:
+          label: Install build tooling
+          command: python -m pip install -U pip setuptools wheel build
       - name: Build sdist and wheel
-        run: python -m build
+        uses: ./.github/actions/step-timer
+        with:
+          label: Build sdist and wheel
+          command: python -m build
       - name: Smoke install wheel in fresh venv
-        run: |
-          python -m venv /tmp/colosseum-packaging-venv
-          WHEEL=$(ls dist/*.whl)
-          /tmp/colosseum-packaging-venv/bin/pip install "${WHEEL}[bench]"
-          /tmp/colosseum-packaging-venv/bin/python -c "import pyvisa, paramiko, customtkinter"
-          /tmp/colosseum-packaging-venv/bin/colosseum --help
+        uses: ./.github/actions/step-timer
+        with:
+          label: Smoke install wheel in fresh venv
+          command: |
+            python -m venv /tmp/colosseum-packaging-venv
+            WHEEL=$(ls dist/*.whl)
+            /tmp/colosseum-packaging-venv/bin/pip install "${WHEEL}[bench]"
+            /tmp/colosseum-packaging-venv/bin/python -c "import pyvisa, paramiko, customtkinter"
+            /tmp/colosseum-packaging-venv/bin/colosseum --help
 
   offline-install:
     name: offline bundle smoke
     runs-on: ubuntu-latest
+    env:
+      COLOSSEUM_CI_TIMING: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
+      - name: Job timing summary header
+        run: echo "## Job timing (${{ job.name }})" >> "$GITHUB_STEP_SUMMARY"
       - name: Install project for packaging script
-        run: python -m pip install -U pip setuptools wheel && python -m pip install -e .
+        uses: ./.github/actions/step-timer
+        with:
+          label: Install project for packaging script
+          command: python -m pip install -U pip setuptools wheel && python -m pip install -e .
       - name: Offline bundle regression
-        run: python tests/regression/run_offline_install_check.py
+        uses: ./.github/actions/step-timer
+        with:
+          label: Offline bundle regression
+          command: python tests/regression/run_offline_install_check.py

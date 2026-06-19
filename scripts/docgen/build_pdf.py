@@ -7,6 +7,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+_scripts_dir = Path(__file__).resolve().parents[1]
+if str(_scripts_dir) not in sys.path:
+    sys.path.insert(0, str(_scripts_dir))
+
+from ci.timing import ci_phase  # noqa: E402
+
 LATEX_INSTALL_HINT = """
 LaTeX toolchain required for PDF output.
 
@@ -50,32 +56,34 @@ def build_pdf(*, site_source: Path, latex_dir: Path, repo_root: Path) -> Path:
     """
     require_latex_toolchain()
     latex_dir.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "sphinx",
-            "-b",
-            "latex",
-            str(site_source),
-            str(latex_dir),
-        ],
-        cwd=repo_root,
-        check=True,
-    )
+    with ci_phase("latex"):
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "sphinx",
+                "-b",
+                "latex",
+                str(site_source),
+                str(latex_dir),
+            ],
+            cwd=repo_root,
+            check=True,
+        )
     tex_path = _find_main_tex(latex_dir)
-    subprocess.run(
-        [
-            "latexmk",
-            "-pdf",
-            "-interaction=nonstopmode",
-            "-halt-on-error",
-            "-cd",
-            str(tex_path),
-        ],
-        cwd=repo_root,
-        check=True,
-    )
+    with ci_phase("latexmk"):
+        subprocess.run(
+            [
+                "latexmk",
+                "-pdf",
+                "-interaction=nonstopmode",
+                "-halt-on-error",
+                "-cd",
+                str(tex_path),
+            ],
+            cwd=repo_root,
+            check=True,
+        )
     pdf_path = tex_path.with_suffix(".pdf")
     if not pdf_path.is_file():
         raise SystemExit(f"Expected PDF at {pdf_path}")
