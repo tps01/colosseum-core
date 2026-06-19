@@ -50,7 +50,7 @@ def _job_test() -> int:
         return code
     return _run_step(
         "pytest_tiers_1_3",
-        [sys.executable, str(REPO / "scripts" / "run_tests.py"), "--", "--durations=15"],
+        [sys.executable, str(REPO / "scripts" / "run_tests.py"), "--durations=15"],
     )
 
 

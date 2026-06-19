@@ -45,13 +45,13 @@ jobs:
         uses: ./.github/actions/step-timer
         with:
           label: Run tiers 1-3
-          command: python scripts/run_tests.py -- --durations=15
+          command: python scripts/run_tests.py --durations=15
       - name: Run tiers 1-3
         if: runner.os == 'Windows'
         uses: ./.github/actions/step-timer-pwsh
         with:
           label: Run tiers 1-3
-          command: python scripts/run_tests.py -- --durations=15
+          command: python scripts/run_tests.py --durations=15
 
   visa-sim:
     name: pytest visa_sim (py${{ matrix.python-version }})
