@@ -29,9 +29,11 @@ MANIFEST
 pip-wheel-metadata/
 pip-log.txt
 
-# Virtual environments
+# Virtual environments (.venv, .venv-mutation, venv-offline, etc.)
 .venv/
+.venv-*/
 venv/
+venv-*/
 ENV/
 env/
 
@@ -40,6 +42,7 @@ env/
 .mypy_cache/
 .ruff_cache/
 .coverage
+.coverage.*
 htmlcov/
 .tox/
 .nox/

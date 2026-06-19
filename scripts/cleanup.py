@@ -58,7 +58,25 @@ INFRA_DIRS = (
 )
 
 # Top-level dirs only removed with --include-venvs.
-VENV_DIRS = (".venv", "venv", "ENV", "env")
+VENV_DIR_NAMES = frozenset({".venv", "venv", "ENV", "env"})
+
+
+def _is_venv_top_level(name: str) -> bool:
+    if name in VENV_DIR_NAMES:
+        return True
+    return name.startswith(".venv-") or name.startswith("venv-")
+
+
+def _iter_venv_top_level_dirs(root: Path) -> list[Path]:
+    dirs: list[Path] = []
+    for name in VENV_DIR_NAMES:
+        path = root / name
+        if path.is_dir():
+            dirs.append(path)
+    for child in root.iterdir():
+        if child.is_dir() and _is_venv_top_level(child.name) and child.name not in VENV_DIR_NAMES:
+            dirs.append(child)
+    return dirs
 
 # Directory names removed anywhere in the tree.
 WALK_DIR_NAMES = {"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".hypothesis"}
@@ -80,6 +98,7 @@ WALK_FILE_GLOBS = (
     "*$py.class",
     "*.so",
     ".coverage",
+    ".coverage.*",
     ".DS_Store",
     "Thumbs.db",
     "Desktop.ini",
@@ -110,15 +129,12 @@ def _matches_any(name: str, patterns: Iterable[str]) -> bool:
 
 def _is_under_venv(root: Path, path: Path) -> bool:
     rel_parts = path.relative_to(root).parts
-    return bool(rel_parts and rel_parts[0] in VENV_DIRS)
+    return bool(rel_parts) and _is_venv_top_level(rel_parts[0])
 
 
 def _collect_venv_artifacts(root: Path) -> list[Path]:
     targets: list[Path] = []
-    for name in VENV_DIRS:
-        venv = root / name
-        if not venv.is_dir():
-            continue
+    for venv in _iter_venv_top_level_dirs(root):
         for dirpath, dirnames, filenames in os.walk(venv, topdown=True):
             current = Path(dirpath)
             for dirname in list(dirnames):
@@ -159,10 +175,7 @@ def _collect_paths(
         targets.extend(_collect_infra_artifacts(root))
 
     if include_venvs:
-        for name in VENV_DIRS:
-            path = root / name
-            if path.exists():
-                targets.append(path)
+        targets.extend(_iter_venv_top_level_dirs(root))
     else:
         targets.extend(_collect_venv_artifacts(root))
 
@@ -184,7 +197,7 @@ def _collect_paths(
         # Do not descend into paths we are removing (or venvs when skipped).
         skip_names = set(WALK_DIR_NAMES) | {d for d in dirnames if _matches_any(d, WALK_DIR_GLOBS)}
         if not include_venvs:
-            skip_names |= set(VENV_DIRS)
+            skip_names |= {d for d in dirnames if _is_venv_top_level(d)}
         dirnames[:] = [d for d in dirnames if d not in skip_names]
 
         for filename in filenames:
@@ -243,7 +256,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--include-venvs",
         action="store_true",
-        help="Also remove .venv/, venv/, env/ at repository root",
+        help="Also remove .venv/, .venv-*/, venv/, venv-*/, env/ at repository root",
     )
     parser.add_argument(
         "--include-infra",
