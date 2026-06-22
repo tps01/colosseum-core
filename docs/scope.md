@@ -33,7 +33,8 @@ The supported end-of-run API is `col.endex()`. It writes final metadata, writes 
 - Global runtime context with config, database, logger, plugin registry, resource cache, phase, and result aggregator.
 - Context initialization through `col.config.load_config(...)`, `colosseum run`, or `colosseum run-suite`.
 - Lazy output directory creation under `outputs/<timestamp>_<logical-name>/`.
-- `debug.log`, `execution.sqlite`, `summary.txt`, and `summary.json` are produced for finalized runs.
+- Optional **no-artifacts mode** (`--no-artifacts`, `load_config(..., no_artifacts=True)`, or `COLOSSEUM_NO_ARTIFACTS=1`) for utility scripts: console logging and in-memory SQLite only; no `outputs/`, `debug.log`, on-disk `execution.sqlite`, or summary files. File artifact APIs (`resolve_artifact_path`, `register_artifact`) require persisted output.
+- `debug.log`, `execution.sqlite`, `summary.txt`, and `summary.json` are produced for finalized runs (unless no-artifacts mode is enabled).
 - Decorated APIs require an initialized runtime context from `col.config.load_config(...)`, `colosseum run`, or `colosseum run-suite`.
 - `col.endex()` is idempotent enough to preserve the first final exit code if called again.
 
@@ -61,6 +62,7 @@ The supported end-of-run API is `col.endex()`. It writes final metadata, writes 
 ### CLI And Suites
 
 - `colosseum run <test.py> --config <bench.toml>` initializes runtime, loads config, executes the script with `runpy`, calls `main()`, and finalizes with `col.endex()`.
+- `--no-artifacts` skips `outputs/`, `debug.log`, on-disk SQLite, and summary files while keeping console logging (utility/script mode).
 - The CLI does not execute a script's `if __name__ == "__main__"` block.
 - `colosseum run-suite <suite.toml> --config <bench.toml>` runs setup scripts, test scripts, and teardown scripts in one runtime context and one output directory.
 - Suite paths are relative to the suite file.

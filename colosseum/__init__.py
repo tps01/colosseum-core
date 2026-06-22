@@ -12,12 +12,20 @@ from .decorators import (
 from .plugins.namespace import LazyNamespaceProxy
 from .results import endex
 
-__version__ = "0.13.10"
+__version__ = "0.13.12"
 
 equipment = LazyNamespaceProxy("equipment")
 shared = LazyNamespaceProxy("shared")
 io = LazyNamespaceProxy("io")
 host = LazyNamespaceProxy("host")
+
+
+def __getattr__(name: str) -> LazyNamespaceProxy:
+    """Resolve third-party plugin namespaces (e.g. ``col.acme.*``) after install."""
+    if name.startswith("_"):
+        raise AttributeError(name)
+    return LazyNamespaceProxy(name)
+
 
 __all__ = [
     "__version__",

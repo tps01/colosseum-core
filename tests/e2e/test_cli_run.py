@@ -18,23 +18,38 @@ def _cli_run(
     config: Path,
     cwd: Path,
     env: dict[str, str],
+    *,
+    extra_args: list[str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    cmd = [
+        sys.executable,
+        "-m",
+        "colosseum.runner.cli",
+        "run",
+        str(script),
+        "--config",
+        str(config),
+    ]
+    if extra_args:
+        cmd.extend(extra_args)
     return subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "colosseum.runner.cli",
-            "run",
-            str(script),
-            "--config",
-            str(config),
-        ],
+        cmd,
         cwd=cwd,
         env=env,
         capture_output=True,
         text=True,
         timeout=120,
     )
+
+
+@pytest.mark.requirement("E2E-W1-01")
+def test_cli_run_no_artifacts_skips_output_dir(bench_sim, isolated_cwd, subprocess_env) -> None:
+    script = REPO / "examples" / "test_power_rails.py"
+    proc = _cli_run(script, bench_sim, isolated_cwd, subprocess_env, extra_args=["--no-artifacts"])
+    assert proc.returncode == 0, proc.stderr
+    assert "Colosseum version:" in proc.stdout
+    assert "no-artifacts mode" in proc.stdout
+    assert not (isolated_cwd / "outputs").exists()
 
 
 @pytest.mark.requirement("E2E-W1-01")

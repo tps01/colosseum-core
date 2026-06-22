@@ -18,7 +18,7 @@ This file tracks user-facing documentation for test engineers and plugin authors
 | Output directory structure | All users | usable | `docs/sphinx/source/guides/output_artifacts.rst` (includes trace/capture artifacts) |
 | Exit codes | CI authors | usable | `docs/sphinx/source/guides/exit_codes.rst` |
 | Measurement and verification concepts | Test engineers | usable | `docs/sphinx/source/guides/measurements_verifications.rst` |
-| Plugin development guide | Extension authors | usable | `docs/sphinx/source/guides/plugins.rst`; reference skeleton `examples/plugins/myvendor_bench/` |
+| Plugin development guide | Extension authors | usable | `docs/sphinx/source/guides/plugins.rst`; template scaffold `examples/plugins/colosseum_template/` (see README) |
 | Host environment (col.host) | Test engineers | usable | `docs/sphinx/source/guides/host_environment.rst`; `examples/test_host_profile.py` |
 | Windows / Linux notes | All users | usable | `docs/sphinx/source/guides/platform_notes.rst` |
 | Equipment API reference | Test engineers | usable | Generated through `scripts/docgen`; docstrings on public `col.equipment.*` / `col.io.*` APIs |

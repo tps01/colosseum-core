@@ -13,17 +13,19 @@ def setup_logging(
     *,
     console: bool = False,
     console_level: int = logging.INFO,
+    file: bool = True,
 ) -> logging.Logger:
     logger = logging.getLogger("colosseum")
     logger.setLevel(logging.DEBUG)
     logger.handlers.clear()
 
-    assert ctx.output_dir is not None
-    file_handler = logging.FileHandler(ctx.output_dir / "debug.log", mode="a", encoding="utf-8")
-    file_handler.setLevel(logging.DEBUG)
     formatter = logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
+    if file:
+        assert ctx.output_dir is not None
+        file_handler = logging.FileHandler(ctx.output_dir / "debug.log", mode="a", encoding="utf-8")
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
 
     if console:
         console_handler = logging.StreamHandler(sys.stdout)
@@ -31,6 +33,10 @@ def setup_logging(
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
 
+    if ctx.no_artifacts or ctx.output_dir is None:
+        output_dir_line = "(none — no-artifacts mode)"
+    else:
+        output_dir_line = str(ctx.output_dir)
     header = [
         f"Colosseum version: {ctx.framework_version}",
         f"Python version: {sys.version}",
@@ -39,7 +45,7 @@ def setup_logging(
         f"Suite: {ctx.suite_name or 'N/A'}",
         f"Start time: {datetime.now(timezone.utc).isoformat()}",
         f"Config file: {ctx.config_path or 'N/A'}",
-        f"Output directory: {ctx.output_dir}",
+        f"Output directory: {output_dir_line}",
     ]
     for line in header:
         logger.info(line)

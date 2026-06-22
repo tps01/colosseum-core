@@ -1,16 +1,8 @@
-"""
-Example ``colosseum.docgen`` entry point for a third-party extension.
-
-Copy this pattern into ``colosseum_template/docgen_entry.py`` (or your fork) and register::
-
-    [project.entry-points."colosseum.docgen"]
-    template = "colosseum_template.docgen_entry:spec"
-"""
-
 from colosseum.docgen_spec import DocgenModuleSpec
 
 
 def spec() -> DocgenModuleSpec:
+    # TODO: Update module_id, title, order, and namespace when forking.
     return DocgenModuleSpec(
         module_id="colosseum_template",
         title="Colosseum Template Extension",

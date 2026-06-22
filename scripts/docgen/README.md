@@ -67,12 +67,12 @@ from colosseum.docgen_spec import DocgenModuleSpec
 
 def spec():
     return DocgenModuleSpec(
-        module_id="myvendor_bench",
-        title="My Vendor Bench",
-        import_packages=["myvendor_bench"],
-        autodoc_modules=["myvendor_bench"],
+        module_id="colosseum_template",
+        title="Colosseum Template Extension",
+        import_packages=["colosseum_template"],
+        autodoc_modules=["colosseum_template"],
         order=50,
-        namespace="myvendor",
+        namespace="template",
     )
 ```
 
@@ -80,10 +80,10 @@ def spec():
 
 ```toml
 [project.entry-points."colosseum.docgen"]
-myvendor = "myvendor_bench.docgen_entry:spec"
+template = "colosseum_template.docgen_entry:spec"
 ```
 
-4. Install the package, then run ``build_all.py`` (or ``build_module.py --module-id myvendor_bench``).
+4. Install the package, then run ``build_all.py`` (or ``build_module.py --module-id colosseum_template``).
 
 No changes to Colosseum scripts are required when the entry point is present.
 

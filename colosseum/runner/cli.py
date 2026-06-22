@@ -7,7 +7,7 @@ from pathlib import Path
 
 from ..config import ConfigError, autoconfig, load_config
 from ..context import init_context
-from ..output import ensure_output_dir
+from ..output import ensure_runtime_ready
 from ..results import endex
 from .single_test import ScriptRunError, run_script
 from .suite import SuiteError, run_suite
@@ -72,6 +72,11 @@ def _add_common_run_options(parser: argparse.ArgumentParser) -> None:
         "--debug",
         action="store_true",
         help="Include DEBUG logs on stdout",
+    )
+    parser.add_argument(
+        "--no-artifacts",
+        action="store_true",
+        help="Skip outputs/, debug.log, and on-disk execution.sqlite (utility/script mode)",
     )
 
 
@@ -154,15 +159,22 @@ def _load_run_config(options: RunConfigOptions) -> None:
         load_config(options.config_path)
 
 
-def _run_single_test(test_path: Path, options: RunConfigOptions, debug: bool) -> None:
+def _run_single_test(
+    test_path: Path,
+    options: RunConfigOptions,
+    debug: bool,
+    *,
+    no_artifacts: bool = False,
+) -> None:
     config_path = options.config_path
     ctx = init_context(
         test_case_name=test_path.stem,
         config_path=Path(config_path).resolve() if config_path else None,
+        no_artifacts=no_artifacts,
     )
     ctx.debug_logging = debug
     _load_run_config(options)
-    ensure_output_dir(ctx)
+    ensure_runtime_ready(ctx)
     try:
         run_script(test_path)
     except ScriptRunError:
@@ -199,7 +211,12 @@ def run_cli(argv: list[str] | None = None) -> int:
         if not test_path.exists():
             raise SystemExit(1)
         try:
-            _run_single_test(test_path, run_options, bool(args.debug))
+            _run_single_test(
+                test_path,
+                run_options,
+                bool(args.debug),
+                no_artifacts=bool(getattr(args, "no_artifacts", False)),
+            )
         except ConfigError:
             raise SystemExit(1) from None
         return 0
@@ -221,6 +238,7 @@ def run_cli(argv: list[str] | None = None) -> int:
                     else None
                 ),
                 autoconfig_blacklist=run_options.autoconfig_blacklist,
+                no_artifacts=bool(getattr(args, "no_artifacts", False)),
             )
         except (ConfigError, SuiteError):
             raise SystemExit(1) from None

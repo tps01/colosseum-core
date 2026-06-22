@@ -5,6 +5,9 @@ Colosseum loads optional **plugins** at runtime via setuptools entry points. Fir
 plugins ship with the main package (``colosseum_equipment``, ``colosseum_shared``,
 ``colosseum_host``). Third-party packages follow the same pattern.
 
+**Step-by-step author and end-user instructions** live in the extension template README:
+``examples/plugins/colosseum_template/README.md``.
+
 When to build an extension
 --------------------------
 
@@ -24,13 +27,14 @@ Minimal tree (mirrors first-party plugins):
 
 .. code-block:: text
 
-   myvendor_bench/
+   colosseum_template/
      pyproject.toml
-     myvendor_bench/__init__.py      # register(registry)
-     myvendor_bench/api.py           # col.myvendor.* surface
-     myvendor_bench/docgen_entry.py  # optional DocgenModuleSpec
+     README.md
+     colosseum_template/__init__.py   # register(registry)
+     colosseum_template/api.py        # col.template.* surface
+     colosseum_template/docgen_entry.py  # optional DocgenModuleSpec
 
-A working reference skeleton lives at ``examples/plugins/myvendor_bench/``.
+Copy and customize ``examples/plugins/colosseum_template/`` (see ``RENAME.md`` in that directory).
 
 Step 1 — API module
 -------------------
@@ -45,11 +49,11 @@ Export decorated functions from your API module. Use ``@command`` for setup/acti
    from colosseum.decorators import command, measurement, verification
 
    @command
-   def arm_fixture(*, fixture_id: int) -> None:
+   def arm_device(*, device_id: int) -> None:
        ...
 
    @measurement
-   def measure_widget_count(*, fixture_id: int, key: str) -> float:
+   def measure_widget_count(*, device_id: int, key: str) -> float:
        ...
 
 Step 2 — ``register(registry)``
@@ -57,19 +61,19 @@ Step 2 — ``register(registry)``
 
 Implement ``register(registry: PluginRegistry)`` in ``__init__.py``:
 
-* ``registry.register_namespace("myvendor", api)`` — exposes ``col.myvendor.*``
+* ``registry.register_namespace("template", api)`` — exposes ``col.template.*`` (rename when forking)
 * ``registry.register_config_section(ConfigSectionSpec(...))`` — repeatable TOML tables
 * ``registry.register_shutdown(callable)`` — optional cleanup (see ``colosseum_equipment``)
 
 .. code-block:: python
 
    def register(registry: PluginRegistry) -> None:
-       from myvendor_bench import api
-       registry.register_namespace("myvendor", api)
+       from colosseum_template import api
+       registry.register_namespace("template", api)
        registry.register_config_section(
            ConfigSectionSpec(
-               "myvendor.fixture",
-               "fixture_id",
+               "template.device",
+               "device_id",
                required_keys=("serial",),
                optional_keys=("label",),
            )
@@ -81,10 +85,10 @@ Step 3 — ``pyproject.toml`` entry points
 .. code-block:: toml
 
    [project.entry-points."colosseum.plugins"]
-   myvendor = "myvendor_bench:register"
+   template = "colosseum_template:register"
 
    [project.entry-points."colosseum.docgen"]
-   myvendor = "myvendor_bench.docgen_entry:spec"
+   template = "colosseum_template.docgen_entry:spec"
 
 Step 4 — Bench TOML
 -------------------
@@ -94,9 +98,9 @@ Repeatable sections use array-of-tables syntax. Each row needs the section's ``i
 
 .. code-block:: toml
 
-   [[myvendor.fixture]]
-   fixture_id = 1
-   serial = "DEMO-001"
+   [[template.device]]
+   device_id = 1
+   serial = "TEMPLATE-001"
 
 Unknown keys produce **warnings**; missing **required** keys raise errors at load time.
 
@@ -106,9 +110,10 @@ Step 5 — Install and verify
 .. code-block:: powershell
 
    pip install -e .
-   python -c "import colosseum as col; print(col.myvendor)"
+   python -c "import colosseum as col; col.config.load_config('configs/bench.template.toml'); print(col.template)"
 
-Run a smoke script with ``col.config.load_config(...)``, your API calls, and ``col.endex()``.
+Third-party namespaces use ``col.<namespace>`` via module ``__getattr__`` (Colosseum >= 0.13.12).
+Run ``examples/smoke_test.py`` or ``colosseum run ... --config ...`` with ``col.endex()`` at the end of test scripts.
 
 Step 6 — Documentation
 ----------------------
@@ -119,18 +124,20 @@ Optional ``DocgenModuleSpec`` (see ``colosseum/docgen_spec.py``) registers API r
 
    def spec() -> DocgenModuleSpec:
        return DocgenModuleSpec(
-           module_id="myvendor_bench",
-           title="My Vendor Bench",
-           import_packages=["myvendor_bench"],
-           autodoc_modules=["myvendor_bench"],
+           module_id="colosseum_template",
+           title="Colosseum Template Extension",
+           import_packages=["colosseum_template"],
+           autodoc_modules=["colosseum_template"],
            order=50,
-           namespace="myvendor",
+           namespace="template",
        )
 
 Build docs: ``python scripts/docgen/build_module.py`` or ``python scripts/docgen/build_all.py``.
 
 Step 7 — Tests
 --------------
+
+The template stub does not ship tests. Extension authors may add their own:
 
 * **Unit tests** — API logic and verifiers with ``unit_runtime_context``.
 * **Integration** — ``ensure_plugins_loaded()`` and assert your namespace is registered
@@ -139,8 +146,8 @@ Step 7 — Tests
 Collision and load order
 ------------------------
 
-Namespace registration is **last-wins** (ADR-009). Avoid shadowing built-in namespaces:
-``equipment``, ``shared``, ``io``, ``host``.
+Duplicate namespace or config section registration raises ``PluginRegistrationError``
+(fail-fast). Avoid shadowing built-in namespaces: ``equipment``, ``shared``, ``io``, ``host``.
 
 Monorepo development without install
 ------------------------------------
@@ -160,4 +167,4 @@ See also
 
 * :doc:`host_environment` — bundled ``col.host`` bench-PC checks
 * :doc:`quickstart` — first test script
-* ``examples/plugins/myvendor_bench/`` — copy-pasteable skeleton
+* ``examples/plugins/colosseum_template/README.md`` — author and end-user workflow

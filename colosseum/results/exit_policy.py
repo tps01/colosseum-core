@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import NoReturn
 
 from ..context import get_context
-from ..output import ensure_output_dir
+from ..output import ensure_runtime_ready
 
 
 def endex() -> NoReturn:
@@ -26,7 +26,7 @@ def endex() -> NoReturn:
     if ctx.finalized:
         raise SystemExit(ctx.final_exit_code if ctx.final_exit_code is not None else 1)
 
-    ensure_output_dir(ctx)
+    ensure_runtime_ready(ctx)
     code = ctx.result_aggregator.exit_code()
     overall = "PASS" if code == 0 else "FAIL"
     if ctx.logger is not None:

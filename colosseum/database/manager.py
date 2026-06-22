@@ -347,10 +347,13 @@ class DatabaseManager:
 
 
 def initialize_database_if_needed(ctx: RuntimeContext) -> None:
-    if ctx.output_dir is None:
-        raise RuntimeError("Output directory must be allocated before DB init")
     if not ctx.db.is_initialized():
-        db_path = ctx.output_dir / "execution.sqlite"
+        if ctx.no_artifacts:
+            db_path = Path(":memory:")
+        elif ctx.output_dir is None:
+            raise RuntimeError("Output directory must be allocated before DB init")
+        else:
+            db_path = ctx.output_dir / "execution.sqlite"
         ctx.db.initialize(db_path)
         if ctx.logger is not None:
             ctx.logger.debug("Initialized execution database: %s", db_path)

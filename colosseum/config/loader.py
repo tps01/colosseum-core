@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from ..context import RuntimeContext, get_context, init_context
+from ..context import RuntimeContext, apply_no_artifacts, get_context, init_context
 from ..logging import get_logger
 from ..plugins.loader import ensure_plugins_loaded
 from .normalize import normalize_sections
@@ -106,7 +106,7 @@ def _apply_raw_config(
         spec.dotted_path: ctx.plugin_registry.validators_for(spec.dotted_path) for spec in specs
     }
     ctx.config_warnings.extend(run_section_validators(normalized, spec_map, validator_map))
-    if ctx.output_dir is not None and ctx.logger is not None:
+    if ctx.runtime_ready and ctx.logger is not None:
         for warning in ctx.config_warnings:
             ctx.logger.warning(warning)
     store = ConfigStore(raw, normalized, spec_map)
@@ -119,16 +119,19 @@ def _apply_raw_config(
     return store
 
 
-def load_config(path: str | Path) -> ConfigStore:
+def load_config(path: str | Path, *, no_artifacts: bool = False) -> ConfigStore:
     """Load and validate a bench TOML file into the active run context.
 
     :param path: Path to the bench configuration file.
     :type path: str | Path
+    :param no_artifacts: When ``True``, skip ``outputs/``, ``debug.log``, and on-disk SQLite.
+    :type no_artifacts: bool, optional
 
     :returns: Normalized configuration store for plugin sections.
     :rtype: ConfigStore
 
     :raises ConfigError: When the file is missing, invalid TOML, or fails validation.
+    :raises RuntimeError: When ``no_artifacts`` is set after runtime bootstrap.
     """
     config_path = Path(path).resolve()
     if not config_path.exists():
@@ -137,9 +140,14 @@ def load_config(path: str | Path) -> ConfigStore:
 
     existing_ctx = get_context()
     if existing_ctx is None:
-        ctx = init_context(test_case_name=_default_test_name(), config_path=config_path)
+        ctx = init_context(
+            test_case_name=_default_test_name(),
+            config_path=config_path,
+            no_artifacts=no_artifacts,
+        )
     else:
         ctx = existing_ctx
+        apply_no_artifacts(ctx, no_artifacts=no_artifacts)
 
     return _apply_raw_config(ctx, raw, source_label=str(config_path))
 
@@ -151,6 +159,7 @@ def autoconfig(
     visa_library: str | None = None,
     blacklist: str | Sequence[str] | None = None,
     export_path: str | Path | None = None,
+    no_artifacts: bool = False,
 ) -> ConfigStore:
     """Scan VISA resources and build bench equipment config without a TOML file.
 
@@ -165,11 +174,14 @@ def autoconfig(
     :type blacklist: str | Sequence[str] | None, optional
     :param export_path: When set, write the generated config to this TOML file path.
     :type export_path: str | Path | None, optional
+    :param no_artifacts: When ``True``, skip ``outputs/``, ``debug.log``, and on-disk SQLite.
+    :type no_artifacts: bool, optional
 
     :returns: Normalized configuration store for discovered equipment.
     :rtype: ConfigStore
 
     :raises ConfigError: When PyVISA is unavailable, no resources are found, or none classify.
+    :raises RuntimeError: When ``no_artifacts`` is set after runtime bootstrap.
     """
     _ = visa_backend
     from colosseum_equipment.autoconfig.discovery import discover_equipment_config
@@ -179,9 +191,14 @@ def autoconfig(
 
     existing_ctx = get_context()
     if existing_ctx is None:
-        ctx = init_context(test_case_name=_default_test_name(), config_path="(autoconfig)")
+        ctx = init_context(
+            test_case_name=_default_test_name(),
+            config_path="(autoconfig)",
+            no_artifacts=no_artifacts,
+        )
     else:
         ctx = existing_ctx
+        apply_no_artifacts(ctx, no_artifacts=no_artifacts)
 
     result = discover_equipment_config(
         timeout=timeout,

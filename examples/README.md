@@ -40,9 +40,9 @@ colosseum run examples/test_rf_bench_integration.py --config configs/bench.local
 
 Suite orchestration is implemented through `colosseum run-suite`. The repository includes suite fixtures under `tests/fixtures/suites/`; production projects should keep suite TOML beside their own tests.
 
-## Extension skeleton
+## Extension template
 
-- [plugins/myvendor_bench/](plugins/myvendor_bench/) — minimal third-party plugin example (see plugin development guide).
+- [plugins/colosseum_template/](plugins/colosseum_template/) — copy-ready third-party plugin stub with README (author + end-user steps); see plugin development guide.
 
 ## Related Documentation
 
