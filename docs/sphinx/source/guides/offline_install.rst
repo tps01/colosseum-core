@@ -91,10 +91,3 @@ From a git clone on a connected machine (validates bundle contents, not for air-
 
 This builds a runtime-only bundle, installs into a temporary virtual environment with
 ``--no-index``, and runs the sim smoke test.
-
-Yocto / embedded Linux
-----------------------
-
-For Poky/QEMU validation on minimal embedded images, see ``infra/yocto/README.md`` and
-``docs/testing/regression-test-procedure.md`` (R-OFFLINE-01). That procedure is manual
-and is not part of GitHub Actions CI.

@@ -1,5 +1,7 @@
 """Colosseum shared utilities plugin (SSH, regex, parsing)."""
 
+__colosseum_domain__ = "shared"
+
 from colosseum.config.sections import ConfigSectionSpec
 from colosseum.plugins.registry import PluginRegistry
 

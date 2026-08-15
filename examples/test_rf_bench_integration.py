@@ -1,11 +1,11 @@
 """
 Example: RF bench integration (dual PSU, E4407B, SSH, trace verify).
 
-Copy examples/configs/bench.rf.hardware.toml.example to configs/bench.local.toml
+Copy examples/configs/bench.rf.hardware.toml.example to examples/configs/bench.local.toml
 and set resources/credentials for your lab.
 
 Run:
-  colosseum run examples/test_rf_bench_integration.py --config configs/bench.local.toml
+  colosseum run examples/test_rf_bench_integration.py --config examples/configs/bench.local.toml
 
 Post-run plot:
   python examples/plot_trace.py outputs/<run>/traces/rf_hold.csv

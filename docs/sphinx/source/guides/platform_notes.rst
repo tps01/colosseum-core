@@ -48,13 +48,7 @@ Platform notes
 
 **Hardware regression**
 
-- Copy ``configs/bench.local.toml.example`` to a gitignored ``configs/bench.local.toml`` and follow ``docs/testing/regression-test-procedure.md``.
-
-**QEMU / Yocto regression (Tier 4C)**
-
-- Build ``colosseum-qemu-image`` and run manual regression per ``docs/testing/qemu-yocto-regression.md`` and ``infra/yocto/README.md``.
-- Host SSH cases use ``infra/yocto/conf/bench.qemu.toml`` (port 2222).
-- Offline install and GUI cases install Colosseum on the guest via offline wheel bundle.
+- Copy ``examples/configs/bench.local.toml.example`` to a gitignored ``examples/configs/bench.local.toml`` and follow ``docs/testing/regression-test-procedure.md``.
 
 **VISA sessions and cleanup**
 
@@ -77,5 +71,5 @@ Platform notes
 - Launch from the bench or repository working directory: ``colosseum --gui``.
 - Pick a test script (``.py``) or suite (``.toml``), optional bench config TOML, and use **Run test** / **Run suite**. Live log output tails ``debug.log``; completed runs appear in the run list with summary and verification details.
 - Default config path: set ``COLOSSEUM_BENCH_CONFIG`` or choose a file in the GUI.
-- **SSH / X11 forwarding:** connect with ``ssh -X user@host`` (or ``-Y`` if needed), ensure ``DISPLAY`` is set on the remote session, and run ``colosseum --gui`` on the bench machine. The GUI window is forwarded to your local X server (VcXsrv, X410, WSLg, etc.); instrument access stays on the remote host. For the Yocto QEMU lab, see ``docs/testing/qemu-yocto-regression.md``.
+- **SSH / X11 forwarding:** connect with ``ssh -X user@host`` (or ``-Y`` if needed), ensure ``DISPLAY`` is set on the remote session, and run ``colosseum --gui`` on the bench machine. The GUI window is forwarded to your local X server (VcXsrv, X410, WSLg, etc.); instrument access stays on the remote host.
 - **Windows:** run ``colosseum --gui`` locally; no ``DISPLAY`` variable is required.

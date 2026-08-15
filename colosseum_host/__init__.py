@@ -1,5 +1,7 @@
 """Colosseum host plugin (bench PC prerequisites)."""
 
+__colosseum_domain__ = "host"
+
 from colosseum.config.sections import ConfigSectionSpec
 from colosseum.plugins.registry import PluginRegistry
 

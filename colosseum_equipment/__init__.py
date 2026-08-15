@@ -1,5 +1,7 @@
 """Colosseum equipment plugin (PSU, DMM, RF, SCPI, transports)."""
 
+__colosseum_domain__ = "equipment"
+
 from colosseum.config.sections import ConfigSectionSpec
 from colosseum.plugins.registry import PluginRegistry
 
@@ -12,18 +14,6 @@ _IO_CONFIG_SPECS = (
         "dio_id",
         required_keys=(),
         optional_keys=("driver", "resource", "port_lines", "direction"),
-    ),
-    ConfigSectionSpec(
-        "io.i2c",
-        "bus_id",
-        required_keys=(),
-        optional_keys=("driver", "resource", "clock_hz", "address"),
-    ),
-    ConfigSectionSpec(
-        "io.spi",
-        "bus_id",
-        required_keys=(),
-        optional_keys=("driver", "resource", "clock_hz", "mode", "cs"),
     ),
 )
 
@@ -97,19 +87,4 @@ _CONFIG_SPECS = (
     _visa_section("equipment.eload", "eload_id"),
     _visa_section("equipment.freqcounter", "freqcounter_id"),
     _visa_section("equipment.vna", "vna_id", extra_optional=("channel", "frequency_unit")),
-    ConfigSectionSpec(
-        "equipment.sdr",
-        "sdr_id",
-        required_keys=(),
-        optional_keys=(
-            "resource",
-            "driver",
-            "model",
-            "interface",
-            "timeout",
-            "center_freq",
-            "sample_rate",
-            "gain_db",
-        ),
-    ),
 )

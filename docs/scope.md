@@ -4,7 +4,7 @@
 
 This document summarizes what Colosseum implements today and what remains deferred. It replaces earlier wave-planning language with the behavior present in the current repository version.
 
-Historical feature overviews, detailed design documents, and ADRs live under [docs/archive/planning/](archive/planning/). Older files removed from the tree are listed in [docs/archive/MANIFEST.md](archive/MANIFEST.md) and recoverable from git tag `doc-snapshot-pre-archive`. When archived documents still use "Wave 1/2/3" language, treat that as historical sequencing unless this document says otherwise.
+Historical planning notes were removed from the tracked tree; recover them from git history when needed (see [docs/archive/README.md](archive/README.md)). When older documents still use "Wave 1/2/3" language, treat that as historical sequencing unless this document says otherwise.
 
 ## Product Summary
 
@@ -23,7 +23,7 @@ The supported end-of-run API is `col.endex()`. It writes final metadata, writes 
 | Packaging | One source project containing `colosseum`, `colosseum_equipment`, `colosseum_shared`, and `colosseum_host` packages |
 | Default install | Core runtime, sim paths, config, evidence DB, decorators, CLI, and first-party API modules |
 | Offline tarballs | End-user runtime wheels only (from `scripts/package_offline.py`); no pytest/Sphinx/docgen/PyVISA-sim |
-| Optional extras | `hardware` (PyVISA + pyserial), `ssh` (Paramiko), `gui` (customtkinter), `plot` (matplotlib), `io` (pyftdi for FT232H GPIO), `test`, `docs`, `mutation`; compatibility aliases `bench`, `equipment`, `shared`, `equipment-sim` |
+| Optional extras | `hardware` (PyVISA + pyserial), `ssh` (Paramiko), `gui` (customtkinter), `plot` (matplotlib), `io` (pyftdi for FT232H GPIO), `test`, `docs`; compatibility aliases `bench`, `equipment`, `shared`, `equipment-sim` |
 | Documentation generation | Sphinx/docgen scripts under `scripts/docgen/` |
 
 ## Implemented Runtime Behavior
@@ -41,7 +41,7 @@ The supported end-of-run API is `col.endex()`. It writes final metadata, writes 
 ### Configuration
 
 - TOML loading uses `tomllib` on Python 3.11+ and `tomli` on older Python.
-- `col.config.autoconfig()` scans VISA INSTR resources, probes `*IDN?`, classifies instruments, and builds in-memory bench config without a TOML file. Optional `export_path` writes a reviewable bench TOML snapshot; CLI supports `--autoconfig`, `--autoconfig-export`, and comma-separated `--autoconfig-blacklist`. Assignments are logged at INFO in `debug.log`. When multiple devices share a kind, IDs follow connection order TCPIP → USB → GPIB → ASRL → PXI, then numeric address within each type. Optional `blacklist` accepts interface names (for example `eth0`, `Ethernet 1`) or a local IPv4 address to exclude that adapter's subnet from TCPIP autoconfig (GPIB/USB/ASRL are unaffected). Requires `colosseum[hardware]`.
+- `col.equipment.autoconfig()` scans VISA INSTR resources, probes `*IDN?`, classifies instruments, and builds in-memory bench config without a TOML file. Optional `export_path` writes a reviewable bench TOML snapshot; CLI supports `--autoconfig`, `--autoconfig-export`, and comma-separated `--autoconfig-blacklist`. Assignments are logged at INFO in `debug.log`. When multiple devices share a kind, IDs follow connection order TCPIP → USB → GPIB → ASRL → PXI, then numeric address within each type. Optional `blacklist` accepts interface names (for example `eth0`, `Ethernet 1`) or a local IPv4 address to exclude that adapter's subnet from TCPIP autoconfig (GPIB/USB/ASRL are unaffected). Requires `colosseum-equipment[hardware]`.
 - Plugin-registered config sections are normalized from either a single table or an array of tables.
 - Implemented first-party sections include `equipment.psu`, `equipment.dmm`, `equipment.serial`, `equipment.vsg`, `equipment.speca`, and `shared.ssh`. Lab entries omit `driver` to use default VISA/SCPI.
 - Required keys are enforced when resources are required.
@@ -107,18 +107,16 @@ The supported end-of-run API is `col.endex()`. It writes final metadata, writes 
 - `col.shared.ssh.measure_stdout` records command output.
 - `col.shared.regex.verify_match` verifies a regex against a measured source.
 - SSH uses a simulated client for `driver = "sim"` and Paramiko through the `colosseum[ssh]` extra.
-- `col.io.dio` supports simulated GPIO (`driver = sim`) and FT232H USB GPIO (`driver = ftdi-ft232h`, optional `colosseum[io]` extra). I2C/SPI APIs are reserved/experimental and fail immediately until NI USB-845x drivers are implemented.
+- `col.io.dio` supports simulated GPIO (`driver = sim`) and FT232H USB GPIO (`driver = ftdi-ft232h`, optional `colosseum[io]` extra).
 - `col.host.system` measures Python version, platform, memory, disk, and uptime; `col.host.bench` reports VISA backend and serial ports; `col.host.config` captures `host_profile.json` and verifies bench config is loaded. Optional `[host.profile]` thresholds are declared in TOML and enforced when test scripts call the matching verifiers.
 
 ### Testing And Regression
 
-- `scripts/run_tests.py` runs the standard pytest tiers; `--regression` runs Tier 4A soak, docgen, and offline bundle checks (mutation is separate).
+- `scripts/run_tests.py` runs the standard pytest tiers; `--regression` runs Tier 4A soak, docgen, and offline bundle checks.
 - `scripts/profile_tests.py` profiles pytest tiers with project-scoped `pstats` output; `profile_run.py` profiles `colosseum run` or `run-suite` (runtime, not pytest). See [`docs/testing/analysis.md`](testing/analysis.md).
 - `tests/regression/run_soak_sim.py` runs repeated sim `run-suite` stability checks (default suite: `smoke.toml`).
 - `tests/regression/run_docgen_check.py` builds and/or verifies doc generation output (`--verify-only` for CI after phased build).
 - `tests/regression/run_offline_install_check.py` builds an offline bundle, smoke-installs from staging, then extracts the release `.tar.gz` and repeats (R-OFFLINE-00; CI on Linux and Windows).
-- `tests/regression/run_mutation.py` runs optional Cosmic Ray mutation tests, supports `--verify-only` on existing reports, and writes artifacts under `build/mutation/` (advisory `mutation-nightly` workflow).
-- The mutation runner serializes itself with a lock because Cosmic Ray mutates the working tree while testing.
 
 ## Current User Documentation
 
@@ -144,7 +142,7 @@ These are meaningful differences or losses from the archived planning documents 
 
 | Area | Original plan | Implemented now | Follow-up consideration |
 |------|---------------|-----------------|-------------------------|
-| Package distribution | Separate `colosseum`, `colosseum-equipment`, and `colosseum-shared` distributions | One source project/package build with three import packages and optional extras | Split distributions before publishing if independent release/install boundaries matter |
+| Package distribution | Separate `colosseum-core`, `colosseum-equipment`, `colosseum-shared`, and `colosseum-host` distributions | One source project still builds all import packages; plugin discovery uses installed entry points only | Complete the repository/distribution split before independent versioned releases |
 | Plugin collision policy | Later fail-fast or user-selected collision handling was considered | Duplicate namespaces/config specs fail fast; explicit replacement APIs exist for intentional overrides | Add user-selected collision policy only if third-party plugin use demands it |
 | Config validation | Richer schema validation was deferred | Registered section specs, required/optional keys, and validators exist; no JSON schema | Add schema export/validation if config UX needs stronger guarantees |
 | Environment substitution | `${ENV}` style config substitution was considered | Not implemented | Add only if bench configs need portable secret/resource injection |
@@ -152,9 +150,9 @@ These are meaningful differences or losses from the archived planning documents 
 | Public SQLite schema | Stable public schema guarantee was deferred | SQLite schema and read helpers are usable, but schema stability is not promised | Add schema versioning before external tools depend on raw tables |
 | Offline database reads | Possible `read_from_path(sqlite_path)` was deferred | Read-only offline reader is implemented for measurements, verifications, metadata, and allowed tables | Keep the offline reader aligned with active read-helper allowlists |
 | Reporting formats | HTML/JUnit/Allure were deferred | `summary.txt`, `summary.json`, `debug.log`, and SQLite are implemented | Add richer CI/reporting formats if needed |
-| Parallel execution | Parallel suites and multiprocessing were deferred | Suite execution is serial; mutation tests are explicitly serialized | Keep serial unless bench resource isolation is designed |
+| Parallel execution | Parallel suites and multiprocessing were deferred | Suite execution is serial | Keep serial unless bench resource isolation is designed |
 | Context manager API | `with col.run(...)` was a future idea | Not implemented; use CLI or explicit `load_config` plus `col.endex()` | Revisit if direct Python ergonomics need it |
-| Equipment breadth | Future architecture mentioned more lab protocols | Core DMM/PSU/VSG/speca plus additional implemented SCPI families; ``equipment.sdr`` and ``col.io`` I2C/SPI remain reserved/experimental | Vendor ``model`` drivers and NI/UHD SDK bindings need host manuals |
+| Equipment breadth | Future architecture mentioned more lab protocols | Core DMM/PSU/VSG/speca plus additional implemented SCPI families | Vendor ``model`` drivers need host manuals |
 | Documentation polish | Full user docs and generated API reference were planned | Guide drafts and docgen pipeline exist; public docs are not published from CI | Add CI doc build/publish if this becomes a released package |
 
 ## Explicitly Deferred
@@ -166,4 +164,5 @@ These are meaningful differences or losses from the archived planning documents 
 - Rich CLI filtering/retries.
 - HTML/JUnit/Allure reports.
 - Test generation, model-based testing, and ALM export.
-- Broader equipment families such as CAN, JTAG, DAQ, JESD204, and socket transport (stub APIs exist for RF path, oscope, e-load, VNA phase-1, SDR; NI 845x/6501 via ``col.io`` pending documentation).
+- Broader equipment families such as CAN, JTAG, DAQ, JESD204, SDR, I2C/SPI, and socket transport (stub APIs are not retained; extend via plugins when needed).
+- Additional ``col.io`` DIO backends (for example NI 6501) pending vendor documentation.

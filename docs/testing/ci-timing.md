@@ -49,7 +49,6 @@ python scripts/ci/profile_local.py --job static
 python scripts/ci/profile_local.py --job offline
 python scripts/ci/profile_local.py --job packaging
 python scripts/ci/profile_local.py --job soak
-python scripts/ci/profile_local.py --job mutation
 ```
 
 Set `COLOSSEUM_CI_TIMING=1` is applied automatically for `docgen` and `offline`. For slow tests locally, use [`scripts/profile_tests.py`](../../scripts/profile_tests.py) or [`docs/testing/analysis.md`](analysis.md).

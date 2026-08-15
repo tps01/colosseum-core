@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import types
 from collections.abc import Callable
-from typing import NoReturn
 
 import pytest
 from colosseum.config.sections import ConfigSectionSpec
@@ -56,22 +55,32 @@ def test_explicit_namespace_replacement() -> None:
     assert reg.get_namespace("equipment") is second
 
 
-def test_loader_skips_builtin_entry_points_after_builtin_registration(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    class BuiltinEntryPoint:
+def test_loader_loads_entry_points(monkeypatch: pytest.MonkeyPatch) -> None:
+    class SampleEntryPoint:
         name = "equipment"
 
-        def load(self) -> NoReturn:
-            raise AssertionError("built-in entry point should be skipped")
+        def load(self) -> Callable[[PluginRegistry], None]:
+            def register(registry: PluginRegistry) -> None:
+                registry.register_namespace("equipment", types.ModuleType("equipment"))
 
-    monkeypatch.setattr(loader, "entry_points_for_group", lambda _group: [BuiltinEntryPoint()])
+            return register
+
+    monkeypatch.setattr(loader, "entry_points_for_group", lambda _group: [SampleEntryPoint()])
     reg = PluginRegistry()
     ensure_plugins_loaded(reg)
     assert reg.has_namespace("equipment")
 
 
-def test_loader_fails_fast_on_third_party_collision(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_loader_fails_fast_on_namespace_collision(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FirstEntryPoint:
+        name = "first"
+
+        def load(self) -> Callable[[PluginRegistry], None]:
+            def register(registry: PluginRegistry) -> None:
+                registry.register_namespace("equipment", types.ModuleType("first"))
+
+            return register
+
     class CollidingEntryPoint:
         name = "vendor_equipment"
 
@@ -81,7 +90,11 @@ def test_loader_fails_fast_on_third_party_collision(monkeypatch: pytest.MonkeyPa
 
             return register
 
-    monkeypatch.setattr(loader, "entry_points_for_group", lambda _group: [CollidingEntryPoint()])
+    monkeypatch.setattr(
+        loader,
+        "entry_points_for_group",
+        lambda _group: [FirstEntryPoint(), CollidingEntryPoint()],
+    )
     reg = PluginRegistry()
     with pytest.raises(PluginRegistrationError, match="already registered"):
         ensure_plugins_loaded(reg)

@@ -55,4 +55,4 @@ Reference workflow: [QCoDeS simulated PyVISA instruments](https://microsoft.gith
 
 ## New vendor models
 
-Provide programmer-manual SCPI tables and `*IDN?` strings before adding YAML and `model = "..."` factory entries. Hardware sign-off uses [regression-test-procedure.md](regression-test-procedure.md) with [`configs/bench.local.toml.example`](../../configs/bench.local.toml.example).
+Provide programmer-manual SCPI tables and `*IDN?` strings before adding YAML and `model = "..."` factory entries. Hardware sign-off uses [regression-test-procedure.md](regression-test-procedure.md) with [`examples/configs/bench.local.toml.example`](../../examples/configs/bench.local.toml.example).

@@ -37,7 +37,6 @@ def test_builtin_registration_covers_existing_equipment_kinds() -> None:
         "pwrmeter",
         "rfswitch",
         "rtsa",
-        "sdr",
         "speca",
         "vna",
         "vsg",

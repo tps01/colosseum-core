@@ -23,7 +23,7 @@ This file tracks user-facing documentation for test engineers and plugin authors
 | Windows / Linux notes | All users | usable | `docs/sphinx/source/guides/platform_notes.rst` |
 | Equipment API reference | Test engineers | usable | Generated through `scripts/docgen`; docstrings on public `col.equipment.*` / `col.io.*` APIs |
 | Shared utility API reference | Test engineers | draft | Generated through `scripts/docgen` |
-| Multiprocessing guidance | Advanced users | missing | Deferred; recover design sketch from tag `doc-snapshot-pre-archive` per [archive/README.md](archive/README.md) |
+| Multiprocessing guidance | Advanced users | missing | Deferred; parallel suites remain out of scope |
 
 ## Source Of Truth For API Text
 

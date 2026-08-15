@@ -85,9 +85,10 @@ def run_suite(
     autoconfig_blacklist: list[str] | None = None,
     no_artifacts: bool = False,
 ) -> int:
-    from ..config import autoconfig, load_config
+    from ..config import ConfigError, load_config
     from ..context import init_context, require_context
     from ..output import ensure_runtime_ready
+    from ..plugins.loader import ensure_plugins_loaded
     from ..results import endex
     from .single_test import ScriptRunError, run_script
 
@@ -101,7 +102,15 @@ def run_suite(
     ctx = require_context()
     ctx.debug_logging = debug
     if use_autoconfig:
-        autoconfig(
+        ensure_plugins_loaded(ctx.plugin_registry)
+        if not ctx.plugin_registry.has_namespace("equipment"):
+            raise ConfigError(
+                "Namespace `equipment` is not registered. Install colosseum-equipment "
+                "and ensure it exposes a colosseum.plugins entry point."
+            )
+        from colosseum import equipment
+
+        equipment.autoconfig(
             export_path=autoconfig_export,
             blacklist=autoconfig_blacklist,
         )

@@ -1,4 +1,4 @@
-"""Unit tests for col.config.autoconfig()."""
+"""Unit tests for col.equipment.autoconfig()."""
 
 from __future__ import annotations
 
@@ -6,10 +6,11 @@ from pathlib import Path
 
 import colosseum.context as context_module
 import pytest
-from colosseum.config.loader import ConfigError, autoconfig
+from colosseum.config.loader import ConfigError
 from colosseum.context import get_context
+from colosseum_equipment.api._autoconfig import autoconfig
 from colosseum_equipment.autoconfig.discovery import discover_equipment_config
-from colosseum_host.host.collectors.network import IPv4NetworkBinding
+from colosseum_shared.network import IPv4NetworkBinding
 
 
 class _FakeInstrument:
@@ -96,7 +97,7 @@ def test_discover_raises_when_no_classifiable_resources() -> None:
 
 
 def test_autoconfig_populates_config_store(monkeypatch: pytest.MonkeyPatch) -> None:
-    from colosseum_equipment.autoconfig import discovery as discovery_module
+    import colosseum_equipment.api._autoconfig as autoconfig_module
 
     context_module._ACTIVE_CONTEXT = None
     rm = _FakeResourceManager(
@@ -110,7 +111,7 @@ def test_autoconfig_populates_config_store(monkeypatch: pytest.MonkeyPatch) -> N
             blacklist=kwargs.get("blacklist"),  # type: ignore[arg-type]
         )
 
-    monkeypatch.setattr(discovery_module, "discover_equipment_config", _fake_discover)
+    monkeypatch.setattr(autoconfig_module, "discover_equipment_config", _fake_discover)
     store = autoconfig(timeout=1.0)
     ctx = get_context()
     assert ctx is not None
@@ -121,10 +122,11 @@ def test_autoconfig_populates_config_store(monkeypatch: pytest.MonkeyPatch) -> N
 def test_autoconfig_export_writes_toml(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    import colosseum_equipment.api._autoconfig as autoconfig_module
+
     from colosseum.config.toml_relaxed import read_relaxed_toml
     from colosseum.context import init_context, require_context
     from colosseum.output import ensure_output_dir
-    from colosseum_equipment.autoconfig import discovery as discovery_module
 
     context_module._ACTIVE_CONTEXT = None
     init_context(test_case_name="export_test")
@@ -140,7 +142,7 @@ def test_autoconfig_export_writes_toml(
             blacklist=kwargs.get("blacklist"),  # type: ignore[arg-type]
         )
 
-    monkeypatch.setattr(discovery_module, "discover_equipment_config", _fake_discover)
+    monkeypatch.setattr(autoconfig_module, "discover_equipment_config", _fake_discover)
     export_path = tmp_path / "bench.generated.toml"
     autoconfig(timeout=1.0, export_path=export_path)
     ctx = require_context()

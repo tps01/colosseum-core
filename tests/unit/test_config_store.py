@@ -89,7 +89,7 @@ def test_config_is_loaded_reports_runtime_state(bench_sim) -> None:
 
 
 def test_apply_raw_config_attaches_store() -> None:
-    from colosseum.config.loader import _apply_raw_config
+    from colosseum.config.loader import apply_raw_config
     from colosseum.context import init_context, require_context
     import colosseum.context as context_module
 
@@ -102,7 +102,7 @@ def test_apply_raw_config_attaches_store() -> None:
             ]
         }
     }
-    store = _apply_raw_config(ctx, raw, source_label="(test)")
+    store = apply_raw_config(ctx, raw, source_label="(test)")
     assert require_context().config_path == "(test)"
     assert store.require_item("equipment.psu", 1)["resource"] == "GPIB0::1::INSTR"
 

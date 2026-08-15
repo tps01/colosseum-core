@@ -31,7 +31,7 @@ def main() -> int:
     parser.add_argument(
         "--regression",
         action="store_true",
-        help="After pytest, run Tier 4A scripts: soak, docgen, offline bundle (not mutation)",
+        help="After pytest, run Tier 4A scripts: soak, docgen, offline bundle",
     )
     parser.add_argument(
         "--skip-offline",

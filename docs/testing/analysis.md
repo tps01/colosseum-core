@@ -9,7 +9,7 @@ Colosseum separates **quality checks** into four layers. Use the right tool for 
 | **Static** | Lint, types, security, dead code? | [`scripts/run_static.py`](../../scripts/run_static.py) → [`tests/static/`](../../tests/static/) | Blocking PR |
 | **Speed (in-process)** | Where is CPU time in pytest or a CLI run? | [`scripts/profile_tests.py`](../../scripts/profile_tests.py), [`scripts/profile_run.py`](../../scripts/profile_run.py) | None |
 | **Wall-clock** | Which CI jobs/steps are slow? | [`scripts/ci/profile_local.py`](../../scripts/ci/profile_local.py), [`ci-timing.md`](ci-timing.md) | Instrumented summaries |
-| **Dynamic** | Do tests catch bugs? Does the stack endure? | [`tests/regression/`](../../tests/regression/) (mutation, soak, offline, docgen) | Selective / advisory |
+| **Dynamic** | Do tests catch bugs? Does the stack endure? | [`tests/regression/`](../../tests/regression/) (soak, offline, docgen) | Selective / advisory |
 
 Bench runtime evidence (`execution.sqlite`, `debug.log`, `summary.json`) answers **what happened on a run**, not **where code spent CPU time**.
 
@@ -21,7 +21,6 @@ Bench runtime evidence (`execution.sqlite`, `debug.log`, `summary.json`) answers
 | Speed profiling | cProfile during pytest or `colosseum run` | Optional local |
 | Wall-clock profiling | Job/step timing (`TIMING …=Xs`) | Optional / maintainer |
 | Dynamic analysis | Code run with altered inputs or repeated loads | Selective |
-| ↳ Mutation | Cosmic Ray mutants vs unit tests | Single-target + `--verify-only` |
 | ↳ Soak / endurance | Repeated sim suite runs | `--regression` / CI ×5 |
 | ↳ Memory snapshot | `tracemalloc` peak on one script (`profile_run --tracemalloc`) | Targeted debug only |
 | Coverage | Line hit counts | **Advisory only** — see [`RULES.md`](../../RULES.md) |
@@ -35,8 +34,6 @@ python scripts/profile_tests.py --tier e2e
 python scripts/profile_tests.py --tier all
 python scripts/profile_tests.py --tier unit --sort tottime --stats build/profile/unit.prof
 ```
-
-[`scripts/profile_unit_tests.py`](../../scripts/profile_unit_tests.py) remains a backward-compatible alias for `--tier unit`.
 
 **E2E limitation:** E2E tests often spawn `colosseum` subprocesses. cProfile on the pytest process does **not** profile child-process CPU. For runtime CLI paths, use [Runtime profiling](#runtime-profiling-colosseum-not-pytest) below.
 
@@ -142,7 +139,7 @@ Or keep a one-off driver under `scratchpad/` (gitignored).
 
 | Scenario | Tool | Why |
 |----------|------|-----|
-| Hardware / VISA / autoconfig | Manual run + `configs/bench.local.toml` | Needs instruments; sim hides transport |
+| Hardware / VISA / autoconfig | Manual run + `examples/configs/bench.local.toml` | Needs instruments; sim hides transport |
 | GUI (`colosseum --gui`) | Manual / OS tools | Separate entry point |
 | Post-run evidence | `execution.sqlite`, `debug.log` | What happened, not CPU time |
 | CI job duration | [`profile_local.py`](../../scripts/ci/profile_local.py), [ci-timing.md](ci-timing.md) | Wall-clock, not cProfile |
@@ -153,7 +150,6 @@ Or keep a one-off driver under `scratchpad/` (gitignored).
 python scripts/ci/profile_local.py --job test
 python scripts/ci/profile_local.py --job docgen-html
 python scripts/ci/profile_local.py --job soak
-python scripts/ci/profile_local.py --job mutation   # slow; requires .[mutation]
 ```
 
 Historical GitHub Actions summaries: [`scripts/ci/summarize_runs.py`](../../scripts/ci/summarize_runs.py) (requires `gh auth login`).
@@ -172,9 +168,6 @@ python scripts/profile_tests.py --tier unit --sort tottime
 python scripts/profile_run.py examples/test_power_rails.py --config examples/configs/bench.sim.toml
 python scripts/profile_run.py --suite tests/fixtures/suites/smoke.toml --config examples/configs/bench.sim.toml
 
-# Dynamic test quality (slow)
-python tests/regression/run_mutation.py --run --target colosseum/results/aggregation.py
-
 # Wall-clock parity with CI
 python scripts/ci/profile_local.py --job docgen-html
 ```
@@ -187,13 +180,12 @@ python scripts/ci/profile_local.py --job docgen-html
 | memray / scalene | Optional extra; use tracemalloc first |
 | Hypothesis / fuzzing | New test style across sim boundaries |
 | Valgrind / sanitizers | C-extension heavy deps; bench-host specific |
-| Hardware / QEMU profiling | Tier 4B/4C manual |
-| Blocking CI for cProfile or mutation | Too slow / noisy for PRs |
+| Hardware profiling | Tier 4B manual |
+| Blocking CI for cProfile | Too slow / noisy for PRs |
 
 ## Artifact locations
 
 | Path | Contents |
 |------|----------|
 | `build/profile/` | cProfile `.prof` files (gitignored via `build/`) |
-| `build/mutation/` | Cosmic Ray reports |
 | `build/ci-timing/` | Optional CSV/markdown from `summarize_runs.py` |

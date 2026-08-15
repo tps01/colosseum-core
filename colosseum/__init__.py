@@ -12,7 +12,7 @@ from .decorators import (
 from .plugins.namespace import LazyNamespaceProxy
 from .results import endex
 
-__version__ = "0.13.12"
+__version__ = "0.15.0"
 
 equipment = LazyNamespaceProxy("equipment")
 shared = LazyNamespaceProxy("shared")

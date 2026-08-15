@@ -1,4 +1,4 @@
-# Copy to configs/bench.local.toml (gitignored) and fill in real bench resources.
+# Copy to examples/configs/bench.local.toml (gitignored) and fill in real bench resources.
 # See docs/testing/regression-test-procedure.md for Tier 4B hardware regression.
 
 [[equipment.psu]]

@@ -147,6 +147,6 @@ jobs:
 
             Developers (pytest, docgen, PyVISA-sim): clone the repository and `pip install -r requirements-dev.txt` — not included in offline bundles.
 
-            See [README](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/README.md#get-started) for full setup.
+            See [README](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/README.md#install) for full setup.
           files: release-files/*
           fail_on_unmatched_files: true

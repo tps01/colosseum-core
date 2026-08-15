@@ -23,7 +23,6 @@ _KIND_ID_PARAMS: dict[str, str] = {
     "eload_id": "eload",
     "freqcounter_id": "freqcounter",
     "vna_id": "vna",
-    "sdr_id": "sdr",
 }
 
 

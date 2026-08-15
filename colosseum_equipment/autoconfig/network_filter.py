@@ -6,7 +6,7 @@ import ipaddress
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from colosseum_host.host.collectors.network import (
+from colosseum_shared.network import (
     IPv4NetworkBinding,
     bindings_for_blacklist_entry,
     list_ipv4_network_bindings,

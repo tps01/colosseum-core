@@ -105,6 +105,7 @@ def test_save_trace_data_csv_only(unit_runtime_context) -> None:
 
 @pytest.mark.plot
 def test_save_trace_data_with_plot(unit_runtime_context) -> None:
+    pytest.importorskip("matplotlib")
     transport = RfStubTransport(
         {
             "*OPC?": "1",

@@ -1,5 +1,5 @@
 # RF bench template: dual PSU (VISA/ASRL), E4407B SA (GPIB), SSH to DUT host.
-# Copy to configs/bench.local.toml (gitignored) and adjust resources/credentials.
+# Copy to examples/configs/bench.local.toml (gitignored) and adjust resources/credentials.
 # driver defaults to visa (PyVISA + SCPI) when omitted.
 
 [[equipment.psu]]

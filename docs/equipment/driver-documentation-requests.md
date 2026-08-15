@@ -63,8 +63,6 @@ Use `frequency_unit = "MHz"` for 54107A/54109A/54111A per the GPIB guide.
 
 | Kind | Please provide |
 |------|----------------|
-| sdr | Ettus UHD documentation |
-| `col.io` `ni-845x` | NI DLL on host (manual 371746E on file; ctypes driver pending) |
 | `col.io` `ni-6501` | 6501/6502 DIO programming reference |
 
 ## Implemented IO drivers

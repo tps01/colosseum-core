@@ -1,46 +1,21 @@
 from __future__ import annotations
 
-import importlib
 import json
 from pathlib import Path
 
 from colosseum.docgen_spec import DOCGEN_ENTRY_GROUP, DocgenModuleSpec
 
-# Monorepo fallback when entry-point metadata is not installed.
-_BUILTIN_DOCGEN = (
-    ("colosseum", "colosseum.docgen_entry", "spec"),
-    ("equipment", "colosseum_equipment.docgen_entry", "spec"),
-    ("shared", "colosseum_shared.docgen_entry", "spec"),
-    ("host", "colosseum_host.docgen_entry", "spec"),
-)
-
-
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
-
-
-def _load_builtin_specs() -> list[DocgenModuleSpec]:
-    specs: list[DocgenModuleSpec] = []
-    for _name, module_name, attr in _BUILTIN_DOCGEN:
-        module = importlib.import_module(module_name)
-        specs.append(getattr(module, attr)())
-    return specs
-
 
 def discover_specs() -> list[DocgenModuleSpec]:
-    """Load all ``colosseum.docgen`` entry points; fall back to built-ins in source tree.
+    """Load all ``colosseum.docgen`` entry points from installed packages.
 
     :returns: Sorted list of docgen module specifications.
     :rtype: list[DocgenModuleSpec]
     """
     from colosseum.compat.entry_points import entry_points_for_group
 
-    eps = entry_points_for_group(DOCGEN_ENTRY_GROUP)
-    if not eps:
-        return sorted(_load_builtin_specs(), key=lambda s: s.order)
-
     specs: list[DocgenModuleSpec] = []
-    for ep in eps:
+    for ep in entry_points_for_group(DOCGEN_ENTRY_GROUP):
         factory = ep.load()
         item = factory() if callable(factory) else factory
         if not isinstance(item, DocgenModuleSpec):

@@ -7,7 +7,7 @@ Running test cases
 
 **Utility mode (no persisted evidence):** use ``--no-artifacts`` on the CLI, ``col.config.load_config(path, no_artifacts=True)`` in a script, or set ``COLOSSEUM_NO_ARTIFACTS=1``. Console logging and in-memory SQLite remain available; ``outputs/``, ``debug.log``, on-disk ``execution.sqlite``, and summary files are not created. APIs that write files under the run directory (for example ``col.equipment.speca.save_trace_data``) require persisted output and fail in no-artifacts mode.
 
-To scan VISA resources instead of a bench file, use ``--autoconfig`` (requires ``colosseum[hardware]``)::
+To scan VISA resources instead of a bench file, use ``--autoconfig`` (requires ``colosseum-equipment[hardware]``)::
 
    colosseum run my_test.py --autoconfig
    colosseum run my_test.py --autoconfig --autoconfig-export bench.generated.toml

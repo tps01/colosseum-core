@@ -1,1 +1,1 @@
--e ".[test,docs,mutation,static]"
+-e ".[test,docs,static,plot]"

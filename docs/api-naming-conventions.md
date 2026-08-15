@@ -13,7 +13,7 @@ columns below; existing parameters are not renamed in place without a deprecatio
 | Style | Used by | Preferred for new APIs |
 |-------|---------|------------------------|
 | `frequency: float` (hertz) | `vsg`, `asg`, `speca` center | RF CW / center when unambiguous |
-| `frequency_hz: float` | `vna`, `sdr`, `pwrmeter`, `rtsa`, `speca` span edges | Sweeps, spans, and RTSA/VNA |
+| `frequency_hz: float` | `vna`, `pwrmeter`, `rtsa`, `speca` span edges | Sweeps, spans, and RTSA/VNA |
 
 Avoid mixing both names on the same instrument module.
 
@@ -21,7 +21,7 @@ Avoid mixing both names on the same instrument module.
 
 | Name | Module |
 |------|--------|
-| `set_center_frequency` | `speca`, `sdr` |
+| `set_center_frequency` | `speca` |
 | `set_center_freq` | `rtsa` |
 
 Prefer `set_center_frequency` for new modules.
@@ -53,7 +53,6 @@ tolerance verifiers can use `default_tolerance=0.0`.
 |-----------|--------|
 | Colosseum cooperative sim | `driver = "sim"` |
 | PyVISA-sim | `driver = "visa"` + `visa_backend = "sim"` |
-| SDR stub (no RF) | `driver = "stub"` (default for `equipment.sdr`) |
 
 Only `col.host.bench.verify_visa_available(allow_sim=...)` names simulation explicitly at the API layer.
 

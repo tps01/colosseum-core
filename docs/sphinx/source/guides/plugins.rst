@@ -112,7 +112,7 @@ Step 5 — Install and verify
    pip install -e .
    python -c "import colosseum as col; col.config.load_config('configs/bench.template.toml'); print(col.template)"
 
-Third-party namespaces use ``col.<namespace>`` via module ``__getattr__`` (Colosseum >= 0.13.12).
+Third-party namespaces use ``col.<namespace>`` via module ``__getattr__`` (Colosseum >= 0.14.0).
 Run ``examples/smoke_test.py`` or ``colosseum run ... --config ...`` with ``col.endex()`` at the end of test scripts.
 
 Step 6 — Documentation

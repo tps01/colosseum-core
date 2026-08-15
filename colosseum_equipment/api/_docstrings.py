@@ -2,12 +2,8 @@
 
 from __future__ import annotations
 
-ParamSpec = tuple[str, str, str]  # name, type_name, description
-
-
-def _sphinx_param(name: str, type_name: str, description: str, *, optional: bool = False) -> str:
-    type_line = f"{type_name}, optional" if optional else type_name
-    return f":param {name}: {description}\n:type {name}: {type_line}"
+from colosseum.docstrings import ParamSpec
+from colosseum.docstrings import sphinx_param as _sphinx_param
 
 
 def _equipment_raises() -> str:

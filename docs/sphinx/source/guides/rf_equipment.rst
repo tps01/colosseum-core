@@ -36,13 +36,6 @@ artifact row. Pass ``save_plot=True`` or ``plot_path=`` for an optional PNG (``s
 install ``colosseum[plot]`` for matplotlib-backed plot generation. RTSA IQ capture uses
 ``save_IQ_data`` (see API docstrings).
 
-Reserved / experimental surfaces
---------------------------------
-
-``col.equipment.sdr`` is registered for API compatibility, but UHD-backed SDR behavior
-remains deferred until vendor documentation is available. Use ``driver = stub`` only for
-scaffolding; calls fail with explicit capability/connection errors.
-
 Capability errors
 -----------------
 
@@ -54,5 +47,4 @@ API reference
 -------------
 
 Generated pages under **API reference → Colosseum Equipment** list module docstrings for all public
-``col.equipment.*`` RF APIs. Historical design detail:
-``docs/archive/planning/design/ddd-equipment-vsg-speca.md``.
+``col.equipment.*`` RF APIs.

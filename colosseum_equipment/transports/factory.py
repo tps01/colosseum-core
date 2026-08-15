@@ -17,8 +17,6 @@ def default_driver_for_kind(kind: str) -> str:
     """Default bench ``driver`` when omitted (documented by docgen config reference)."""
     if kind == "serial":
         return "serial"
-    if kind == "sdr":
-        return "stub"
     return "visa"
 
 
@@ -57,11 +55,6 @@ def open_transport(kind: str, equipment_id: int, config: dict[str, Any]) -> Tran
         return SerialTransport(str(port), baudrate=baudrate, timeout=timeout)
     if driver in ("stub", "none"):
         return NullTransport()
-    if driver == "uhd":
-        raise EquipmentConnectionError(
-            f"equipment.{kind} id {equipment_id}: driver `uhd` requires Ettus/UHD documentation "
-            "before implementation; use driver=stub for API scaffolding."
-        )
     raise EquipmentConnectionError(
         f"Unsupported driver `{driver}` for equipment.{kind} id {equipment_id}"
     )

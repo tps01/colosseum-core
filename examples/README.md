@@ -20,7 +20,8 @@ These scripts exercise the implemented user-facing API. For offline runs without
 - [configs/bench.sim.toml](configs/bench.sim.toml): simulated PSU, DMM, serial, and SSH resources for local development and CI.
 - [configs/bench.toml](configs/bench.toml): real bench-style entries for VISA/serial/SSH usage. Adjust resources, credentials, and models for your lab.
 - [configs/bench.rf.visa-sim.toml](configs/bench.rf.visa-sim.toml): PyVISA-sim RF bench (Python 3.10+).
-- [configs/bench.rf.hardware.toml.example](configs/bench.rf.hardware.toml.example): hardware template (dual PSU, E4407B, SSH); copy to `configs/bench.local.toml`.
+- [configs/bench.local.toml.example](configs/bench.local.toml.example): hardware template (PSU, DMM, SSH, FT232H); copy to `examples/configs/bench.local.toml` (gitignored).
+- [configs/bench.rf.hardware.toml.example](configs/bench.rf.hardware.toml.example): RF hardware template (dual PSU, E4407B, SSH); copy to `examples/configs/bench.local.toml`.
 
 ## Commands
 
@@ -35,7 +36,7 @@ colosseum run examples/test_ssh_health.py --config examples/configs/bench.sim.to
 colosseum run examples/test_power_rails.py --config examples/configs/bench.toml
 
 # RF integration (hardware), after copying bench.rf.hardware.toml.example
-colosseum run examples/test_rf_bench_integration.py --config configs/bench.local.toml
+colosseum run examples/test_rf_bench_integration.py --config examples/configs/bench.local.toml
 ```
 
 Suite orchestration is implemented through `colosseum run-suite`. The repository includes suite fixtures under `tests/fixtures/suites/`; production projects should keep suite TOML beside their own tests.
@@ -47,6 +48,7 @@ Suite orchestration is implemented through `colosseum run-suite`. The repository
 ## Related Documentation
 
 - [Top-level README](../README.md)
+- [Developer guide](../docs/DEVELOPING.md)
 - [Implementation scope](../docs/scope.md)
 - [User guides](../docs/sphinx/source/guides/)
 - [Testing guide](../docs/testing/README.md)

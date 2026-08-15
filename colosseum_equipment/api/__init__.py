@@ -12,15 +12,16 @@ from . import (
     rfswitch,
     rtsa,
     scpi,
-    sdr,
     speca,
     vna,
     vsg,
 )
+from ._autoconfig import autoconfig
 
 __all__ = [
     "asg",
     "attn",
+    "autoconfig",
     "dmm",
     "eload",
     "freqcounter",
@@ -30,7 +31,6 @@ __all__ = [
     "rfswitch",
     "rtsa",
     "scpi",
-    "sdr",
     "speca",
     "vna",
     "vsg",

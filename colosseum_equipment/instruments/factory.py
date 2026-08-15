@@ -16,7 +16,6 @@ from . import (
     pwrmeter,
     rfswitch,
     rtsa,
-    sdr,
     speca,
     vna,
     vsg,
@@ -36,7 +35,6 @@ _REGISTRATION_MODULES = (
     eload,
     freqcounter,
     vna,
-    sdr,
 )
 
 

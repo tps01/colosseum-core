@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "colosseum"
-version = "0.13.12"
+version = "0.15.0"
 description = "Colosseum test automation framework (core + bench plugins)"
 requires-python = ">=3.9"
 license = { text = "MIT" }
@@ -30,9 +30,6 @@ test = [
   "pyvisa-sim>=0.7,<0.8; python_version >= '3.10'",
 ]
 docs = ["sphinx>=7.0"]
-mutation = [
-  "cosmic-ray>=8.4,<9",
-]
 io = ["pyftdi>=0.55"]
 # Compatibility aliases for prior broad extras.
 equipment = [
@@ -118,7 +115,6 @@ module = [
   "tkinter.*",
   "pyvisa.*",
   "pyvisa_sim.*",
-  "cosmic_ray.*",
   "sphinx.*",
   "pytest",
   "tomli",
@@ -127,4 +123,4 @@ module = [
 ignore_missing_imports = true
 
 [tool.bandit]
-exclude_dirs = ["tests", "build", "examples", "docs", "infra"]
+exclude_dirs = ["tests", "build", "examples", "docs"]

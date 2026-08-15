@@ -180,22 +180,6 @@ def _job_soak() -> int:
     )
 
 
-def _job_mutation() -> int:
-    code = _run_step("install", _shell_install("mutation"))
-    if code != 0:
-        return code
-    return _run_step(
-        "mutation_single_target",
-        [
-            sys.executable,
-            str(REPO / "tests" / "regression" / "run_mutation.py"),
-            "--run",
-            "--target",
-            "colosseum/results/aggregation.py",
-        ],
-    )
-
-
 _JOBS: dict[str, Callable[[], int]] = {
     "test": _job_test,
     "visa-sim": _job_visa_sim,
@@ -205,7 +189,6 @@ _JOBS: dict[str, Callable[[], int]] = {
     "packaging": _job_packaging,
     "offline": _job_offline,
     "soak": _job_soak,
-    "mutation": _job_mutation,
 }
 
 

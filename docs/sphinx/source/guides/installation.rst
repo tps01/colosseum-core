@@ -23,15 +23,9 @@ From a source checkout::
 
    pip install -e .
 
-Development tools (pytest, Sphinx, Cosmic Ray) are not included by default. Install
-them with ``requirements-dev.txt``::
-
-   pip install -r requirements-dev.txt
-
-Or in one step from a checkout::
-
-   pip install -e . && pip install -r requirements-dev.txt
-
+Development tools (pytest, Sphinx, static analysis) are not included by default.
+See ``docs/DEVELOPING.md`` for editable install, ``requirements-dev.txt``, and
+``scripts/start_environment.*`` helpers.
 System prerequisites
 --------------------
 
@@ -58,26 +52,9 @@ Tests, docgen, and PyVISA-sim require a git clone and ``requirements-dev.txt``.
 Source checkout helpers
 -----------------------
 
-The repository includes setup scripts for common shells. They create ``.venv``,
-install the editable project with dev dependencies, and activate the environment.
-
-Windows PowerShell::
-
-   .\scripts\start_environment.ps1
-
-Windows ``cmd.exe`` when PowerShell script execution is disabled::
-
-   scripts\start_environment.bat
-
-Linux/macOS shell::
-
-   . ./scripts/start_environment.sh
-
-The shell script should be sourced with ``.`` if activation should remain in the current shell.
-
-Set ``SKIP_DEV=1`` to install runtime only (no ``requirements-dev.txt``)::
-
-   SKIP_DEV=1 . ./scripts/start_environment.sh
+Repository bootstrap scripts (``scripts/start_environment.ps1``, ``.bat``, and ``.sh``)
+create ``.venv``, install the editable project, and optionally install
+``requirements-dev.txt``. Full steps: ``docs/DEVELOPING.md``.
 
 Compatibility extras
 --------------------
@@ -88,4 +65,4 @@ the focused extras above for new environments. ``colosseum[equipment]`` maps to
 hardware + plotting, ``colosseum[shared]`` maps to SSH, and ``[equipment-sim]`` keeps
 the PyVISA-sim test dependency alias.
 
-Dev-only extras: ``test``, ``docs``, ``mutation`` (or use ``requirements-dev.txt``).
+Dev-only extras: ``test``, ``docs`` (or use ``requirements-dev.txt``; see ``docs/DEVELOPING.md``).

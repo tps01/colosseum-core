@@ -51,7 +51,7 @@ template = "colosseum_template.docgen_entry:spec"
 
 The entry-point **key** is metadata; the runtime namespace is the string passed to `register_namespace`. Docgen entry points are optional.
 
-Pin `colosseum` in `dependencies` when you publish (e.g. `colosseum>=0.13.12`).
+Pin `colosseum` in `dependencies` when you publish (e.g. `colosseum>=0.14.0`).
 
 ### 5. Add bench config
 
@@ -95,7 +95,7 @@ Quick import check (after `load_config`):
 python -c "import colosseum as col; col.config.load_config('configs/bench.template.toml'); print(col.template)"
 ```
 
-Requires Colosseum **>= 0.13.12** for dynamic `col.<namespace>` on third-party plugins.
+Requires Colosseum **>= 0.14.0** for dynamic `col.<namespace>` on third-party plugins.
 
 ### 8. Optional docgen
 
@@ -125,7 +125,7 @@ Build wheels with `python -m build`. Distribute via your package index or intern
 - Python >= 3.9
 - Colosseum installed (`pip install colosseum` or your organization's offline bundle)
 - Any optional extras your extension documents (e.g. `colosseum[hardware]` for VISA)
-- Colosseum **>= 0.13.12** if the extension uses `col.yournamespace.*` without pre-declared proxies
+- Colosseum **>= 0.14.0** if the extension uses `col.yournamespace.*` without pre-declared proxies
 
 ### 2. Install the extension
 
@@ -187,7 +187,7 @@ Normal runs create `outputs/<timestamp>_<name>/` with `debug.log`, `execution.sq
 | `Configuration is not loaded` | Call `col.config.load_config(path)` before API calls |
 | Missing required keys | Bench TOML row incomplete for your `ConfigSectionSpec` |
 | `Config section … is already registered` | Two plugins registered the same section; rename or remove duplicate |
-| `AttributeError: …` on `col.yournamespace` | Old Colosseum (< 0.13.12) or typo in namespace |
+| `AttributeError: …` on `col.yournamespace` | Old Colosseum (< 0.14.0) or typo in namespace |
 
 ---
 

@@ -12,7 +12,7 @@ def test_cleanup_keeps_venv_extension_modules(tmp_path):
 
     targets = {
         path.relative_to(tmp_path).as_posix()
-        for path in _collect_paths(tmp_path, include_venvs=False, include_infra=False)
+        for path in _collect_paths(tmp_path, include_venvs=False)
     }
 
     assert ".venv/Lib/site-packages/native.pyd" not in targets
@@ -20,31 +20,27 @@ def test_cleanup_keeps_venv_extension_modules(tmp_path):
 
 
 def test_cleanup_keeps_named_venv_extension_modules(tmp_path):
-    _touch(tmp_path / ".venv-mutation" / "Scripts" / "cosmic-ray.exe")
-    _touch(tmp_path / ".venv-mutation" / "Lib" / "site-packages" / "module.pyc")
+    _touch(tmp_path / ".venv-dev" / "Scripts" / "tool.exe")
+    _touch(tmp_path / ".venv-dev" / "Lib" / "site-packages" / "module.pyc")
 
     targets = {
         path.relative_to(tmp_path).as_posix()
-        for path in _collect_paths(tmp_path, include_venvs=False, include_infra=False)
+        for path in _collect_paths(tmp_path, include_venvs=False)
     }
 
-    assert ".venv-mutation/Scripts/cosmic-ray.exe" not in targets
-    assert ".venv-mutation/Lib/site-packages/module.pyc" in targets
+    assert ".venv-dev/Scripts/tool.exe" not in targets
+    assert ".venv-dev/Lib/site-packages/module.pyc" in targets
 
 
-def test_cleanup_matches_share_and_infra_ignore_policy(tmp_path):
+def test_cleanup_matches_share_ignore_policy(tmp_path):
     _touch(tmp_path / "share" / "notes.txt")
     _touch(tmp_path / "share" / "python-wheels" / "package.whl")
-    _touch(tmp_path / "infra" / "yocto" / "artifacts" / ".gitkeep")
-    _touch(tmp_path / "infra" / "yocto" / "artifacts" / "qemu.log")
 
     targets = {
         path.relative_to(tmp_path).as_posix()
-        for path in _collect_paths(tmp_path, include_venvs=False, include_infra=True)
+        for path in _collect_paths(tmp_path, include_venvs=False)
     }
 
     assert "share" not in targets
     assert "share/notes.txt" not in targets
     assert "share/python-wheels" in targets
-    assert "infra/yocto/artifacts/.gitkeep" not in targets
-    assert "infra/yocto/artifacts/qemu.log" in targets

@@ -6,12 +6,22 @@ import pytest
 from colosseum.decorators._common import ensure_runtime_context, resolve_command, resolve_domain
 
 
-def test_resolve_domain_io_module_prefix(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_domain_uses_package_domain_attribute(monkeypatch: pytest.MonkeyPatch) -> None:
+    import colosseum_equipment  # noqa: F401
+
     def sample() -> None:
         return None
 
     monkeypatch.setattr(sample, "__module__", "colosseum_equipment.io.api.dio")
     assert resolve_domain(sample) == "equipment"
+
+
+def test_resolve_domain_prefers_function_override() -> None:
+    def sample() -> None:
+        return None
+
+    sample.__colosseum_domain__ = "template"  # type: ignore[attr-defined]
+    assert resolve_domain(sample) == "template"
 
 
 def test_resolve_command_qualifies_first_party_public_api(

@@ -117,36 +117,3 @@ def test_io_ftdi_missing_extra_records_command_error(
     row = ctx.db.fetch_table_rows("commands")[-1]
     assert row["status"] == "ERROR"
     assert "colosseum[io]" in (row["message"] or "")
-
-
-def test_io_i2c_stub_records_command_error(io_runtime_context: RuntimeContext, io_bench) -> None:
-    ctx = io_runtime_context
-    load_config(
-        io_bench(
-            """
-            [[io.i2c]]
-            bus_id = 1
-            driver = ni-845x
-            """,
-        )
-    )
-    assert col.io.i2c.write(bus_id=1, address=0x50, data=b"\x00") is None
-    row = ctx.db.fetch_table_rows("commands")[-1]
-    assert row["status"] == "ERROR"
-    assert "ni-845x" in (row["message"] or "")
-
-
-def test_io_spi_stub_records_command_error(io_runtime_context: RuntimeContext, io_bench) -> None:
-    ctx = io_runtime_context
-    load_config(
-        io_bench(
-            """
-            [[io.spi]]
-            bus_id = 1
-            """,
-        )
-    )
-    assert col.io.spi.write(bus_id=1, data=b"\x01") is None
-    row = ctx.db.fetch_table_rows("commands")[-1]
-    assert row["status"] == "ERROR"
-    assert "NI USB-845x" in (row["message"] or "")

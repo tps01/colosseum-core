@@ -5,7 +5,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..config import ConfigError, autoconfig, load_config
+from ..config import ConfigError, load_config
 from ..context import init_context
 from ..output import ensure_runtime_ready
 from ..results import endex
@@ -53,7 +53,7 @@ def _add_common_run_options(parser: argparse.ArgumentParser) -> None:
     group.add_argument(
         "--autoconfig",
         action="store_true",
-        help="Scan VISA resources and build bench config (requires colosseum[hardware])",
+        help="Scan VISA resources and build bench config (requires colosseum-equipment[hardware])",
     )
     parser.add_argument(
         "--autoconfig-export",
@@ -151,7 +151,19 @@ def _print_help(parser: argparse.ArgumentParser, topic: str | None = None) -> No
 
 def _load_run_config(options: RunConfigOptions) -> None:
     if options.use_autoconfig:
-        autoconfig(
+        from ..context import require_context
+        from ..plugins.loader import ensure_plugins_loaded
+
+        ctx = require_context()
+        ensure_plugins_loaded(ctx.plugin_registry)
+        if not ctx.plugin_registry.has_namespace("equipment"):
+            raise ConfigError(
+                "Namespace `equipment` is not registered. Install colosseum-equipment "
+                "and ensure it exposes a colosseum.plugins entry point."
+            )
+        from colosseum import equipment
+
+        equipment.autoconfig(
             export_path=options.autoconfig_export,
             blacklist=options.autoconfig_blacklist,
         )

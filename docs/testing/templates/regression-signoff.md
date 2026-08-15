@@ -26,12 +26,7 @@
 | R-HW-01 | PSU/DMM power rail | [ ] | |
 | R-HW-02 | Vendor instruments | [ ] | |
 | R-HW-03 | Serial transport | [ ] | |
-| R-EMU-01 | QEMU SSH version | [ ] | |
-| R-EMU-02 | Regex on live stdout | [ ] | |
-| R-EMU-03 | Full suite on DUT | [ ] | |
-| R-SOAK-HW-01 | Long-run hardware/QEMU | [ ] | |
-| R-OFFLINE-01 | Yocto offline pip install (manual) | [ ] | |
-| R-GUI-QEMU-01 | X11 GUI on QEMU guest | [ ] | |
+| R-SOAK-HW-01 | Long-run hardware | [ ] | |
 
 **Overall:** PASS / FAIL
 
