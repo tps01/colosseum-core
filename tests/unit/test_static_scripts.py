@@ -17,4 +17,4 @@ def test_static_repo_layout() -> None:
     assert (REPO / "tests" / "static" / "run_all.py").is_file()
     assert (REPO / "scripts" / "run_static.py").is_file()
     assert SCRIPTS_DIR.is_dir()
-    assert len(SOURCE_PACKAGES) == 4
+    assert len(SOURCE_PACKAGES) == 1
