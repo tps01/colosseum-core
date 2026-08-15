@@ -2,16 +2,36 @@
 
 from __future__ import annotations
 
+from importlib.metadata import distribution
+from types import SimpleNamespace
+
+from colosseum.compat import entry_points as entry_points_module
 from colosseum.compat.entry_points import entry_points_for_group
 
 
-def test_core_does_not_register_a_runtime_plugin() -> None:
-    eps = entry_points_for_group("colosseum.plugins")
-    names = {getattr(ep, "name", None) for ep in eps}
-    assert names == set()
+def test_core_distribution_does_not_declare_runtime_plugins() -> None:
+    plugin_names = {
+        entry_point.name
+        for entry_point in distribution("colosseum-core").entry_points
+        if entry_point.group == "colosseum.plugins"
+    }
+    assert plugin_names == set()
 
 
 def test_colosseum_docgen_entry_points_discoverable() -> None:
     eps = entry_points_for_group("colosseum.docgen")
     names = {getattr(ep, "name", None) for ep in eps}
     assert "colosseum" in names
+
+
+def test_duplicate_plugin_entry_points_are_deduped(monkeypatch) -> None:
+    duplicate = SimpleNamespace(name="shared", value="colosseum_shared:register")
+    monkeypatch.setattr(
+        entry_points_module,
+        "_discovered_for_group",
+        lambda _group: [duplicate, duplicate],
+    )
+
+    eps = entry_points_for_group("colosseum.plugins")
+
+    assert eps == [duplicate]
