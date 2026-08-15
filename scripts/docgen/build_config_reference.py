@@ -15,7 +15,9 @@ from colosseum.plugins.loader import ensure_plugins_loaded  # noqa: E402
 from colosseum.plugins.registry import PluginRegistry  # noqa: E402
 
 try:
-    from colosseum_equipment.transports.factory import default_driver_for_kind  # noqa: E402
+    from colosseum_equipment.transports.factory import (  # type: ignore[import-not-found]  # noqa: E402
+        default_driver_for_kind,
+    )
 except ImportError:  # pragma: no cover - equipment package optional for core-only installs
 
     def default_driver_for_kind(kind: str) -> str:
