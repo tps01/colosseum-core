@@ -1,17 +1,18 @@
 Running test cases
 ==================
 
-**Direct Python:** ``python my_test.py`` after ``col.config.load_config(...)`` and ``col.endex()`` in ``__main__``.
+Direct Python execution loads configuration and calls ``col.endex()`` from the script.
+The CLI initializes and finalizes the runtime around ``main()``::
 
-**CLI:** ``colosseum run my_test.py --config bench.toml`` initializes the runtime, calls ``main()``, then ``col.endex()``.
+   colosseum run my_test.py --config bench.toml
 
-To scan VISA resources instead of a bench file, use ``--autoconfig`` (requires ``colosseum[hardware]``)::
+The CLI does not execute the script's ``if __name__ == "__main__"`` block.
 
-   colosseum run my_test.py --autoconfig
-   colosseum run my_test.py --autoconfig --autoconfig-export bench.generated.toml
+Normal runs create ``debug.log``, ``execution.sqlite``, ``summary.txt``, and
+``summary.json`` beneath ``outputs/<timestamp>_<name>/``.
 
-The CLI does not execute the script's ``if __name__ == "__main__"`` block; only ``main()`` is invoked.
+Use ``--no-artifacts``, ``load_config(..., no_artifacts=True)``, or
+``COLOSSEUM_NO_ARTIFACTS=1`` for console logging and in-memory SQLite without files.
 
-Output is written lazily under ``outputs/<timestamp>_<test_stem>/`` as ``debug.log``, ``execution.sqlite``, and ``summary.txt``.
-
-INFO-level log lines (including run header metadata and measurement/verification summaries) are echoed to stdout. Use ``-d`` or ``--debug`` to include DEBUG on stdout as well; ``debug.log`` always records DEBUG.
+Pass ``-d`` or ``--debug`` to include DEBUG messages on stdout. The persisted log always
+includes DEBUG messages.

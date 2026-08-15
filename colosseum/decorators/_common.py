@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable
 from typing import Any
 
@@ -9,32 +10,34 @@ from ..context import RuntimeContext, require_context
 
 
 def resolve_domain(func: Callable[..., Any]) -> str:
-    module = func.__module__
-    if module.startswith("colosseum_shared"):
-        return "shared"
-    if module.startswith("colosseum_equipment"):
-        return "equipment"
-    if module.startswith("colosseum_host"):
-        return "host"
-    return getattr(func, "__colosseum_domain__", "core")
+    """Resolve evidence domain from explicit attributes, then parent packages."""
+    override = getattr(func, "__colosseum_domain__", None)
+    if override:
+        return str(override)
+    module_name = func.__module__
+    parts = module_name.split(".")
+    for depth in range(len(parts), 0, -1):
+        parent = sys.modules.get(".".join(parts[:depth]))
+        if parent is None:
+            continue
+        domain = getattr(parent, "__colosseum_domain__", None)
+        if domain:
+            return str(domain)
+    return "core"
 
 
 def command_id_for_module(module: str, name: str) -> str:
-    if module.startswith("colosseum_equipment.io.api."):
-        group = module.rsplit(".", 1)[-1]
+    """Derive a command id from a public API module path convention."""
+    parts = module.split(".")
+    if len(parts) >= 4 and parts[-3] == "io" and parts[-2] == "api":
+        group = parts[-1]
         return f"io.{group}.{name}"
-    if module.startswith("colosseum_equipment.api."):
-        group = module.rsplit(".", 1)[-1]
+    if len(parts) >= 3 and parts[-2] == "api":
+        group = parts[-1]
         if not group.startswith("_"):
             return f"{group}.{name}"
-    if module.startswith("colosseum_shared."):
-        parts = module.split(".")
-        if len(parts) >= 2:
-            return f"{parts[1]}.{name}"
-    if module.startswith("colosseum_host.api."):
-        group = module.rsplit(".", 1)[-1]
-        if not group.startswith("_"):
-            return f"{group}.{name}"
+    if len(parts) >= 3 and parts[-1] == "api":
+        return f"{parts[-2]}.{name}"
     return name
 
 

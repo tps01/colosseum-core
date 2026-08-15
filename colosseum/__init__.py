@@ -12,12 +12,15 @@ from .decorators import (
 from .plugins.namespace import LazyNamespaceProxy
 from .results import endex
 
-__version__ = "0.13.10"
+__version__ = "0.15.0"
 
-equipment = LazyNamespaceProxy("equipment")
-shared = LazyNamespaceProxy("shared")
-io = LazyNamespaceProxy("io")
-host = LazyNamespaceProxy("host")
+
+def __getattr__(name: str) -> LazyNamespaceProxy:
+    """Resolve plugin namespaces (for example ``col.acme.*``) after install."""
+    if name.startswith("_"):
+        raise AttributeError(name)
+    return LazyNamespaceProxy(name)
+
 
 __all__ = [
     "__version__",
@@ -30,8 +33,4 @@ __all__ = [
     "MeasurementSource",
     "VerificationResult",
     "endex",
-    "equipment",
-    "shared",
-    "io",
-    "host",
 ]

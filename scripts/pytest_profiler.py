@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from io import StringIO
 from pathlib import Path
 
-_PACKAGES_RE = r"(colosseum[\\/]|colosseum_equipment|colosseum_shared|colosseum_host)"
+_PACKAGES_RE = r"colosseum[\\/]"
 _TEST_DIR_RES: dict[str, str] = {
     "unit": r"tests[\\/]unit",
     "integration": r"tests[\\/]integration",
@@ -99,7 +99,7 @@ def profile_pytest(
     :type test_paths: Sequence[str]
     :param pytest_args: Extra pytest CLI arguments.
     :type pytest_args: Iterable[str] | None, optional
-    :param marker_args: Marker expressions (e.g. ``-m not visa_sim``).
+    :param marker_args: Optional pytest marker expression arguments.
     :type marker_args: Iterable[str] | None, optional
     :param sort: pstats sort key (``cumulative``, ``tottime``, etc.).
     :type sort: str

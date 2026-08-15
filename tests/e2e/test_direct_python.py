@@ -12,7 +12,7 @@ from tests.support.helpers import REPO_ROOT as REPO
 SCRIPT = REPO / "tests" / "fixtures" / "scripts" / "optional_fail_test.py"
 
 
-def test_direct_python_optional_fail_exits_zero(bench_sim, isolated_cwd, subprocess_env) -> None:
+def test_direct_python_optional_fail_exits_zero(core_config, isolated_cwd, subprocess_env) -> None:
     proc = subprocess.run(
         [sys.executable, str(SCRIPT)],
         cwd=isolated_cwd,
@@ -24,5 +24,5 @@ def test_direct_python_optional_fail_exits_zero(bench_sim, isolated_cwd, subproc
     assert proc.returncode == 0, proc.stderr
     run_dir = latest_output_dir(isolated_cwd)
     assert (run_dir / "execution.sqlite").is_file()
-    assert verification_row(run_dir, "probe_optional")[0] == "FAIL"
-    assert verification_row(run_dir, "vrail_3v3")[0] == "PASS"
+    assert verification_row(run_dir, "optional")[0] == "FAIL"
+    assert verification_row(run_dir, "required")[0] == "PASS"

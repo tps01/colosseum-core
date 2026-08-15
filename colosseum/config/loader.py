@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from ..context import RuntimeContext, get_context, init_context
+from ..context import RuntimeContext, apply_no_artifacts, get_context, init_context
 from ..logging import get_logger
 from ..plugins.loader import ensure_plugins_loaded
 from .normalize import normalize_sections
@@ -69,7 +68,8 @@ class ConfigStore:
         return item
 
 
-def _default_test_name() -> str:
+def default_test_name() -> str:
+    """Derive a default run name from ``sys.argv[0]`` when present."""
     import sys
 
     main_script = Path(sys.argv[0])
@@ -87,13 +87,26 @@ def _load_toml(config_path: Path) -> dict[str, Any]:
         raise ConfigError(f"Invalid TOML in {config_path}: {exc}") from exc
 
 
-def _apply_raw_config(
+def apply_raw_config(
     ctx: RuntimeContext,
     raw: dict[str, Any],
     *,
     source_label: str,
 ) -> ConfigStore:
-    """Normalize and attach a raw config dict to the active run context."""
+    """Normalize and attach a raw config dict to the active run context.
+
+    :param ctx: Active runtime context.
+    :type ctx: RuntimeContext
+    :param raw: Nested config dict in the same shape as a parsed bench TOML.
+    :type raw: dict[str, Any]
+    :param source_label: Label stored as ``config_path`` (normally a file path).
+    :type source_label: str
+
+    :returns: Normalized configuration store for plugin sections.
+    :rtype: ConfigStore
+
+    :raises ConfigError: When normalization or validation fails.
+    """
     ensure_plugins_loaded(ctx.plugin_registry)
     specs = list(ctx.plugin_registry.config_section_specs())
     spec_map = {s.dotted_path: s for s in specs}
@@ -106,7 +119,7 @@ def _apply_raw_config(
         spec.dotted_path: ctx.plugin_registry.validators_for(spec.dotted_path) for spec in specs
     }
     ctx.config_warnings.extend(run_section_validators(normalized, spec_map, validator_map))
-    if ctx.output_dir is not None and ctx.logger is not None:
+    if ctx.runtime_ready and ctx.logger is not None:
         for warning in ctx.config_warnings:
             ctx.logger.warning(warning)
     store = ConfigStore(raw, normalized, spec_map)
@@ -119,16 +132,19 @@ def _apply_raw_config(
     return store
 
 
-def load_config(path: str | Path) -> ConfigStore:
+def load_config(path: str | Path, *, no_artifacts: bool = False) -> ConfigStore:
     """Load and validate a bench TOML file into the active run context.
 
     :param path: Path to the bench configuration file.
     :type path: str | Path
+    :param no_artifacts: When ``True``, skip ``outputs/``, ``debug.log``, and on-disk SQLite.
+    :type no_artifacts: bool, optional
 
     :returns: Normalized configuration store for plugin sections.
     :rtype: ConfigStore
 
     :raises ConfigError: When the file is missing, invalid TOML, or fails validation.
+    :raises RuntimeError: When ``no_artifacts`` is set after runtime bootstrap.
     """
     config_path = Path(path).resolve()
     if not config_path.exists():
@@ -137,70 +153,16 @@ def load_config(path: str | Path) -> ConfigStore:
 
     existing_ctx = get_context()
     if existing_ctx is None:
-        ctx = init_context(test_case_name=_default_test_name(), config_path=config_path)
+        ctx = init_context(
+            test_case_name=default_test_name(),
+            config_path=config_path,
+            no_artifacts=no_artifacts,
+        )
     else:
         ctx = existing_ctx
+        apply_no_artifacts(ctx, no_artifacts=no_artifacts)
 
-    return _apply_raw_config(ctx, raw, source_label=str(config_path))
-
-
-def autoconfig(
-    *,
-    timeout: float = 5.0,
-    visa_backend: str | None = None,
-    visa_library: str | None = None,
-    blacklist: str | Sequence[str] | None = None,
-    export_path: str | Path | None = None,
-) -> ConfigStore:
-    """Scan VISA resources and build bench equipment config without a TOML file.
-
-    :param timeout: Probe timeout in seconds for each VISA resource.
-    :type timeout: float, optional
-    :param visa_backend: Reserved for future use; VISA backend selection uses ``visa_library``.
-    :type visa_backend: str | None, optional
-    :param visa_library: Optional PyVISA ``ResourceManager`` library path (for example ``@ivi``).
-    :type visa_library: str | None, optional
-    :param blacklist: Interface name(s) or local IPv4 address(es) whose subnets are excluded
-        from TCPIP autoconfig (GPIB/USB/ASRL are unaffected).
-    :type blacklist: str | Sequence[str] | None, optional
-    :param export_path: When set, write the generated config to this TOML file path.
-    :type export_path: str | Path | None, optional
-
-    :returns: Normalized configuration store for discovered equipment.
-    :rtype: ConfigStore
-
-    :raises ConfigError: When PyVISA is unavailable, no resources are found, or none classify.
-    """
-    _ = visa_backend
-    from colosseum_equipment.autoconfig.discovery import discover_equipment_config
-    from colosseum_equipment.autoconfig.logging import log_autoconfig
-
-    from .toml_write import TomlWriteError, write_bench_toml
-
-    existing_ctx = get_context()
-    if existing_ctx is None:
-        ctx = init_context(test_case_name=_default_test_name(), config_path="(autoconfig)")
-    else:
-        ctx = existing_ctx
-
-    result = discover_equipment_config(
-        timeout=timeout,
-        visa_library=visa_library,
-        blacklist=blacklist,
-    )
-    store = _apply_raw_config(ctx, result.raw, source_label="(autoconfig)")
-    if ctx.logger is not None:
-        log_autoconfig(ctx, result)
-    if export_path is not None:
-        try:
-            exported = write_bench_toml(result.raw, export_path)
-        except TomlWriteError as exc:
-            raise ConfigError(str(exc)) from exc
-        if ctx.logger is not None:
-            ctx.logger.info("Autoconfig exported config to %s", exported)
-        if ctx.db.is_initialized():
-            ctx.db.insert_run_metadata("config_export_path", str(exported))
-    return store
+    return apply_raw_config(ctx, raw, source_label=str(config_path))
 
 
 def log_loaded_config(ctx: RuntimeContext) -> None:

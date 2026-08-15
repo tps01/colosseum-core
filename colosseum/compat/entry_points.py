@@ -10,13 +10,13 @@ except ImportError:  # pragma: no cover
 
 
 class ColosseumPluginEntryPoint(Protocol):
-    name: str
+    @property
+    def name(self) -> str: ...
 
-    def load(self) -> Callable[..., None]: ...
+    def load(self) -> Callable[..., object]: ...
 
 
-def entry_points_for_group(group: str) -> list[ColosseumPluginEntryPoint]:
-    """Return entry points for *group* (importlib.metadata compat shim)."""
+def _discovered_for_group(group: str) -> list[ColosseumPluginEntryPoint]:
     discovered = entry_points()
     select = getattr(discovered, "select", None)
     if select is not None:
@@ -28,3 +28,15 @@ def entry_points_for_group(group: str) -> list[ColosseumPluginEntryPoint]:
         list[ColosseumPluginEntryPoint],
         [ep for ep in discovered if getattr(ep, "group", None) == group],
     )
+
+
+def entry_points_for_group(group: str) -> list[ColosseumPluginEntryPoint]:
+    """Return entry points for *group* (importlib.metadata compat shim).
+
+    :param group: Entry-point group name (for example ``colosseum.plugins``).
+    :type group: str
+
+    :returns: Discovered entry points for the group (empty when none are installed).
+    :rtype: list[ColosseumPluginEntryPoint]
+    """
+    return _discovered_for_group(group)

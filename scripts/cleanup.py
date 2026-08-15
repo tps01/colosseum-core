@@ -10,7 +10,6 @@ Usage:
   python scripts/cleanup.py --dry-run
   python scripts/cleanup.py
   python scripts/cleanup.py --include-venvs
-  python scripts/cleanup.py --include-infra
 """
 
 from __future__ import annotations
@@ -47,14 +46,6 @@ ROOT_DIRS = (
     ".tox",
     ".nox",
     ".hypothesis",
-    "wheelhouse",
-    "offline-bundle",
-)
-
-# Paths under repo root removed with --include-infra (Yocto builds are multi-GB).
-INFRA_DIRS = (
-    "infra/yocto/build",
-    "infra/yocto/cache",
 )
 
 # Top-level dirs only removed with --include-venvs.
@@ -108,11 +99,6 @@ WALK_FILE_GLOBS = (
     "MANIFEST",
     "*.egg",
     "pip-log.txt",
-    "colosseum-*-offline-*.tar.gz",
-    "*.wic",
-    "*.ext4",
-    "*.img",
-    "*.iso",
 )
 
 # Directory globs anywhere in the tree (e.g. *.egg-info).
@@ -147,18 +133,10 @@ def _collect_venv_artifacts(root: Path) -> list[Path]:
     return targets
 
 
-def _collect_infra_artifacts(root: Path) -> list[Path]:
-    artifacts = root / "infra" / "yocto" / "artifacts"
-    if not artifacts.is_dir():
-        return []
-    return [path for path in artifacts.iterdir() if path.name != ".gitkeep"]
-
-
 def _collect_paths(
     root: Path,
     *,
     include_venvs: bool,
-    include_infra: bool,
 ) -> list[Path]:
     targets: list[Path] = []
 
@@ -166,13 +144,6 @@ def _collect_paths(
         path = root / name
         if path.exists():
             targets.append(path)
-
-    if include_infra:
-        for rel in INFRA_DIRS:
-            path = root / rel
-            if path.exists():
-                targets.append(path)
-        targets.extend(_collect_infra_artifacts(root))
 
     if include_venvs:
         targets.extend(_iter_venv_top_level_dirs(root))
@@ -258,21 +229,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Also remove .venv/, .venv-*/, venv/, venv-*/, env/ at repository root",
     )
-    parser.add_argument(
-        "--include-infra",
-        action="store_true",
-        help=(
-            "Also remove infra/yocto/build/, infra/yocto/cache/, and generated "
-            "infra/yocto/artifacts/ contents"
-        ),
-    )
     args = parser.parse_args(argv)
     root = _repo_root()
 
     targets = _collect_paths(
         root,
         include_venvs=args.include_venvs,
-        include_infra=args.include_infra,
     )
     if not targets:
         print("Nothing to clean.")

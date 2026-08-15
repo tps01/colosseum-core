@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run Colosseum pytest tiers 1–3; optional Tier 4A regression scripts."""
+"""Run Colosseum pytest tiers 1–3 and optional core regression scripts."""
 
 from __future__ import annotations
 
@@ -7,9 +7,6 @@ import argparse
 import subprocess
 import sys
 from pathlib import Path
-
-# PyVISA-sim is test-only (.[test] extra) and needs Python 3.10+.
-_PYTEST_MARKER_ARGS = ["-m", "not visa_sim"] if sys.version_info < (3, 10) else []
 
 _REGRESSION_DIR = Path(__file__).resolve().parents[1] / "tests" / "regression"
 
@@ -31,12 +28,7 @@ def main() -> int:
     parser.add_argument(
         "--regression",
         action="store_true",
-        help="After pytest, run Tier 4A scripts: soak, docgen, offline bundle (not mutation)",
-    )
-    parser.add_argument(
-        "--skip-offline",
-        action="store_true",
-        help="With --regression, skip R-OFFLINE-00 (offline bundle is slow; CI runs it separately)",
+        help="After pytest, run the core soak and documentation checks",
     )
     parser.add_argument(
         "--soak-count",
@@ -56,7 +48,6 @@ def main() -> int:
         "tests/integration",
         "tests/e2e",
         "-q",
-        *_PYTEST_MARKER_ARGS,
         *pytest_argv,
     ]
     code = subprocess.call(cmd, cwd=root)
@@ -74,10 +65,7 @@ def main() -> int:
         if code != 0:
             return code
 
-    if args.skip_offline:
-        return 0
-
-    return _run_regression_script("run_offline_install_check.py")
+    return 0
 
 
 if __name__ == "__main__":

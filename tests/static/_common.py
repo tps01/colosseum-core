@@ -7,12 +7,7 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-SOURCE_PACKAGES: tuple[str, ...] = (
-    "colosseum",
-    "colosseum_equipment",
-    "colosseum_shared",
-    "colosseum_host",
-)
+SOURCE_PACKAGES: tuple[str, ...] = ("colosseum",)
 SCRIPTS_DIR = REPO / "scripts"
 SCAN_PATHS: tuple[str, ...] = (*SOURCE_PACKAGES, "scripts")
 

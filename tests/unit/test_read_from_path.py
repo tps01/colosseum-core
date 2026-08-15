@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-import colosseum as col
 from colosseum.config import load_config
 from colosseum.database.read_from_path import read_from_path
 
+from tests.support.core_api import measure_value, verify_value
 from tests.support.helpers import latest_output_dir, run_endex_expect_code
 
 
-def test_read_from_path_measurements_and_verifications(bench_sim, isolated_cwd) -> None:
-    load_config(bench_sim)
-    col.equipment.dmm.measure_voltage(dmm_id=1, channel=1, key="offline_key")
-    col.equipment.dmm.verify_voltage(key="offline_key", expected_val=3.3, tolerance=0.5)
+def test_read_from_path_measurements_and_verifications(core_config, isolated_cwd) -> None:
+    load_config(core_config)
+    measure_value(key="offline_key", value=3.3)
+    verify_value(key="offline_key", expected_val=3.3, tolerance=0.5)
     run_endex_expect_code(0)
     run_dir = latest_output_dir(isolated_cwd)
     db_path = run_dir / "execution.sqlite"
@@ -40,8 +40,8 @@ def test_read_from_path_missing_file(isolated_cwd) -> None:
     assert raised
 
 
-def test_read_from_path_rejects_disallowed_table(bench_sim, isolated_cwd) -> None:
-    load_config(bench_sim)
+def test_read_from_path_rejects_disallowed_table(core_config, isolated_cwd) -> None:
+    load_config(core_config)
     run_endex_expect_code(0)
     run_dir = latest_output_dir(isolated_cwd)
 

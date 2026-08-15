@@ -11,6 +11,7 @@ Full Colosseum documentation build: modular autodoc + stitch + HTML + PDF.
 from __future__ import annotations
 
 import argparse
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -78,6 +79,16 @@ def build_staged_site(
         specs = discover_specs()
         if not specs:
             raise SystemExit("No docgen module specs discovered")
+
+        active_module_ids = {spec.module_id for spec in specs}
+        staged_children = docgen_root.iterdir() if docgen_root.is_dir() else ()
+        for child in staged_children:
+            if (
+                child.is_dir()
+                and (child / "manifest.json").is_file()
+                and child.name not in active_module_ids
+            ):
+                shutil.rmtree(child)
 
         for spec in specs:
             print(f"Building module docs: {spec.module_id} ({spec.title})")

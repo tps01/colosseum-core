@@ -7,7 +7,7 @@ from functools import wraps
 from typing import Any, TypeVar, overload
 
 from ..database import MeasurementRow
-from ..output import ensure_output_dir
+from ..output import ensure_runtime_ready
 from ._common import ensure_runtime_context, resolve_command, resolve_domain
 from ._typing import ParamSpec
 from .command import COLOSSEUM_DECORATOR
@@ -55,7 +55,7 @@ def measurement(
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
             ctx = ensure_runtime_context()
-            ensure_output_dir(ctx)
+            ensure_runtime_ready(ctx)
             key = kwargs.get("key")
             if not key:
                 raise MeasurementKeyError(f"`{command}` requires `key=`")

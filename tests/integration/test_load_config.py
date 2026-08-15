@@ -1,30 +1,34 @@
-"""I-CFG: load_config and plugin namespaces."""
+"""I-CFG: standalone configuration and plugin namespaces."""
 
 from __future__ import annotations
 
 import colosseum as col
+import types
+
 from colosseum.config import load_config
+from colosseum.context import init_context
 
 
-def test_bench_sim_loads_equipment_and_shared_sections(bench_sim, isolated_cwd) -> None:
-    store = load_config(bench_sim)
-    psus = store.list_items("equipment.psu")
-    assert len(psus) >= 2
-    assert all(row.get("driver") == "sim" for row in psus)
-    ssh_rows = store.list_items("shared.ssh")
-    assert ssh_rows and ssh_rows[0].get("driver") == "sim"
+def test_core_config_loads_without_plugins(core_config, isolated_cwd) -> None:
+    store = load_config(core_config)
+    assert store.raw() == {}
+    assert col.config.is_loaded()
 
 
-def test_lazy_namespaces_resolve(bench_sim, isolated_cwd) -> None:
-    load_config(bench_sim)
-    assert hasattr(col.equipment, "psu")
-    assert hasattr(col.shared, "ssh")
+def test_lazy_namespace_resolves_registered_plugin(core_config, isolated_cwd) -> None:
+    ctx = init_context(test_case_name="plugin")
+    module = types.ModuleType("acme_api")
+    module.ping = lambda: "pong"  # type: ignore[attr-defined]
+    ctx.plugin_registry.register_namespace("acme", module)
+    ctx.plugin_registry.loaded = True
+    load_config(core_config)
+    assert col.acme.ping() == "pong"
 
 
-def test_bench_toml_omits_driver_on_visa_instruments(repo_root, isolated_cwd) -> None:
-    path = repo_root / "examples" / "configs" / "bench.toml"
-    store = load_config(str(path))
-    psu = store.require_item("equipment.psu", 1)
-    assert "driver" not in psu
-    dmm = store.require_item("equipment.dmm", 1)
-    assert "driver" not in dmm
+def test_unregistered_sections_remain_available_as_raw_config(
+    isolated_cwd, tmp_path
+) -> None:
+    path = tmp_path / "settings.toml"
+    path.write_text("[runtime]\nlabel = \"bench-a\"\n", encoding="utf-8")
+    store = load_config(path)
+    assert store.get_section("runtime.label") == "bench-a"

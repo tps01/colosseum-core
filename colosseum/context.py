@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -31,6 +32,8 @@ class RuntimeContext:
     finalized: bool = False
     final_exit_code: int | None = None
     debug_logging: bool = False
+    no_artifacts: bool = False
+    runtime_ready: bool = False
     resource_cache: dict[str, Any] = field(default_factory=dict)
     config_warnings: list[str] = field(default_factory=list)
     _finalized_count: int = field(default=0, repr=False)
@@ -54,11 +57,28 @@ def set_context(ctx: RuntimeContext) -> RuntimeContext:
     return ctx
 
 
+def _env_no_artifacts() -> bool:
+    return os.environ.get("COLOSSEUM_NO_ARTIFACTS") == "1"
+
+
+def apply_no_artifacts(ctx: RuntimeContext, *, no_artifacts: bool) -> None:
+    """Enable no-artifacts mode before runtime bootstrap."""
+    if not no_artifacts:
+        return
+    if ctx.runtime_ready or ctx.output_dir is not None:
+        raise RuntimeError(
+            "no_artifacts must be set before the runtime is bootstrapped "
+            "(before the first col.* call or colosseum run output allocation)."
+        )
+    ctx.no_artifacts = True
+
+
 def init_context(
     *,
     test_case_name: str,
     suite_name: str | None = None,
     config_path: Path | str | None = None,
+    no_artifacts: bool = False,
 ) -> RuntimeContext:
     from . import __version__
     from .plugins.registry import PluginRegistry
@@ -74,5 +94,6 @@ def init_context(
         suite_name=suite_name,
         config_path=config_path,
         framework_version=__version__,
+        no_artifacts=no_artifacts or _env_no_artifacts(),
     )
     return set_context(ctx)

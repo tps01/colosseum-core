@@ -18,17 +18,22 @@ def _cli_run(
     config: Path,
     cwd: Path,
     env: dict[str, str],
+    *,
+    extra_args: list[str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    cmd = [
+        sys.executable,
+        "-m",
+        "colosseum.runner.cli",
+        "run",
+        str(script),
+        "--config",
+        str(config),
+    ]
+    if extra_args:
+        cmd.extend(extra_args)
     return subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "colosseum.runner.cli",
-            "run",
-            str(script),
-            "--config",
-            str(config),
-        ],
+        cmd,
         cwd=cwd,
         env=env,
         capture_output=True,
@@ -38,32 +43,42 @@ def _cli_run(
 
 
 @pytest.mark.requirement("E2E-W1-01")
-def test_cli_run_power_rails(bench_sim, isolated_cwd, subprocess_env) -> None:
-    script = REPO / "examples" / "test_power_rails.py"
-    proc = _cli_run(script, bench_sim, isolated_cwd, subprocess_env)
+def test_cli_run_no_artifacts_skips_output_dir(core_config, isolated_cwd, subprocess_env) -> None:
+    script = REPO / "tests" / "fixtures" / "scripts" / "optional_fail_test.py"
+    proc = _cli_run(script, core_config, isolated_cwd, subprocess_env, extra_args=["--no-artifacts"])
+    assert proc.returncode == 0, proc.stderr
+    assert "Colosseum version:" in proc.stdout
+    assert "no-artifacts mode" in proc.stdout
+    assert not (isolated_cwd / "outputs").exists()
+
+
+@pytest.mark.requirement("E2E-W1-01")
+def test_cli_run_records_core_evidence(core_config, isolated_cwd, subprocess_env) -> None:
+    script = REPO / "tests" / "fixtures" / "scripts" / "optional_fail_test.py"
+    proc = _cli_run(script, core_config, isolated_cwd, subprocess_env)
     assert proc.returncode == 0, proc.stderr
     assert "Colosseum version:" in proc.stdout
     assert "Overall result:" in proc.stdout
     run_dir = latest_output_dir(isolated_cwd)
-    opt = verification_row(run_dir, "engineering_probe_point")
+    opt = verification_row(run_dir, "optional")
     assert opt is not None and opt[0] == "FAIL" and opt[1] == 1
-    req = verification_row(run_dir, "vrail_3v3")
+    req = verification_row(run_dir, "required")
     assert req is not None and req[0] == "PASS"
 
 
 @pytest.mark.requirement("E2E-W1-03")
-def test_cli_run_missing_measurement_exits_one(bench_sim, isolated_cwd, subprocess_env) -> None:
+def test_cli_run_missing_measurement_exits_one(core_config, isolated_cwd, subprocess_env) -> None:
     script = REPO / "tests" / "fixtures" / "scripts" / "fail_required_verify.py"
-    proc = _cli_run(script, bench_sim, isolated_cwd, subprocess_env)
+    proc = _cli_run(script, core_config, isolated_cwd, subprocess_env)
     assert proc.returncode == 1, proc.stderr
     run_dir = latest_output_dir(isolated_cwd)
-    row = verification_row(run_dir, "vrail_3v3")
+    row = verification_row(run_dir, "missing")
     assert row is not None and row[0] == "ERROR"
 
 
-def test_cli_run_script_crash_exits_one_and_finalizes(bench_sim, isolated_cwd, subprocess_env) -> None:
+def test_cli_run_script_crash_exits_one_and_finalizes(core_config, isolated_cwd, subprocess_env) -> None:
     script = REPO / "tests" / "fixtures" / "scripts" / "crash_test.py"
-    proc = _cli_run(script, bench_sim, isolated_cwd, subprocess_env)
+    proc = _cli_run(script, core_config, isolated_cwd, subprocess_env)
     assert proc.returncode == 1
     run_dir = latest_output_dir(isolated_cwd)
     assert (run_dir / "debug.log").is_file()
@@ -75,7 +90,7 @@ def test_cli_run_script_crash_exits_one_and_finalizes(bench_sim, isolated_cwd, s
     assert meta.get("exit_code") == "1"
 
 
-def test_cli_run_system_exit_marks_script_failure(bench_sim, isolated_cwd, subprocess_env) -> None:
+def test_cli_run_system_exit_marks_script_failure(core_config, isolated_cwd, subprocess_env) -> None:
     script = isolated_cwd / "sys_exit_test.py"
     script.write_text(
         "import sys\n\n"
@@ -83,7 +98,7 @@ def test_cli_run_system_exit_marks_script_failure(bench_sim, isolated_cwd, subpr
         "    sys.exit(2)\n",
         encoding="utf-8",
     )
-    proc = _cli_run(script, bench_sim, isolated_cwd, subprocess_env)
+    proc = _cli_run(script, core_config, isolated_cwd, subprocess_env)
     assert proc.returncode == 1
     run_dir = latest_output_dir(isolated_cwd)
     meta = dict(query_db(run_dir, "SELECT key, value FROM run_metadata"))
@@ -93,22 +108,3 @@ def test_cli_run_system_exit_marks_script_failure(bench_sim, isolated_cwd, subpr
     )
     assert meta.get("overall_status") == "FAIL"
     assert "script_exit:" in events
-
-
-@pytest.mark.requirement("E2E-W1-04")
-def test_cli_optional_fail_exits_zero(bench_sim, isolated_cwd, subprocess_env) -> None:
-    script = REPO / "tests" / "fixtures" / "scripts" / "optional_fail_test.py"
-    proc = _cli_run(script, bench_sim, isolated_cwd, subprocess_env)
-    assert proc.returncode == 0, proc.stderr
-    run_dir = latest_output_dir(isolated_cwd)
-    assert verification_row(run_dir, "probe_optional")[0] == "FAIL"
-    assert verification_row(run_dir, "vrail_3v3")[0] == "PASS"
-
-
-@pytest.mark.requirement("E2E-W2-02")
-def test_cli_run_ssh_health(bench_sim, isolated_cwd, subprocess_env) -> None:
-    script = REPO / "examples" / "test_ssh_health.py"
-    proc = _cli_run(script, bench_sim, isolated_cwd, subprocess_env)
-    assert proc.returncode == 0, proc.stderr
-    run_dir = latest_output_dir(isolated_cwd)
-    assert verification_row(run_dir, "uut_version")[0] == "PASS"

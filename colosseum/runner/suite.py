@@ -80,13 +80,11 @@ def run_suite(
     config_path: Path | None = None,
     *,
     debug: bool = False,
-    use_autoconfig: bool = False,
-    autoconfig_export: Path | None = None,
-    autoconfig_blacklist: list[str] | None = None,
+    no_artifacts: bool = False,
 ) -> int:
-    from ..config import autoconfig, load_config
+    from ..config import load_config
     from ..context import init_context, require_context
-    from ..output import ensure_output_dir
+    from ..output import ensure_runtime_ready
     from ..results import endex
     from .single_test import ScriptRunError, run_script
 
@@ -95,19 +93,15 @@ def run_suite(
         test_case_name=suite.name,
         suite_name=suite.name,
         config_path=config_path.resolve() if config_path else None,
+        no_artifacts=no_artifacts,
     )
     ctx = require_context()
     ctx.debug_logging = debug
-    if use_autoconfig:
-        autoconfig(
-            export_path=autoconfig_export,
-            blacklist=autoconfig_blacklist,
-        )
-    elif config_path:
+    if config_path:
         load_config(config_path)
 
     logical = ctx.suite_name or ctx.test_case_name
-    ensure_output_dir(ctx, logical_name=logical)
+    ensure_runtime_ready(ctx, logical_name=logical)
     ctx.db.insert_run_metadata("suite_name", suite.name)
     if ctx.logger is not None:
         ctx.logger.debug(

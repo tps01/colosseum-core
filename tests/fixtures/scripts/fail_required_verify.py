@@ -6,9 +6,11 @@ from pathlib import Path
 
 import colosseum as col
 
-_CONFIG = Path(__file__).resolve().parents[3] / "examples" / "configs" / "bench.sim.toml"
+from tests.support.core_api import verify_value
+
+_CONFIG = Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "core.toml"
 
 
 def main() -> None:
     col.config.load_config(str(_CONFIG))
-    col.equipment.dmm.verify_voltage(key="vrail_3v3", expected_val=3.3, tolerance=0.1)
+    verify_value(key="missing", expected_val=3.3, tolerance=0.1)

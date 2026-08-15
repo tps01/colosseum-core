@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import time
 
-import colosseum as col
 from colosseum.config import load_config
 from colosseum.output.paths import sanitize_logical_name
 from colosseum.output.runs import find_run_directory, list_run_directories, read_summary_json
 
+from tests.support.core_api import measure_value
 from tests.support.helpers import latest_output_dir, run_endex_expect_code
 
 
@@ -21,9 +21,9 @@ def test_list_run_directories_empty_when_no_outputs(isolated_cwd) -> None:
     assert list_run_directories(isolated_cwd) == []
 
 
-def test_list_and_find_after_run(bench_sim, isolated_cwd) -> None:
-    load_config(bench_sim)
-    col.equipment.dmm.measure_voltage(dmm_id=1, channel=1, key="k1")
+def test_list_and_find_after_run(core_config, isolated_cwd) -> None:
+    load_config(core_config)
+    measure_value(key="k1", value=3.3)
     run_endex_expect_code(0)
     run_dir = latest_output_dir(isolated_cwd)
     runs = list_run_directories(isolated_cwd)
@@ -64,9 +64,9 @@ def test_read_summary_json_missing(isolated_cwd) -> None:
     assert read_summary_json(run_dir) is None
 
 
-def test_read_summary_json_round_trip(bench_sim, isolated_cwd) -> None:
-    load_config(bench_sim)
-    col.equipment.dmm.measure_voltage(dmm_id=1, channel=1, key="k1")
+def test_read_summary_json_round_trip(core_config, isolated_cwd) -> None:
+    load_config(core_config)
+    measure_value(key="k1", value=3.3)
     run_endex_expect_code(0)
     run_dir = latest_output_dir(isolated_cwd)
     payload = read_summary_json(run_dir)

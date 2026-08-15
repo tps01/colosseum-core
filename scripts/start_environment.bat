@@ -69,8 +69,20 @@ if not "%SKIP_DEV%"=="1" (
 call "%COLOSSEUM_ACTIVATE_SCRIPT%"
 
 echo.
-echo Activated Colosseum environment at %VENV_PATH%
-echo Run this script from cmd.exe when PowerShell script execution is disabled.
+echo Installed Colosseum into %VENV_PATH%
+echo %CMDCMDLINE% | findstr /I /C:" /c " >nul
+if not errorlevel 1 (
+    echo.
+    echo This .bat cannot keep the venv active in PowerShell. Use the venv
+    echo interpreter directly, or activate in a persistent shell:
+    echo   .\.venv\Scripts\python.exe scripts\run_tests.py
+    echo   . .\scripts\start_environment.ps1
+    echo   cmd.exe   then   scripts\start_environment.bat
+    echo Do not use py: it may select a different interpreter ^(for example PyPy^).
+) else (
+    echo Activated Colosseum environment at %VENV_PATH%
+    echo Use python, not py, so commands stay in this venv.
+)
 
 popd >nul
 exit /b 0

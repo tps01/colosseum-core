@@ -4,14 +4,10 @@ Profile ``colosseum run`` or ``colosseum run-suite`` with cProfile (runtime, not
 
 Usage (from repo root)::
 
-  python scripts/profile_run.py scripts/offline_smoke/run_sim.py \\
-    --config scripts/offline_smoke/bench.sim.toml
   python scripts/profile_run.py --suite tests/fixtures/suites/smoke.toml \\
-    --config examples/configs/bench.sim.toml
-  python scripts/profile_run.py --tracemalloc scripts/offline_smoke/run_sim.py \\
-    --config scripts/offline_smoke/bench.sim.toml
+    --config tests/fixtures/core.toml
   python scripts/profile_run.py --stats build/profile/run.prof \\
-    examples/test_power_rails.py --config examples/configs/bench.sim.toml
+    tests/fixtures/scripts/optional_fail_test.py --config tests/fixtures/core.toml
 """
 
 from __future__ import annotations
@@ -26,7 +22,7 @@ from io import StringIO
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-_PACKAGES_RE = r"(colosseum[\\/]|colosseum_equipment|colosseum_shared|colosseum_host)"
+_PACKAGES_RE = r"colosseum[\\/]"
 
 
 def _print_pstats(prof_path: Path, *, sort: str, limit: int) -> None:

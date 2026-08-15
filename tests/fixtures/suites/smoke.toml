@@ -3,8 +3,7 @@ name = "smoke"
 setup = ["../scripts/setup_ok.py"]
 
 tests = [
-  "../../../examples/test_power_rails.py",
-  "../../../examples/test_ssh_health.py",
+  "../scripts/optional_fail_test.py",
 ]
 
 teardown = ["../scripts/teardown_ok.py"]

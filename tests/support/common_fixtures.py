@@ -9,7 +9,7 @@ import pytest
 
 import colosseum.context as context_module
 
-from tests.support.helpers import BENCH_SIM, FIXTURES, REPO_ROOT
+from tests.support.helpers import CORE_CONFIG, FIXTURES, REPO_ROOT
 
 
 @pytest.fixture(autouse=True)
@@ -31,9 +31,9 @@ def repo_root() -> Path:
 
 
 @pytest.fixture
-def bench_sim() -> Path:
-    assert BENCH_SIM.is_file(), f"missing bench sim config: {BENCH_SIM}"
-    return BENCH_SIM
+def core_config() -> Path:
+    assert CORE_CONFIG.is_file(), f"missing core config: {CORE_CONFIG}"
+    return CORE_CONFIG
 
 
 @pytest.fixture
@@ -52,5 +52,4 @@ def subprocess_env(repo_root: Path) -> dict[str, str]:
     env = os.environ.copy()
     env.pop("COLOSSEUM_DEFER_DB_COMMITS", None)
     env["PYTHONPATH"] = str(repo_root)
-    env["COLOSSEUM_BENCH_CONFIG"] = "bench.sim.toml"
     return env

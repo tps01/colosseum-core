@@ -1,33 +1,35 @@
-"""I-PLG-01: runtime plugins load via entry points (or monorepo fallback)."""
+"""I-PLG-01: runtime plugins load via entry points."""
 
 from __future__ import annotations
 
-import colosseum as col
-from colosseum.config import load_config
-from colosseum.context import require_context
+import types
+
+import colosseum.plugins.loader as loader
+from colosseum.config.sections import ConfigSectionSpec
 from colosseum.plugins.loader import ensure_plugins_loaded
+from colosseum.plugins.registry import PluginRegistry
 
 
-def test_entry_points_register_equipment_shared_and_io(bench_sim, isolated_cwd) -> None:
-    load_config(bench_sim)
-    ctx = require_context()
-    ensure_plugins_loaded(ctx.plugin_registry)
-    specs = {s.dotted_path for s in ctx.plugin_registry.config_section_specs()}
-    assert "equipment.psu" in specs
-    assert "equipment.dmm" in specs
-    assert "equipment.attn" in specs
-    assert "equipment.oscope" in specs
-    assert "shared.ssh" in specs
-    assert "io.dio" in specs
-    assert ctx.plugin_registry.has_namespace("equipment")
-    assert ctx.plugin_registry.has_namespace("shared")
-    assert ctx.plugin_registry.has_namespace("io")
-    assert ctx.plugin_registry.has_namespace("host")
-    assert "host.profile" in specs
-    assert hasattr(col.equipment, "psu")
-    assert hasattr(col.equipment, "attn")
-    assert hasattr(col.shared, "ssh")
-    assert hasattr(col.io, "dio")
-    assert hasattr(col.host, "system")
-    assert hasattr(col.host, "bench")
-    assert hasattr(col.host, "config")
+class _EntryPoint:
+    name = "acme"
+
+    @staticmethod
+    def load():
+        def register(registry: PluginRegistry) -> None:
+            registry.register_config_section(
+                ConfigSectionSpec(dotted_path="acme.device", id_field="device_id")
+            )
+            registry.register_namespace("acme", types.ModuleType("acme_api"))
+
+        return register
+
+
+def test_entry_point_registers_plugin_contract(monkeypatch) -> None:
+    monkeypatch.setattr(loader, "entry_points_for_group", lambda _group: [_EntryPoint()])
+    registry = PluginRegistry()
+
+    ensure_plugins_loaded(registry)
+
+    assert [spec.dotted_path for spec in registry.config_section_specs()] == ["acme.device"]
+    assert registry.has_namespace("acme")
+    assert registry.loaded

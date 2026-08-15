@@ -8,7 +8,7 @@ from functools import wraps
 from typing import Any, TypeVar, overload
 
 from ..database import CommandRow
-from ..output import ensure_output_dir
+from ..output import ensure_runtime_ready
 from ._common import ensure_runtime_context, resolve_command, resolve_domain
 from ._typing import ParamSpec
 
@@ -58,7 +58,7 @@ def command(_func: Callable[..., Any] | None = None) -> object:
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
             ctx = ensure_runtime_context()
-            ensure_output_dir(ctx)
+            ensure_runtime_ready(ctx)
             key = str(kwargs.get("key", ""))
             optional = bool(kwargs.get("optional", False))
             try:

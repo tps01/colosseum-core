@@ -4,7 +4,7 @@ Generate autodoc RST for a single Colosseum module (core or plugin).
 
 Usage:
   python scripts/docgen/build_module.py --spec colosseum
-  python scripts/docgen/build_module.py --module-id colosseum_equipment
+  python scripts/docgen/build_module.py --module-id colosseum
 
 Writes ``build/docgen/<module_id>/rst/`` and ``manifest.json``.
 """
@@ -49,7 +49,9 @@ def _resolve_spec(module_id: str | None, spec_name: str | None) -> DocgenModuleS
     raise SystemExit("Provide --module-id or --spec")
 
 
-def _write_module_index(rst_dir: Path, spec: DocgenModuleSpec) -> None:
+def _write_module_index(
+    rst_dir: Path, spec: DocgenModuleSpec, extra_stems: set[str]
+) -> None:
     lines = [
         spec.title,
         "=" * len(spec.title),
@@ -61,10 +63,10 @@ def _write_module_index(rst_dir: Path, spec: DocgenModuleSpec) -> None:
     lines.append(".. toctree::")
     lines.append("   :maxdepth: 2")
     lines.append("")
-    for path in sorted(rst_dir.glob("*.rst")):
-        if path.stem == "index":
-            continue
-        lines.append(f"   {path.stem}")
+    if (rst_dir / "modules.rst").is_file():
+        lines.append("   modules")
+    for stem in sorted(extra_stems - {"index", "modules"}):
+        lines.append(f"   {stem}")
     lines.append("")
     (rst_dir / "index.rst").write_text("\n".join(lines), encoding="utf-8")
 
@@ -89,7 +91,9 @@ def _run_apidoc(rst_dir: Path, module: str) -> None:
             raise RuntimeError(f"sphinx-apidoc failed for module {module}")
         return
     except ImportError as exc:
-        raise SystemExit("sphinx is required for docgen (pip install colosseum[docs])") from exc
+        raise SystemExit(
+            'sphinx is required for docgen (pip install "colosseum-core[docs]")'
+        ) from exc
 
 
 def _patch_decorator_package_autodoc(rst_dir: Path) -> None:
@@ -151,17 +155,19 @@ def build_module(
         except ImportError as exc:
             raise SystemExit(f"Cannot import `{package}` for docgen: {exc}") from exc
 
+    extra_stems: set[str] = set()
     for extra in spec.normalized_extra_rst_dirs():
         if extra.is_dir():
             for rst_file in extra.glob("*.rst"):
                 shutil.copy2(rst_file, rst_dir / rst_file.name)
+                extra_stems.add(rst_file.stem)
 
     for module in spec.autodoc_modules:
         _run_apidoc(rst_dir, module)
 
     _patch_decorator_package_autodoc(rst_dir)
 
-    _write_module_index(rst_dir, spec)
+    _write_module_index(rst_dir, spec, extra_stems)
     write_manifest(spec, staging, rst_subdir="rst")
     return staging
 
@@ -176,7 +182,7 @@ def main(argv: list[str] | None = None) -> int:
     :rtype: int
     """
     parser = argparse.ArgumentParser(description="Build autodoc RST for one Colosseum module")
-    parser.add_argument("--module-id", help="Docgen module_id (e.g. colosseum_equipment)")
+    parser.add_argument("--module-id", help="Docgen module_id (for example colosseum)")
     parser.add_argument("--spec", help="Alias for module_id (e.g. equipment)")
     parser.add_argument("--output-root", type=Path, help="Default: build/docgen")
     parser.add_argument("--clean", action="store_true")
