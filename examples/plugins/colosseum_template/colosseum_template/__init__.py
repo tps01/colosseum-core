@@ -24,6 +24,6 @@ def register(registry: PluginRegistry) -> None:
     # from colosseum_template.validators import validate_template_device
     # registry.register_config_validator("template.device", validate_template_device)
 
-    # TODO: Optional cleanup on col.endex() (see colosseum_equipment.connections.close_all).
+    # TODO: Optional cleanup on col.endex().
     # from colosseum_template.connections import close_all
     # registry.register_shutdown(close_all)

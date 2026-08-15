@@ -4,8 +4,7 @@ Normative documentation for Colosseum is:
 
 - [docs/scope.md](../scope.md) — implemented behavior and deferred items
 - [docs/sphinx/source/guides/](../sphinx/source/guides/) — user guides (built by docgen)
-- [examples/configs/](../../examples/configs/) — bench TOML patterns
-- Runtime code and generated bench config reference (`python scripts/docgen/build_all.py`)
+- Runtime code, tests, and generated core API docs (`python scripts/docgen/build_all.py`)
 
 Early planning documents (ADRs, FFOs, DDDs) were removed from the tracked tree to reduce
 feature-creep and doc drift. Recover them from git history when needed, for example:

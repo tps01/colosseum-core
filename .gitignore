@@ -56,6 +56,9 @@ htmlcov/
 .idea/
 .vscode/
 .cursor/
+!.cursor/
+!.cursor/rules/
+!.cursor/rules/*.mdc
 *.swp
 *.swo
 *~
@@ -70,14 +73,9 @@ Desktop.ini
 .env.*
 !.env.example
 
-# Optional local bench overrides (keep examples/configs/ tracked)
+# Optional local bench overrides
 **/bench.local.toml
 **/bench.*.local.toml
 
 # Local notes and agent scratch (normative docs: docs/, examples/)
 scratchpad/
-
-# Offline packaging (see scripts/package_offline.py)
-wheelhouse/
-offline-bundle/
-colosseum-*-offline-*.tar.gz

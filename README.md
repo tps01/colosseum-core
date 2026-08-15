@@ -1,56 +1,40 @@
 # Colosseum Core
 
-Python test automation for embedded and bench system testing. Scripts use `import colosseum as col`, call measurement and verification APIs, and finish with **`col.endex()`** so logs, SQLite evidence, summaries, cleanup, and exit status are consistent.
+The small runtime at the center of Colosseum test automation. It provides:
 
-**Distribution:** `colosseum-core` (this repository). First-party plugins are separate packages:
+- command, measurement, and verification decorators
+- TOML configuration and plugin registration contracts
+- single-test and suite runners
+- SQLite evidence, logs, summaries, artifacts, and exit policy
+- optional GUI and modular documentation support
 
-| Package | Provides |
-|---------|----------|
-| `colosseum-shared` | `col.shared.*` |
-| `colosseum-host` | `col.host.*` |
-| `colosseum-equipment` | `col.equipment.*`, `col.io.*` |
-
-**Python:** 3.9+ (3.11 recommended for new Windows/Linux benches). **Status:** [implementation scope](docs/scope.md).
-
-Contributing or working on the repository itself? See the [developer guide](docs/DEVELOPING.md).
-
----
+Bench protocols, device drivers, host inspection, SSH, and other integrations belong in
+separately installed plugins.
 
 ## Install
 
 ```sh
 pip install colosseum-core
-pip install "colosseum-shared[ssh]" colosseum-host "colosseum-equipment[hardware]"
 ```
 
-Or, once plugins are published:
+Python 3.9+ is supported. The optional GUI is installed with:
 
 ```sh
-pip install "colosseum-core[bench]"
+pip install "colosseum-core[gui]"
 ```
 
-| Capability | Install |
-|------------|---------|
-| Core + CLI + sim evidence | `colosseum-core` |
-| VISA / serial instruments | `colosseum-equipment[hardware]` |
-| SSH / remote shell | `colosseum-shared[ssh]` |
-| Host profile checks | `colosseum-host` |
-| GUI runner | `colosseum-core[gui]` |
-| FT232H GPIO | `colosseum-equipment[io]` |
-| Spectrum trace plots | `colosseum-equipment[plot]` |
+Plugins expose namespaces such as `col.acme.*` through the `colosseum.plugins` entry-point
+group. See the [plugin guide](docs/sphinx/source/guides/plugins.rst) and
+[template package](examples/plugins/colosseum_template/).
 
-## Quickstart
-
-With a simulated bench (no instruments) and plugins installed:
+## Develop
 
 ```sh
-colosseum run examples/test_power_rails.py --config examples/configs/bench.sim.toml
+python -m venv .venv
+python -m pip install -r requirements-dev.txt
+python scripts/run_tests.py
+python scripts/run_static.py
+python tests/regression/run_docgen_check.py --skip-pdf
 ```
 
-Each run writes `outputs/<timestamp>_<name>/` with `debug.log`, `execution.sqlite`, `summary.txt`, and `summary.json`.
-
-**Suite example:**
-
-```sh
-colosseum run-suite tests/fixtures/suites/smoke.toml --config examples/configs/bench.sim.toml
-```
+See [docs/DEVELOPING.md](docs/DEVELOPING.md) for details.

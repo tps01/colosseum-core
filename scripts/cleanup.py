@@ -46,8 +46,6 @@ ROOT_DIRS = (
     ".tox",
     ".nox",
     ".hypothesis",
-    "wheelhouse",
-    "offline-bundle",
 )
 
 # Top-level dirs only removed with --include-venvs.
@@ -101,7 +99,6 @@ WALK_FILE_GLOBS = (
     "MANIFEST",
     "*.egg",
     "pip-log.txt",
-    "colosseum-*-offline-*.tar.gz",
 )
 
 # Directory globs anywhere in the tree (e.g. *.egg-info).

@@ -7,7 +7,6 @@ import types
 import colosseum as col
 import colosseum.context as context_module
 from colosseum.context import init_context, require_context
-from colosseum.plugins.loader import ensure_plugins_loaded
 
 
 def test_getattr_returns_lazy_proxy_for_unregistered_name() -> None:
@@ -32,9 +31,9 @@ def test_third_party_namespace_resolves_after_register() -> None:
     assert col.acme_stub.measure_stub(key="x") == 1.0
 
 
-def test_getattr_builtins_still_work_after_dynamic_getattr(bench_sim) -> None:
+def test_static_exports_still_work_after_dynamic_getattr(core_config) -> None:
     from colosseum.config import load_config
 
-    load_config(bench_sim)
-    ensure_plugins_loaded(require_context().plugin_registry)
-    assert hasattr(col.equipment, "psu")
+    load_config(core_config)
+    assert col.config.is_loaded()
+    assert require_context().config is not None

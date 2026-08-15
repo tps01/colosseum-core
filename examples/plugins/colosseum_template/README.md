@@ -23,7 +23,7 @@ Edit `colosseum_template/api.py` (rename the package directory when forking):
 
 Optional helpers:
 
-- `connections.py` — config lookup and cached instrument handles (see `colosseum_equipment/connections.py` in the Colosseum repo).
+- `connections.py` — config lookup and cached resource handles.
 - `validators.py` — custom config warnings; register in `__init__.py`.
 
 ### 3. Wire `register(registry)`
@@ -35,7 +35,7 @@ In `colosseum_template/__init__.py`:
 - **Optional:** `registry.register_config_validator("template.device", fn)` — returns warning strings.
 - **Optional:** `registry.register_shutdown(callable)` — release hardware on `col.endex()`.
 
-Keep imports inside `register()` like first-party plugins.
+Keep optional imports inside `register()` so importing the package stays lightweight.
 
 ### 4. Declare entry points
 
@@ -51,7 +51,7 @@ template = "colosseum_template.docgen_entry:spec"
 
 The entry-point **key** is metadata; the runtime namespace is the string passed to `register_namespace`. Docgen entry points are optional.
 
-Pin `colosseum` in `dependencies` when you publish (e.g. `colosseum>=0.14.0`).
+Pin `colosseum-core` in `dependencies` when you publish.
 
 ### 5. Add bench config
 
@@ -73,9 +73,10 @@ From this extension root:
 pip install -e .
 ```
 
-**Third-party extensions require install** so setuptools registers `colosseum.plugins` entry points. Running from a bare checkout without `pip install -e .` will not load your plugin (built-in `equipment` / `shared` / `host` still work via Colosseum's monorepo fallback).
+Extensions require installation so setuptools registers `colosseum.plugins` entry points. A
+bare source checkout does not provide plugin metadata.
 
-You also need Colosseum installed (`pip install colosseum` or `pip install -e .` from the Colosseum repo).
+You also need core installed (`pip install colosseum-core`).
 
 ### 7. Verify
 
@@ -95,7 +96,7 @@ Quick import check (after `load_config`):
 python -c "import colosseum as col; col.config.load_config('configs/bench.template.toml'); print(col.template)"
 ```
 
-Requires Colosseum **>= 0.14.0** for dynamic `col.<namespace>` on third-party plugins.
+Requires the compatible `colosseum-core` range declared in this template.
 
 ### 8. Optional docgen
 
@@ -114,7 +115,8 @@ This stub does **not** ship tests. Add your own `tests/` directory when ready. P
 
 ### 10. Publishing
 
-Build wheels with `python -m build`. Distribute via your package index or internal wheel share. Do not register namespaces that collide with built-ins: `equipment`, `shared`, `io`, `host`.
+Build wheels with `python -m build`. Distribute via your package index or internal wheel
+share. Do not register a namespace already owned by another plugin.
 
 ---
 
@@ -123,9 +125,8 @@ Build wheels with `python -m build`. Distribute via your package index or intern
 ### 1. Prerequisites
 
 - Python >= 3.9
-- Colosseum installed (`pip install colosseum` or your organization's offline bundle)
-- Any optional extras your extension documents (e.g. `colosseum[hardware]` for VISA)
-- Colosseum **>= 0.14.0** if the extension uses `col.yournamespace.*` without pre-declared proxies
+- Core installed (`pip install colosseum-core`)
+- Any optional dependencies declared by your extension
 
 ### 2. Install the extension
 
@@ -177,7 +178,9 @@ The extension must be installed; the CLI loads plugins before running `main()`.
 
 ### 6. Evidence
 
-Normal runs create `outputs/<timestamp>_<name>/` with `debug.log`, `execution.sqlite`, `summary.txt`, and `summary.json`. Use `--no-artifacts` or `no_artifacts=True` when you only need equipment control without persisted evidence.
+Normal runs create `outputs/<timestamp>_<name>/` with `debug.log`, `execution.sqlite`,
+`summary.txt`, and `summary.json`. Use `--no-artifacts` or `no_artifacts=True` for
+utility calls without persisted evidence.
 
 ### 7. Troubleshooting
 
@@ -187,7 +190,7 @@ Normal runs create `outputs/<timestamp>_<name>/` with `debug.log`, `execution.sq
 | `Configuration is not loaded` | Call `col.config.load_config(path)` before API calls |
 | Missing required keys | Bench TOML row incomplete for your `ConfigSectionSpec` |
 | `Config section … is already registered` | Two plugins registered the same section; rename or remove duplicate |
-| `AttributeError: …` on `col.yournamespace` | Old Colosseum (< 0.14.0) or typo in namespace |
+| `AttributeError: …` on `col.yournamespace` | Typo in namespace or plugin registration |
 
 ---
 

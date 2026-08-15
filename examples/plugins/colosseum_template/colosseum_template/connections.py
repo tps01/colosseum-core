@@ -23,4 +23,4 @@ def get_config(device_id: int) -> dict[str, Any]:
 
 def close_all() -> None:
     """TODO: Close cached transports/instruments (register via register_shutdown)."""
-    # Your code here — see colosseum_equipment/connections.py for a reference pattern.
+    # Your code here.

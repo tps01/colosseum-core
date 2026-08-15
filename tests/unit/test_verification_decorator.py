@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import types
 from dataclasses import FrozenInstanceError
 from inspect import signature
 
@@ -108,15 +109,16 @@ def test_measurement_source_is_immutable() -> None:
         source.domain = "equipment"
 
 
-def test_resolve_domain_maps_plugin_module_prefixes(monkeypatch) -> None:
+def test_resolve_domain_maps_plugin_package_attribute(monkeypatch) -> None:
+    plugin = types.ModuleType("acme_plugin")
+    plugin.__colosseum_domain__ = "acme"  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "acme_plugin", plugin)
+
     def sample() -> bool:
         return True
 
-    monkeypatch.setattr(sample, "__module__", "colosseum_shared.regex")
-    assert resolve_domain(sample) == "shared"
-
-    monkeypatch.setattr(sample, "__module__", "colosseum_equipment.psu")
-    assert resolve_domain(sample) == "equipment"
+    monkeypatch.setattr(sample, "__module__", "acme_plugin.api")
+    assert resolve_domain(sample) == "acme"
 
     monkeypatch.setattr(sample, "__module__", "local_module")
     assert resolve_domain(sample) == "core"

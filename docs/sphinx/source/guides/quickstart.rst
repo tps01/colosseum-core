@@ -1,29 +1,22 @@
 Quickstart
 ==========
 
-Run a single test with the simulated bench configuration (no hardware)::
-
-   set COLOSSEUM_BENCH_CONFIG=bench.sim.toml
-   python examples/test_power_rails.py
-
-Or use the CLI::
-
-   colosseum run examples/test_power_rails.py --config examples/configs/bench.sim.toml
-
-Test scripts should call ``col.endex()`` at the end of ``__main__`` so results flush and the process exits ``0`` or ``1``.
-
-Extension authors: see :doc:`plugins` and the template package at ``examples/plugins/colosseum_template/`` (README has step-by-step author and end-user instructions).
-Bench PC checks: see :doc:`host_environment` and ``examples/test_host_profile.py``.
-
-Minimal pattern::
+Core applications are ordinary Python scripts. Installed plugins provide the bench APIs::
 
    import colosseum as col
 
    def main():
-       col.config.load_config("examples/configs/bench.sim.toml")
-       col.equipment.dmm.measure_voltage(dmm_id=1, channel=1, key="vrail_3v3")
-       col.equipment.dmm.verify_voltage(key="vrail_3v3", expected_val=3.3, tolerance=0.1)
+       col.config.load_config("bench.toml")
+       col.acme.measure_value(device_id=1, key="value")
+       col.acme.verify_value(key="value", expected_val=10.0)
 
    if __name__ == "__main__":
        main()
        col.endex()
+
+Run the script directly or through the CLI::
+
+   colosseum run my_test.py --config bench.toml
+
+``col.endex()`` finalizes logs, SQLite evidence, summaries, plugin shutdown hooks, and
+the process exit code. Extension authors should start with :doc:`plugins`.

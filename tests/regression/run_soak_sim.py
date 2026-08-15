@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-R-SOAK-01: repeat suite runs on sim bench (resource / stability check).
+R-SOAK-01: repeat core suite runs (resource / stability check).
 
 Usage (from repo root):
   python tests/regression/run_soak_sim.py
@@ -18,12 +18,9 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 SUITE = REPO / "tests" / "fixtures" / "suites" / "smoke.toml"
-BENCH = REPO / "examples" / "configs" / "bench.sim.toml"
+CONFIG = REPO / "tests" / "fixtures" / "core.toml"
 FAIL_PATTERNS = (
     "Traceback",
-    "TransportError",
-    "paramiko",
-    "SerialException",
 )
 SUMMARY_PASS = "Overall result: PASS"
 
@@ -34,10 +31,10 @@ def _latest_run_dir(outputs: Path) -> Path | None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Sim soak: repeated run-suite")
+    parser = argparse.ArgumentParser(description="Core soak: repeated run-suite")
     parser.add_argument("--count", type=int, default=50, help="Iterations (default 50)")
     parser.add_argument("--suite", type=Path, default=SUITE)
-    parser.add_argument("--config", type=Path, default=BENCH)
+    parser.add_argument("--config", type=Path, default=CONFIG)
     args = parser.parse_args(argv)
 
     if not args.suite.is_file():
@@ -49,7 +46,6 @@ def main(argv: list[str] | None = None) -> int:
 
     env = os.environ.copy()
     env["PYTHONPATH"] = str(REPO)
-    env["COLOSSEUM_BENCH_CONFIG"] = args.config.name
 
     failures: list[str] = []
     with tempfile.TemporaryDirectory(prefix="colosseum_soak_") as tmp:
@@ -104,7 +100,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"... and {len(failures) - 10} more", file=sys.stderr)
         return 1
 
-    print(f"SOAK PASS: {args.count} run-suite iterations on sim bench ({args.suite.name})")
+    print(f"SOAK PASS: {args.count} core run-suite iterations ({args.suite.name})")
     return 0
 
 

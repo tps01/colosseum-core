@@ -39,7 +39,8 @@ def main() -> None:
         import customtkinter as ctk
     except ImportError as exc:
         print(
-            "Colosseum GUI requires customtkinter. Install with: pip install colosseum[gui]",
+            "Colosseum GUI requires customtkinter. "
+            'Install with: pip install "colosseum-core[gui]"',
             file=sys.stderr,
         )
         raise SystemExit(1) from exc

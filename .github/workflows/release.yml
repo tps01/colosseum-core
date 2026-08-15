@@ -1,5 +1,5 @@
 # Cut a release: git tag v0.3.0 && git push origin v0.3.0
-# Publishes wheel, sdist, offline bundles (py39/py311 × linux/windows), PDF, and HTML zip.
+# Publishes the core wheel, sdist, PDF, and HTML documentation.
 # workflow_dispatch builds the same artifacts without creating a GitHub Release (no tag).
 
 name: Release
@@ -36,31 +36,6 @@ jobs:
         with:
           name: colosseum-dist
           path: dist/*
-          if-no-files-found: error
-
-  build-offline-bundles:
-    name: offline bundle (${{ matrix.os }}, py${{ matrix.python-version }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-        python-version: ["3.9", "3.11"]
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: pip
-      - name: Install build dependencies
-        run: python -m pip install -U pip setuptools wheel build
-      - name: Build end-user offline bundle
-        run: python scripts/package_offline.py
-      - name: Upload offline bundle artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: colosseum-offline-${{ matrix.os }}-py${{ matrix.python-version }}
-          path: colosseum-*-offline-*.tar.gz
           if-no-files-found: error
 
   build-docs:
@@ -105,7 +80,7 @@ jobs:
   publish:
     name: publish GitHub release
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-    needs: [build-sdist-wheel, build-offline-bundles, build-docs]
+    needs: [build-sdist-wheel, build-docs]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -141,11 +116,9 @@ jobs:
           body: |
             ## Install
 
-            - **Online:** `pip install` the `.whl` or sdist below.
-            - **Air-gapped bench:** use `colosseum-*-offline-<platform>-pyXY.tar.gz` matching your OS and Python minor (`py39`, `py311`, …).
-            - **Documentation:** `colosseum.pdf` (print/PDF) and `colosseum-docs-html.zip` (browse offline).
-
-            Developers (pytest, docgen, PyVISA-sim): clone the repository and `pip install -r requirements-dev.txt` — not included in offline bundles.
+            - Install `colosseum-core` from the `.whl` or sdist below.
+            - Install bench capabilities from their separate plugin distributions.
+            - Documentation: `colosseum.pdf` and `colosseum-docs-html.zip`.
 
             See [README](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/README.md#install) for full setup.
           files: release-files/*

@@ -1,6 +1,2 @@
-# Core package (editable)
+# Standalone core development environment
 -e ".[test,docs,static,gui]"
-# First-party plugins (sibling checkouts)
--e "../colosseum-shared[ssh,test]"
--e "../colosseum-host[test]"
--e "../colosseum-equipment[test,plot]"

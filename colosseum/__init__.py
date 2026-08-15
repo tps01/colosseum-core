@@ -14,14 +14,9 @@ from .results import endex
 
 __version__ = "0.15.0"
 
-equipment = LazyNamespaceProxy("equipment")
-shared = LazyNamespaceProxy("shared")
-io = LazyNamespaceProxy("io")
-host = LazyNamespaceProxy("host")
-
 
 def __getattr__(name: str) -> LazyNamespaceProxy:
-    """Resolve third-party plugin namespaces (e.g. ``col.acme.*``) after install."""
+    """Resolve plugin namespaces (for example ``col.acme.*``) after install."""
     if name.startswith("_"):
         raise AttributeError(name)
     return LazyNamespaceProxy(name)
@@ -38,8 +33,4 @@ __all__ = [
     "MeasurementSource",
     "VerificationResult",
     "endex",
-    "equipment",
-    "shared",
-    "io",
-    "host",
 ]

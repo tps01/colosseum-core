@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-BENCH_SIM = REPO_ROOT / "examples" / "configs" / "bench.sim.toml"
+CORE_CONFIG = REPO_ROOT / "tests" / "fixtures" / "core.toml"
 FIXTURES = REPO_ROOT / "tests" / "fixtures"
 
 

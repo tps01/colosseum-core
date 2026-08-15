@@ -27,8 +27,8 @@ def verify_docgen_outputs(*, require_pdf: bool) -> int:
         print(f"DOCGEN FAIL: expected {config_ref}", file=sys.stderr)
         return 1
     ref_text = config_ref.read_text(encoding="utf-8")
-    if "``psu_id``" not in ref_text or "``resource``" not in ref_text:
-        print("DOCGEN FAIL: config_reference.rst missing psu_id / resource", file=sys.stderr)
+    if "No plugin configuration sections are installed" not in ref_text:
+        print("DOCGEN FAIL: config reference does not describe core-only build", file=sys.stderr)
         return 1
 
     html = REPO / "build" / "docgen" / "site" / "html" / "index.html"
@@ -44,11 +44,6 @@ def verify_docgen_outputs(*, require_pdf: bool) -> int:
     if "guides/plugins" in pdf_index_text:
         print("DOCGEN FAIL: index_pdf.rst must not include developer plugin guide", file=sys.stderr)
         return 1
-    user_api_index = REPO / "build" / "docgen" / "site" / "source" / "user_api" / "index.rst"
-    if not user_api_index.is_file():
-        print(f"DOCGEN FAIL: expected user API RST at {user_api_index}", file=sys.stderr)
-        return 1
-
     if require_pdf:
         pdf_files = list((REPO / "build" / "docgen" / "site" / "latex").glob("*.pdf"))
         if not pdf_files:

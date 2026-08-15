@@ -30,10 +30,6 @@ _TIER_PATHS: dict[str, tuple[str, ...]] = {
     "all": ("tests/unit", "tests/integration", "tests/e2e"),
 }
 
-# PyVISA-sim is test-only (.[test] extra) and needs Python 3.10+.
-_PYTEST_MARKER_ARGS = ["-m", "not visa_sim"] if sys.version_info < (3, 10) else []
-
-
 def main(argv: list[str] | None = None) -> int:
     """Profile selected pytest tier(s) with cProfile and print timing tables.
 
@@ -98,7 +94,6 @@ def main(argv: list[str] | None = None) -> int:
         root,
         _TIER_PATHS[args.tier],
         pytest_args=extra or None,
-        marker_args=_PYTEST_MARKER_ARGS or None,
         sort=args.sort,
         limit=args.limit,
         project_only=not args.all_paths,

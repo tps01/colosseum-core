@@ -14,34 +14,9 @@ bootstrap()
 from colosseum.plugins.loader import ensure_plugins_loaded  # noqa: E402
 from colosseum.plugins.registry import PluginRegistry  # noqa: E402
 
-try:
-    from colosseum_equipment.transports.factory import (  # type: ignore[import-not-found]  # noqa: E402
-        default_driver_for_kind,
-    )
-except ImportError:  # pragma: no cover - equipment package optional for core-only installs
-
-    def default_driver_for_kind(kind: str) -> str:
-        _ = kind
-        return "visa"
-
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
-
-
-def _kind_from_section(dotted_path: str) -> str | None:
-    if not dotted_path.startswith("equipment."):
-        return None
-    return dotted_path.split(".", 1)[1]
-
-
-def _default_driver_for_section(dotted_path: str) -> str:
-    if dotted_path == "shared.ssh":
-        return "ssh"
-    kind = _kind_from_section(dotted_path)
-    if kind is None:
-        return "—"
-    return str(default_driver_for_kind(kind))
 
 
 def _format_keys(keys: tuple[str, ...]) -> str:
@@ -70,20 +45,14 @@ def build_config_reference_rst(*, output_path: Path) -> Path:
         "Generated from plugin ``ConfigSectionSpec`` registration. Re-run "
         "``python scripts/docgen/build_all.py`` after changing required or optional keys.",
         "",
-        "Defaults",
-        "--------",
-        "",
-        "- Lab hardware: omit ``driver`` on ``equipment.*`` sections "
-        "(default **visa**, PyVISA + SCPI).",
-        "- ``equipment.serial``: omit ``driver`` (default **serial**).",
-        "- ``shared.ssh``: omit ``driver`` (default **ssh**).",
-        '- Offline CI / smoke: ``driver = "sim"`` (see ``examples/configs/bench.sim.toml``).',
-        '- PyVISA-sim: ``visa_backend = "sim"`` and ``sim_definition`` '
-        '(see ``examples/configs/bench.rf.visa-sim.toml``).',
-        "- Multiple VISA runtimes: optional ``visa_library`` "
-        "(PyVISA ``ResourceManager`` argument); see :doc:`platform_notes`.",
-        "",
     ]
+    if not specs:
+        lines.extend(
+            [
+                "No plugin configuration sections are installed in this build.",
+                "",
+            ]
+        )
 
     for spec in specs:
         title = spec.dotted_path.replace(".", " ").title()
@@ -93,9 +62,6 @@ def build_config_reference_rst(*, output_path: Path) -> Path:
                 "-" * len(title),
                 "",
                 f":ID field: ``{spec.id_field}``",
-                "",
-                f":Default driver: ``{_default_driver_for_section(spec.dotted_path)}`` "
-                "(when ``driver`` is omitted)",
                 "",
                 ".. list-table::",
                 "   :header-rows: 1",

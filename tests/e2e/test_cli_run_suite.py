@@ -33,9 +33,9 @@ def _cli_run_suite(suite: Path, config: Path, cwd: Path, env: dict[str, str]) ->
 
 
 @pytest.mark.requirement("E2E-W3-01")
-def test_run_suite_fixture_happy(bench_sim, fixtures_dir, isolated_cwd, subprocess_env) -> None:
+def test_run_suite_fixture_happy(core_config, fixtures_dir, isolated_cwd, subprocess_env) -> None:
     suite = fixtures_dir / "suites" / "happy.toml"
-    proc = _cli_run_suite(suite, bench_sim, isolated_cwd, subprocess_env)
+    proc = _cli_run_suite(suite, core_config, isolated_cwd, subprocess_env)
     assert proc.returncode == 0, proc.stderr
     run_dir = latest_output_dir(isolated_cwd)
     summary = (run_dir / "summary.txt").read_text(encoding="utf-8")
@@ -46,25 +46,23 @@ def test_run_suite_fixture_happy(bench_sim, fixtures_dir, isolated_cwd, subproce
 
 
 @pytest.mark.requirement("E2E-W3-01")
-@pytest.mark.requirement("E2E-W3-01")
-def test_run_suite_smoke_examples(bench_sim, fixtures_dir, isolated_cwd, subprocess_env) -> None:
+def test_run_suite_smoke_core_api(core_config, fixtures_dir, isolated_cwd, subprocess_env) -> None:
     suite = fixtures_dir / "suites" / "smoke.toml"
-    proc = _cli_run_suite(suite, bench_sim, isolated_cwd, subprocess_env)
+    proc = _cli_run_suite(suite, core_config, isolated_cwd, subprocess_env)
     assert proc.returncode == 0, proc.stderr
     run_dir = latest_output_dir(isolated_cwd)
     domains = {
         row[0]
         for row in query_db(run_dir, "SELECT DISTINCT domain FROM measurements")
     }
-    assert "equipment" in domains
-    assert "shared" in domains
+    assert domains == {"core"}
     summary = (run_dir / "summary.txt").read_text(encoding="utf-8")
     assert "Overall result: PASS" in summary
 
 
-def test_run_suite_setup_fail_exits_one(bench_sim, fixtures_dir, isolated_cwd, subprocess_env) -> None:
+def test_run_suite_setup_fail_exits_one(core_config, fixtures_dir, isolated_cwd, subprocess_env) -> None:
     suite = fixtures_dir / "suites" / "setup_fail.toml"
-    proc = _cli_run_suite(suite, bench_sim, isolated_cwd, subprocess_env)
+    proc = _cli_run_suite(suite, core_config, isolated_cwd, subprocess_env)
     assert proc.returncode == 1, proc.stderr
     run_dir = latest_output_dir(isolated_cwd)
     assert (run_dir / "summary.txt").is_file()
@@ -75,15 +73,8 @@ def test_run_suite_setup_fail_exits_one(bench_sim, fixtures_dir, isolated_cwd, s
 def test_run_suite_bad_config_exits_one(fixtures_dir, isolated_cwd, subprocess_env) -> None:
     config = isolated_cwd / "bad.toml"
     config.write_text(
-        "[[equipment.psu]]\n"
-        "psu_id = 1\n"
-        "driver = \"sim\"\n"
-        "resource = \"A\"\n"
-        "\n"
-        "[[equipment.psu]]\n"
-        "psu_id = 1\n"
-        "driver = \"sim\"\n"
-        "resource = \"B\"\n",
+        "[runtime\n"
+        "label = \"broken\"\n",
         encoding="utf-8",
     )
     suite = fixtures_dir / "suites" / "happy.toml"

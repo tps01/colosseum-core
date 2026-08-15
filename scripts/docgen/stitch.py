@@ -80,9 +80,10 @@ def _write_conf_py(target: Path, repo_root: Path) -> None:
         html_static_path = ["_static"]
 
         autodoc_member_order = "bysource"
-        autodoc_typehints = "description"
+        autodoc_typehints = "none"
         napoleon_google_docstring = True
         napoleon_numpy_docstring = True
+        suppress_warnings = ["ref.python"]
 
         intersphinx_mapping = {{
             "python": ("https://docs.python.org/3", None),
@@ -131,19 +132,15 @@ def _write_site_index(site_source: Path, _manifests: list[dict[str, object]]) ->
         "   :caption: User guide",
         "",
         "   guides/installation",
-        "   guides/offline_install",
         "   guides/quickstart",
         "   guides/configuration",
         "   guides/bench_config_reference",
-        "   guides/io_digital",
-        "   guides/rf_equipment",
         "   guides/running_tests",
         "   guides/running_suites",
         "   guides/output_artifacts",
         "   guides/exit_codes",
         "   guides/measurements_verifications",
         "   guides/plugins",
-        "   guides/host_environment",
         "   guides/platform_notes",
         "",
         ".. toctree::",
@@ -158,6 +155,8 @@ def _write_site_index(site_source: Path, _manifests: list[dict[str, object]]) ->
 
 def _write_site_index_pdf(site_source: Path) -> None:
     lines = [
+        ":orphan:",
+        "",
         "Colosseum",
         "=========",
         "",
@@ -175,12 +174,6 @@ def _write_site_index_pdf(site_source: Path) -> None:
         "   guides/measurements_verifications",
         "   guides/output_artifacts",
         "   guides/exit_codes",
-        "",
-        ".. toctree::",
-        "   :maxdepth: 2",
-        "   :caption: User API (commands, measurements, verifications)",
-        "",
-        "   user_api/index",
         "",
     ]
     (site_source / "index_pdf.rst").write_text("\n".join(lines), encoding="utf-8")
@@ -215,6 +208,8 @@ def stitch(
 
     if clean and site_root.exists():
         shutil.rmtree(site_root)
+    elif site_source.exists():
+        shutil.rmtree(site_source)
     site_source.mkdir(parents=True, exist_ok=True)
     (site_source / "_static").mkdir(exist_ok=True)
     (site_source / "_templates").mkdir(exist_ok=True)
@@ -246,14 +241,6 @@ def stitch(
             shutil.rmtree(dest)
         if src.is_dir():
             shutil.copytree(src, dest)
-
-    from build_user_api import build_user_api
-
-    user_api_src = build_user_api(output_root=docgen_root / "user_api" / "rst")
-    user_api_dest = site_source / "user_api"
-    if user_api_dest.exists():
-        shutil.rmtree(user_api_dest)
-    shutil.copytree(user_api_src, user_api_dest)
 
     _write_conf_py(site_source, repo_root)
     _write_api_index(site_source, manifests)

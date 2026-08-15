@@ -99,7 +99,7 @@ def apply_raw_config(
     :type ctx: RuntimeContext
     :param raw: Nested config dict in the same shape as a parsed bench TOML.
     :type raw: dict[str, Any]
-    :param source_label: Label stored as ``config_path`` (file path or ``(autoconfig)``).
+    :param source_label: Label stored as ``config_path`` (normally a file path).
     :type source_label: str
 
     :returns: Normalized configuration store for plugin sections.

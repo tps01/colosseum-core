@@ -1,16 +1,17 @@
 Running suites
 ==============
 
-Suites are defined in TOML beside your tests::
+Suites are TOML files whose script paths are relative to the suite file::
 
    name = "smoke"
-   setup = ["setup/prepare_bench.py"]
-   tests = ["tests/test_power_rails.py"]
-   teardown = ["teardown/power_down.py"]
+   setup = ["setup/prepare.py"]
+   tests = ["tests/check_device.py"]
+   teardown = ["teardown/cleanup.py"]
 
-Run::
+Run a suite with::
 
-   colosseum run-suite suites/smoke.toml --config examples/configs/bench.sim.toml
-   colosseum run-suite suites/smoke.toml --autoconfig --autoconfig-blacklist "Ethernet 1,192.168.1.10"
+   colosseum run-suite suites/smoke.toml --config bench.toml
 
-Paths are relative to the suite file directory. Setup, all tests, and teardown share one output directory and one ``execution.sqlite``. Setup failure skips tests but still runs teardown; the process exits ``1``.
+Setup, test, and teardown scripts share one runtime and output directory. A setup failure
+skips tests but still runs teardown. Test failures do not prevent later tests or teardown
+from running.

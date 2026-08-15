@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 
 from ..config import ConfigError, load_config
@@ -17,55 +16,17 @@ _DESCRIPTION = (
 )
 _EPILOG = """examples:
   colosseum run my_test.py --config bench.toml
-  colosseum run my_test.py --autoconfig --autoconfig-export bench.generated.toml
   colosseum run-suite suite.toml --config bench.toml -d
-  colosseum run-suite suite.toml --autoconfig --autoconfig-blacklist "Ethernet 1,192.168.1.10"
   colosseum --gui
 """
 
 
-@dataclass(frozen=True)
-class RunConfigOptions:
-    """Bench configuration source for ``run`` / ``run-suite``."""
-
-    config_path: str | None = None
-    use_autoconfig: bool = False
-    autoconfig_export: str | None = None
-    autoconfig_blacklist: list[str] | None = None
-
-
-def parse_autoconfig_blacklist(value: str | None) -> list[str] | None:
-    """Split a comma-separated CLI blacklist into trimmed entries."""
-    if value is None:
-        return None
-    entries = [part.strip() for part in value.split(",") if part.strip()]
-    return entries or None
-
-
 def _add_common_run_options(parser: argparse.ArgumentParser) -> None:
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument(
+    parser.add_argument(
         "--config",
         dest="config_path",
         metavar="PATH",
-        help="Bench TOML config (equipment, shared, io sections)",
-    )
-    group.add_argument(
-        "--autoconfig",
-        action="store_true",
-        help="Scan VISA resources and build bench config (requires colosseum-equipment[hardware])",
-    )
-    parser.add_argument(
-        "--autoconfig-export",
-        dest="autoconfig_export",
-        metavar="PATH",
-        help="Write autoconfig-generated bench TOML to PATH (requires --autoconfig)",
-    )
-    parser.add_argument(
-        "--autoconfig-blacklist",
-        dest="autoconfig_blacklist",
-        metavar="LIST",
-        help="Comma-separated interface names or local IPv4 addresses to exclude from TCPIP scan",
+        help="TOML configuration consumed by installed plugins",
     )
     parser.add_argument(
         "-d",
@@ -78,22 +39,6 @@ def _add_common_run_options(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Skip outputs/, debug.log, and on-disk execution.sqlite (utility/script mode)",
     )
-
-
-def _run_config_options(args: argparse.Namespace) -> RunConfigOptions:
-    if (args.autoconfig_export or args.autoconfig_blacklist) and not args.autoconfig:
-        raise argparse.ArgumentTypeError(
-            "--autoconfig-export and --autoconfig-blacklist require --autoconfig"
-        )
-    blacklist = parse_autoconfig_blacklist(getattr(args, "autoconfig_blacklist", None))
-    return RunConfigOptions(
-        config_path=args.config_path,
-        use_autoconfig=bool(getattr(args, "autoconfig", False)),
-        autoconfig_export=getattr(args, "autoconfig_export", None),
-        autoconfig_blacklist=blacklist,
-    )
-
-
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="colosseum",
@@ -149,43 +94,25 @@ def _print_help(parser: argparse.ArgumentParser, topic: str | None = None) -> No
     parser.error(f"unknown help topic: {topic}")
 
 
-def _load_run_config(options: RunConfigOptions) -> None:
-    if options.use_autoconfig:
-        from ..context import require_context
-        from ..plugins.loader import ensure_plugins_loaded
-
-        ctx = require_context()
-        ensure_plugins_loaded(ctx.plugin_registry)
-        if not ctx.plugin_registry.has_namespace("equipment"):
-            raise ConfigError(
-                "Namespace `equipment` is not registered. Install colosseum-equipment "
-                "and ensure it exposes a colosseum.plugins entry point."
-            )
-        from colosseum import equipment
-
-        equipment.autoconfig(
-            export_path=options.autoconfig_export,
-            blacklist=options.autoconfig_blacklist,
-        )
-    elif options.config_path:
-        load_config(options.config_path)
+def _load_run_config(config_path: str | None) -> None:
+    if config_path:
+        load_config(config_path)
 
 
 def _run_single_test(
     test_path: Path,
-    options: RunConfigOptions,
+    config_path: str | None,
     debug: bool,
     *,
     no_artifacts: bool = False,
 ) -> None:
-    config_path = options.config_path
     ctx = init_context(
         test_case_name=test_path.stem,
         config_path=Path(config_path).resolve() if config_path else None,
         no_artifacts=no_artifacts,
     )
     ctx.debug_logging = debug
-    _load_run_config(options)
+    _load_run_config(config_path)
     ensure_runtime_ready(ctx)
     try:
         run_script(test_path)
@@ -213,11 +140,6 @@ def run_cli(argv: list[str] | None = None) -> int:
         _print_help(parser, getattr(args, "topic", None))
         return 0
 
-    try:
-        run_options = _run_config_options(args)
-    except argparse.ArgumentTypeError as exc:
-        parser.error(str(exc))
-
     if args.command == "run":
         test_path = Path(args.test_file).resolve()
         if not test_path.exists():
@@ -225,7 +147,7 @@ def run_cli(argv: list[str] | None = None) -> int:
         try:
             _run_single_test(
                 test_path,
-                run_options,
+                args.config_path,
                 bool(args.debug),
                 no_artifacts=bool(getattr(args, "no_artifacts", False)),
             )
@@ -238,18 +160,11 @@ def run_cli(argv: list[str] | None = None) -> int:
         if not suite_path.exists():
             raise SystemExit(1)
         try:
-            config = Path(run_options.config_path).resolve() if run_options.config_path else None
+            config = Path(args.config_path).resolve() if args.config_path else None
             run_suite(
                 suite_path,
                 config,
                 debug=bool(args.debug),
-                use_autoconfig=run_options.use_autoconfig,
-                autoconfig_export=(
-                    Path(run_options.autoconfig_export).resolve()
-                    if run_options.autoconfig_export
-                    else None
-                ),
-                autoconfig_blacklist=run_options.autoconfig_blacklist,
                 no_artifacts=bool(getattr(args, "no_artifacts", False)),
             )
         except (ConfigError, SuiteError):
