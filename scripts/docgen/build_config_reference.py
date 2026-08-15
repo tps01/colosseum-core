@@ -13,7 +13,14 @@ bootstrap()
 
 from colosseum.plugins.loader import ensure_plugins_loaded  # noqa: E402
 from colosseum.plugins.registry import PluginRegistry  # noqa: E402
-from colosseum_equipment.transports.factory import default_driver_for_kind  # noqa: E402
+
+try:
+    from colosseum_equipment.transports.factory import default_driver_for_kind  # noqa: E402
+except ImportError:  # pragma: no cover - equipment package optional for core-only installs
+
+    def default_driver_for_kind(kind: str) -> str:
+        _ = kind
+        return "visa"
 
 
 def _repo_root() -> Path:
@@ -32,7 +39,7 @@ def _default_driver_for_section(dotted_path: str) -> str:
     kind = _kind_from_section(dotted_path)
     if kind is None:
         return "—"
-    return default_driver_for_kind(kind)
+    return str(default_driver_for_kind(kind))
 
 
 def _format_keys(keys: tuple[str, ...]) -> str:
