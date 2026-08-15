@@ -30,16 +30,15 @@ Reviewability matters as much as correctness. Small diffs that are easy to read 
 | Path | Role |
 |------|------|
 | `colosseum/` | Core: config, context, decorators, DB, runner (`run`, `run-suite`), plugins registry |
-| `colosseum_equipment/` | Plugin → `col.equipment.*` and `col.io.*` (PSU/DMM/VSG/speca/SCPI; DIO sim/FT232H; `visa`/`serial`/`sim`) |
-| `colosseum_shared/` | Plugin → `col.shared.*` (SSH, regex, parsing; `sim`/paramiko) |
-| `colosseum_host/` | Plugin → `col.host.*` (bench PC prerequisites: system/bench/config) |
 | `docs/` | Scope, testing notes, releasing; user guides are under `docs/sphinx/` |
-| `docs/sphinx/source/guides/` | Hand-written Sphinx RST |
+| `docs/sphinx/source/guides/` | Hand-written Sphinx RST (integration hub; plugin-specific guides mirrored from sibling repos) |
 | `docs/archive/` | Notes on recovering historical planning docs from git history |
 | `outputs/` | Run artifacts (`debug.log`, `execution.sqlite`, `summary.txt`, `summary.json`) — gitignored |
 | `build/` | Docgen staging + HTML — gitignored |
 
-**Entry points:** `colosseum.plugins` (runtime `register(registry)`), `colosseum.docgen` (`docgen_entry:spec` → `DocgenModuleSpec`). Dev and CI require installed entry-point metadata (for example `pip install -e ".[test,docs,static,plot]"`).
+Sibling plugin repositories (install separately): `colosseum-equipment`, `colosseum-shared`, `colosseum-host`.
+
+**Entry points:** `colosseum.plugins` (runtime `register(registry)`), `colosseum.docgen` (`docgen_entry:spec` → `DocgenModuleSpec`). Dev and CI require installed entry-point metadata (for example `pip install -r requirements-dev.txt`).
 
 ## Implementation status
 

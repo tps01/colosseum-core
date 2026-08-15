@@ -142,7 +142,7 @@ These are meaningful differences or losses from the archived planning documents 
 
 | Area | Original plan | Implemented now | Follow-up consideration |
 |------|---------------|-----------------|-------------------------|
-| Package distribution | Separate `colosseum-core`, `colosseum-equipment`, `colosseum-shared`, and `colosseum-host` distributions | One source project still builds all import packages; plugin discovery uses installed entry points only | Complete the repository/distribution split before independent versioned releases |
+| Package distribution | Separate `colosseum-core`, `colosseum-equipment`, `colosseum-shared`, and `colosseum-host` distributions | Split into four repositories; import remains `import colosseum as col` | Create GitHub remotes and publish independent wheels |
 | Plugin collision policy | Later fail-fast or user-selected collision handling was considered | Duplicate namespaces/config specs fail fast; explicit replacement APIs exist for intentional overrides | Add user-selected collision policy only if third-party plugin use demands it |
 | Config validation | Richer schema validation was deferred | Registered section specs, required/optional keys, and validators exist; no JSON schema | Add schema export/validation if config UX needs stronger guarantees |
 | Environment substitution | `${ENV}` style config substitution was considered | Not implemented | Add only if bench configs need portable secret/resource injection |

@@ -1,1 +1,6 @@
--e ".[test,docs,static,plot]"
+# Core package (editable)
+-e ".[test,docs,static,gui]"
+# First-party plugins (sibling checkouts)
+-e "../colosseum-shared[ssh,test]"
+-e "../colosseum-host[test]"
+-e "../colosseum-equipment[test,plot]"

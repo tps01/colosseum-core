@@ -1,14 +1,18 @@
 # Developing Colosseum
 
-Guide for contributors and maintainers working in this repository. End users should start with the [top-level README](../README.md).
+Guide for contributors and maintainers working in the **colosseum-core** integration hub and sibling plugin repositories. End users should start with the [top-level README](../README.md).
 
 ## Environment setup
 
-Clone the repository, then create a virtual environment and install editable runtime plus dev tools:
+Clone sibling repositories under one parent directory, then create a virtual environment and install editable packages:
 
 ```sh
-git clone https://github.com/tps01/colosseum.git
-cd colosseum
+# Example layout:
+#   colosseum-core/
+#   colosseum-shared/
+#   colosseum-host/
+#   colosseum-equipment/
+cd colosseum-core
 ```
 
 | Shell | Command |
@@ -26,10 +30,10 @@ python -m venv .venv
 # activate .venv, then:
 python -m pip install -U pip setuptools wheel
 python -m pip install -e .
-python -m pip install -r requirements-dev.txt   # omit for runtime-only
+python -m pip install -r requirements-dev.txt   # installs sibling plugins + tools
 ```
 
-`requirements-dev.txt` installs the `test`, `docs`, `static`, and `plot` extras (pytest, Sphinx, ruff/mypy/bandit/vulture, matplotlib).
+`requirements-dev.txt` installs core `test`/`docs`/`static`/`gui` extras plus editable sibling plugins.
 
 Smoke the sim path:
 

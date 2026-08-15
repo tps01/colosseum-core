@@ -2,9 +2,9 @@
 """
 Build an end-user offline install bundle (runtime wheels + smoke test + tarball).
 
-Bundles contain the broad ``colosseum[bench]`` runtime dependency set for end-user
-bench hosts. Developers who need pytest, Sphinx, docgen, or PyVISA-sim install from a git clone
-(``requirements-dev.txt``), not from offline tarballs.
+Bundles contain ``colosseum-core[bench]`` (core + first-party plugins + hardware/SSH/GUI/plot)
+for end-user bench hosts. Developers who need pytest, Sphinx, docgen, or PyVISA-sim install from
+git clones (``requirements-dev.txt``), not from offline tarballs.
 
 Usage:
   python scripts/package_offline.py
@@ -108,11 +108,15 @@ def _build_artifacts() -> tuple[Path, Path]:
         raise RuntimeError("python executable not found")
     _run([sys.executable, "-m", "pip", "install", "-q", "build"])
     if DIST_DIR.exists():
-        for path in DIST_DIR.glob("colosseum-*.*"):
+        for path in DIST_DIR.glob("colosseum*.*"):
             path.unlink()
     _run([sys.executable, "-m", "build", str(REPO_ROOT)])
-    sdists = sorted(DIST_DIR.glob("colosseum-*.tar.gz"))
-    wheels = sorted(DIST_DIR.glob("colosseum-*.whl"))
+    sdists = sorted(DIST_DIR.glob("colosseum_core-*.tar.gz")) + sorted(
+        DIST_DIR.glob("colosseum-core-*.tar.gz")
+    )
+    wheels = sorted(DIST_DIR.glob("colosseum_core-*.whl")) + sorted(
+        DIST_DIR.glob("colosseum-core-*.whl")
+    )
     if not sdists or not wheels:
         raise RuntimeError(f"Expected sdist and wheel under {DIST_DIR}")
     return sdists[-1], wheels[-1]
@@ -133,6 +137,15 @@ def _download_wheels(wheel: Path) -> None:
         f"{wheel}[bench]",
     ]
     _run(cmd)
+    # Prefer locally built sibling plugin wheels when present.
+    sibling_root = REPO_ROOT.parent
+    for name in ("colosseum-shared", "colosseum-host", "colosseum-equipment"):
+        sibling = sibling_root / name
+        if not sibling.is_dir():
+            continue
+        _run([sys.executable, "-m", "build", str(sibling)])
+        for built in (sibling / "dist").glob("*.whl"):
+            shutil.copy2(built, WHEELHOUSE / built.name)
     offline_py = _offline_python_tuple()
     if offline_py is not None and offline_py < (3, 11):
         _run(
@@ -175,7 +188,7 @@ Windows Command Prompt (from ``offline-bundle``)::
 
    install.bat
 
-Each script creates ``.venv`` in this directory, installs ``colosseum[bench]=={version}``
+Each script creates ``.venv`` in this directory, installs ``colosseum-core[bench]=={version}``
 from ``wheels/``, and prints activation instructions.
 
 ## Manual install
@@ -183,7 +196,7 @@ from ``wheels/``, and prints activation instructions.
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate   # Windows: .venv\\Scripts\\activate
-pip install --no-index --find-links=wheels "colosseum[bench]=={version}"
+pip install --no-index --find-links=wheels "colosseum-core[bench]=={version}"
 ```
 
 ## Smoke test

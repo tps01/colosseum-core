@@ -63,7 +63,7 @@ Platform notes
 - **Resource locked / in use:** another session holds the same ``resource`` string; close other apps or zombie Python processes before re-running.
 - Empty or ``ERROR`` responses with ``visa_backend = "sim"``: verify ``sim_definition`` path and that YAML ``resources:`` keys match the bench ``resource``; see ``docs/testing/pyvisa-sim-fixtures.md``.
 - Permission denied on serial (Linux): group membership or udev rules for the adapter.
-- **FT232H GPIO (``col.io.dio``):** install ``pip install colosseum[io]`` for pyftdi. On Windows, assign WinUSB to the FT232H with Zadig (USB serial alone is not enough for MPSSE GPIO). On Linux, install ``libusb`` and ensure udev permissions for the adapter. See :doc:`io_digital`.
+- **FT232H GPIO (``col.io.dio``):** install ``pip install colosseum-equipment[io]`` for pyftdi. On Windows, assign WinUSB to the FT232H with Zadig (USB serial alone is not enough for MPSSE GPIO). On Linux, install ``libusb`` and ensure udev permissions for the adapter. See :doc:`io_digital`.
 
 **GUI runner**
 

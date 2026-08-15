@@ -33,13 +33,13 @@ jobs:
         uses: ./.github/actions/step-timer
         with:
           label: Install
-          command: python -m pip install -U pip setuptools wheel && python -m pip install -e ".[test,plot]"
+          command: python -m pip install -U pip setuptools wheel && python -m pip install -e ".[test,gui]" -e "../colosseum-shared[ssh,test]" -e "../colosseum-host[test]" -e "../colosseum-equipment[test,plot]"
       - name: Install
         if: runner.os == 'Windows'
         uses: ./.github/actions/step-timer-pwsh
         with:
           label: Install
-          command: python -m pip install -U pip setuptools wheel; python -m pip install -e ".[test,plot]"
+          command: python -m pip install -U pip setuptools wheel; python -m pip install -e ".[test,gui]" -e "../colosseum-shared[ssh,test]" -e "../colosseum-host[test]" -e "../colosseum-equipment[test,plot]"
       - name: Run tiers 1-3
         if: runner.os == 'Linux'
         uses: ./.github/actions/step-timer
@@ -72,7 +72,7 @@ jobs:
         uses: ./.github/actions/step-timer
         with:
           label: Install
-          command: python -m pip install -U pip setuptools wheel && python -m pip install -e ".[test]"
+          command: python -m pip install -U pip setuptools wheel && python -m pip install -e ".[test]" -e "../colosseum-shared[ssh,test]" -e "../colosseum-host[test]" -e "../colosseum-equipment[test]"
       - name: PyVISA-sim tests
         uses: ./.github/actions/step-timer
         with:
@@ -208,7 +208,7 @@ jobs:
         uses: ./.github/actions/step-timer
         with:
           label: Install
-          command: python -m pip install -U pip setuptools wheel && python -m pip install -e ".[test]"
+          command: python -m pip install -U pip setuptools wheel && python -m pip install -e ".[test]" -e "../colosseum-shared[ssh,test]" -e "../colosseum-host[test]" -e "../colosseum-equipment[test]"
       - name: Sim soak regression
         uses: ./.github/actions/step-timer
         with:

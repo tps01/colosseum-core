@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "colosseum"
+name = "colosseum-core"
 version = "0.15.0"
-description = "Colosseum test automation framework (core + bench plugins)"
+description = "Colosseum test automation framework (core runtime)"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 dependencies = [
@@ -14,47 +14,29 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-hardware = [
-  "pyvisa>=1.15; python_version >= '3.10'",
-  "pyvisa>=1.14,<1.15; python_version < '3.10'",
-  "pyserial",
-]
-ssh = ["paramiko"]
 gui = ["customtkinter>=5.2"]
-plot = ["matplotlib"]
 minimal = []
 test = [
   "pytest>=8.0",
-  "pyvisa>=1.15; python_version >= '3.10'",
-  "pyvisa>=1.14,<1.15; python_version < '3.10'",
-  "pyvisa-sim>=0.7,<0.8; python_version >= '3.10'",
 ]
 docs = ["sphinx>=7.0"]
-io = ["pyftdi>=0.55"]
-# Compatibility aliases for prior broad extras.
-equipment = [
-  "pyvisa>=1.15; python_version >= '3.10'",
-  "pyvisa>=1.14,<1.15; python_version < '3.10'",
-  "pyserial",
-  "matplotlib",
-]
-shared = ["paramiko"]
-bench = [
-  "pyvisa>=1.15; python_version >= '3.10'",
-  "pyvisa>=1.14,<1.15; python_version < '3.10'",
-  "pyserial",
-  "paramiko",
-  "customtkinter>=5.2",
-  "matplotlib",
-]
-equipment-sim = ["pyvisa-sim>=0.7,<0.8; python_version >= '3.10'"]
 static = [
   "bandit[toml]>=1.7",
   "vulture>=2.11",
   "ruff>=0.8",
   "mypy>=1.11",
-  "types-paramiko",
-  "types-pyserial",
+]
+# Integration extras: install sibling first-party plugins when developing the hub.
+plugins = [
+  "colosseum-shared>=0.1,<0.2",
+  "colosseum-host>=0.1,<0.2",
+  "colosseum-equipment>=0.1,<0.2",
+]
+bench = [
+  "colosseum-shared[ssh]>=0.1,<0.2",
+  "colosseum-host>=0.1,<0.2",
+  "colosseum-equipment[hardware,plot]>=0.1,<0.2",
+  "customtkinter>=5.2",
 ]
 
 [tool.pytest.ini_options]
@@ -62,39 +44,32 @@ testpaths = ["tests/unit", "tests/integration", "tests/e2e"]
 pythonpath = ["."]
 markers = [
     "requirement(id): traceability to test-plan requirement ID",
-    "visa_sim: requires pyvisa-sim (.[test] extra; Python 3.10+)",
-    "gui: requires display, tkinter, and the colosseum[gui] extra",
+    "visa_sim: requires pyvisa-sim via colosseum-equipment[test] (Python 3.10+)",
+    "gui: requires display, tkinter, and the colosseum-core[gui] extra",
     "plot: requires matplotlib save_plot path (slower)",
 ]
 
 [project.entry-points."colosseum.docgen"]
 colosseum = "colosseum.docgen_entry:spec"
-equipment = "colosseum_equipment.docgen_entry:spec"
-shared = "colosseum_shared.docgen_entry:spec"
-host = "colosseum_host.docgen_entry:spec"
 
 [project.scripts]
 colosseum = "colosseum.runner.cli:main"
 
-[project.entry-points."colosseum.plugins"]
-equipment = "colosseum_equipment:register"
-shared = "colosseum_shared:register"
-host = "colosseum_host:register"
-
 [tool.setuptools.packages.find]
-include = ["colosseum*", "colosseum_equipment*", "colosseum_shared*", "colosseum_host*"]
+include = ["colosseum*"]
+exclude = ["colosseum_equipment*", "colosseum_shared*", "colosseum_host*"]
 
 [tool.ruff]
 target-version = "py39"
 line-length = 100
-src = ["colosseum", "colosseum_equipment", "colosseum_shared", "colosseum_host", "scripts"]
+src = ["colosseum", "scripts"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "ANN", "ARG", "SIM", "RET", "PTH"]
 
 [tool.mypy]
 python_version = "3.12"
-packages = ["colosseum", "colosseum_equipment", "colosseum_shared", "colosseum_host"]
+packages = ["colosseum"]
 exclude = ["tests/", "build/", "examples/"]
 strict = true
 warn_unused_ignores = true
@@ -107,14 +82,8 @@ check_untyped_defs = true
 
 [[tool.mypy.overrides]]
 module = [
-  "pyftdi.*",
-  "scipy.*",
-  "numpy.*",
-  "matplotlib.*",
   "customtkinter.*",
   "tkinter.*",
-  "pyvisa.*",
-  "pyvisa_sim.*",
   "sphinx.*",
   "pytest",
   "tomli",
