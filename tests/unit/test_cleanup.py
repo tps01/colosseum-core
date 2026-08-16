@@ -6,30 +6,46 @@ def _touch(path):
     path.write_text("generated", encoding="utf-8")
 
 
-def test_cleanup_keeps_venv_extension_modules(tmp_path):
+def test_cleanup_removes_top_level_venv_by_default(tmp_path):
     _touch(tmp_path / ".venv" / "Lib" / "site-packages" / "native.pyd")
     _touch(tmp_path / ".venv" / "Lib" / "site-packages" / "module.pyc")
 
     targets = {
         path.relative_to(tmp_path).as_posix()
-        for path in _collect_paths(tmp_path, include_venvs=False)
+        for path in _collect_paths(tmp_path, keep_venvs=False)
     }
 
+    assert ".venv" in targets
     assert ".venv/Lib/site-packages/native.pyd" not in targets
-    assert ".venv/Lib/site-packages/module.pyc" in targets
+    assert ".venv/Lib/site-packages/module.pyc" not in targets
 
 
-def test_cleanup_keeps_named_venv_extension_modules(tmp_path):
+def test_cleanup_removes_named_venv_and_deps_by_default(tmp_path):
     _touch(tmp_path / ".venv-dev" / "Scripts" / "tool.exe")
-    _touch(tmp_path / ".venv-dev" / "Lib" / "site-packages" / "module.pyc")
+    _touch(tmp_path / ".deps" / "colosseum-core" / "pyproject.toml")
 
     targets = {
         path.relative_to(tmp_path).as_posix()
-        for path in _collect_paths(tmp_path, include_venvs=False)
+        for path in _collect_paths(tmp_path, keep_venvs=False)
     }
 
-    assert ".venv-dev/Scripts/tool.exe" not in targets
-    assert ".venv-dev/Lib/site-packages/module.pyc" in targets
+    assert ".venv-dev" in targets
+    assert ".deps" in targets
+    assert ".deps/colosseum-core/pyproject.toml" not in targets
+
+
+def test_cleanup_keep_venvs_only_scrubs_caches(tmp_path):
+    _touch(tmp_path / ".venv" / "Lib" / "site-packages" / "native.pyd")
+    _touch(tmp_path / ".venv" / "Lib" / "site-packages" / "module.pyc")
+
+    targets = {
+        path.relative_to(tmp_path).as_posix()
+        for path in _collect_paths(tmp_path, keep_venvs=True)
+    }
+
+    assert ".venv" not in targets
+    assert ".venv/Lib/site-packages/native.pyd" not in targets
+    assert ".venv/Lib/site-packages/module.pyc" in targets
 
 
 def test_cleanup_matches_share_ignore_policy(tmp_path):
@@ -38,7 +54,7 @@ def test_cleanup_matches_share_ignore_policy(tmp_path):
 
     targets = {
         path.relative_to(tmp_path).as_posix()
-        for path in _collect_paths(tmp_path, include_venvs=False)
+        for path in _collect_paths(tmp_path, keep_venvs=False)
     }
 
     assert "share" not in targets
