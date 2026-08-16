@@ -23,7 +23,13 @@ def ensure_display_available() -> None:
         raise SystemExit(1)
     try:
         import tkinter as tk
-
+    except ImportError as exc:
+        print(
+            "Colosseum GUI requires tkinter (install the OS python3-tk package).",
+            file=sys.stderr,
+        )
+        raise SystemExit(1) from exc
+    try:
         root = tk.Tk()
         root.withdraw()
         root.update_idletasks()
@@ -39,8 +45,8 @@ def main() -> None:
         import customtkinter as ctk
     except ImportError as exc:
         print(
-            "Colosseum GUI requires customtkinter. "
-            'Install with: pip install "colosseum-core[gui]"',
+            "Colosseum GUI requires customtkinter, which should come with colosseum-core. "
+            "Reinstall with: pip install --force-reinstall colosseum-core",
             file=sys.stderr,
         )
         raise SystemExit(1) from exc

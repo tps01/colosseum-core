@@ -8,9 +8,8 @@ Install the standalone runtime::
 The Python import is ``import colosseum as col``. Install each plugin distribution in the
 same environment; core discovers plugins through ``colosseum.plugins`` entry points.
 
-The optional desktop runner is available with::
-
-   pip install "colosseum-core[gui]"
+The desktop runner (``colosseum --gui``) is included with the core install. Linux may also
+need the operating system's ``python3-tk`` package.
 
 Development tools are intentionally separate::
 

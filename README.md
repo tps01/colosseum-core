@@ -6,7 +6,8 @@ The small runtime at the center of Colosseum test automation. It provides:
 - TOML configuration and plugin registration contracts
 - single-test and suite runners
 - SQLite evidence, logs, summaries, artifacts, and exit policy
-- optional GUI and modular documentation support
+- desktop GUI runner (customtkinter)
+- modular documentation support
 
 Bench protocols, device drivers, host inspection, SSH, and other integrations belong in
 separately installed plugins.
@@ -17,11 +18,7 @@ separately installed plugins.
 pip install colosseum-core
 ```
 
-Python 3.9+ is supported. The optional GUI is installed with:
-
-```sh
-pip install "colosseum-core[gui]"
-```
+Python 3.9+ is supported. Linux GUI use may also need the OS ``python3-tk`` package.
 
 Plugins expose namespaces such as `col.acme.*` through the `colosseum.plugins` entry-point
 group. See the [plugin guide](docs/sphinx/source/guides/plugins.rst) and
