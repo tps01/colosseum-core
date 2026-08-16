@@ -206,7 +206,7 @@ def _remove(path: Path, *, dry_run: bool) -> None:
     if dry_run:
         return
     if path.is_dir() and not path.is_symlink():
-        def _onerror(func: object, name: str, exc_info: object) -> None:  # noqa: ARG001
+        def _onerror(func: object, name: str, _exc_info: object) -> None:
             # Clear read-only bits that commonly block rmtree on Windows checkouts.
             try:
                 Path(name).chmod(0o700)
