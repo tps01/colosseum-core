@@ -209,7 +209,7 @@ def _remove(path: Path, *, dry_run: bool) -> None:
         def _onerror(func: object, name: str, exc_info: object) -> None:  # noqa: ARG001
             # Clear read-only bits that commonly block rmtree on Windows checkouts.
             try:
-                os.chmod(name, 0o700)
+                Path(name).chmod(0o700)
                 func(name)  # type: ignore[operator]
             except OSError:
                 pass
@@ -239,7 +239,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--keep-venvs",
         action="store_true",
-        help="Keep top-level .venv/, .venv-*/, venv/, venv-*/, env/ (only scrub cache files inside)",
+        help=(
+            "Keep top-level .venv/, .venv-*/, venv/, venv-*/, env/ "
+            "(only scrub cache files inside)"
+        ),
     )
     args = parser.parse_args(argv)
     root = _repo_root()
