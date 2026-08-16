@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import sqlite3
+from pathlib import Path
 
 import pytest
 
 import colosseum.context as context_module
 from colosseum.database.manager import DatabaseManager
 from colosseum.database.schema import SCHEMA_SQL
+from colosseum.plugins.loader import ensure_plugins_loaded
+from colosseum.plugins.registry import PluginRegistry
 
 from tests.unit.db_unit import UNIT_TEST_DB_URI, connect_unit_test_db, truncate_unit_test_db
+from tests.unit.fast_bootstrap import fast_ensure_plugins_loaded, make_initialize_from_template
 
 pytest_plugins = ["tests.support.common_fixtures"]
 
@@ -28,6 +32,52 @@ def unit_test_db() -> sqlite3.Connection:
 @pytest.fixture(scope="session")
 def unit_test_db_uri(unit_test_db: sqlite3.Connection) -> str:
     return UNIT_TEST_DB_URI
+
+
+@pytest.fixture(scope="session")
+def session_plugin_registry() -> PluginRegistry:
+    """Load entry points once per pytest process (amortized across mutants)."""
+    registry = PluginRegistry()
+    ensure_plugins_loaded(registry)
+    return registry
+
+
+@pytest.fixture(scope="session")
+def empty_sqlite_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Prebuilt empty execution DB; file copies replace per-test executescript."""
+    path = tmp_path_factory.mktemp("sqlite_template") / "empty.sqlite"
+    conn = sqlite3.connect(str(path))
+    conn.executescript(SCHEMA_SQL)
+    conn.commit()
+    conn.close()
+    return path
+
+
+@pytest.fixture(autouse=True)
+def _fast_unit_plugin_seed(
+    session_plugin_registry: PluginRegistry,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Seed registries from the session load; keep loader.ensure_plugins_loaded real."""
+
+    def _ensure(registry: PluginRegistry) -> None:
+        fast_ensure_plugins_loaded(registry, session_registry=session_plugin_registry)
+
+    # Patch call sites used by runtime bootstrap, not the loader unit under test.
+    monkeypatch.setattr("colosseum.config.loader.ensure_plugins_loaded", _ensure)
+    monkeypatch.setattr("colosseum.plugins.namespace.ensure_plugins_loaded", _ensure)
+
+
+@pytest.fixture(autouse=True)
+def _fast_unit_db_initialize(
+    empty_sqlite_template: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        DatabaseManager,
+        "initialize",
+        make_initialize_from_template(empty_sqlite_template),
+    )
 
 
 @pytest.fixture

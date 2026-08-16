@@ -21,6 +21,8 @@ parts/
 sdist/
 var/
 wheels/
+wheelhouse/
+*-offline-*.zip
 share/python-wheels/
 *.egg-info/
 .installed.cfg

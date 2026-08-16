@@ -1,6 +1,5 @@
-# Cut a release: git tag v0.3.0 && git push origin v0.3.0
-# Publishes the core wheel, sdist, PDF, and HTML documentation.
-# workflow_dispatch builds the same artifacts without creating a GitHub Release (no tag).
+# Tag vX.Y.Z on main (or workflow_dispatch for artifacts only).
+# Thin orchestration: real logic lives in scripts/ci/ (GHA/Bamboo agnostic).
 
 name: Release
 
@@ -25,17 +24,38 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: pip
       - name: Build distributions
-        run: |
-          python -m pip install -U pip setuptools wheel build
-          python -m build
+        run: python scripts/ci/build_dist.py
       - name: Upload dist artifacts
         uses: actions/upload-artifact@v7
         with:
           name: colosseum-dist
           path: dist/*
+          if-no-files-found: error
+
+  build-offline-wheelhouse:
+    name: offline (${{ matrix.os }}, py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Build offline wheelhouse zip
+        run: python scripts/ci/build_offline_wheelhouse.py --zip
+      - name: Upload offline wheelhouse
+        uses: actions/upload-artifact@v7
+        with:
+          name: offline-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: colosseum-core-offline-*.zip
           if-no-files-found: error
 
   build-docs:
@@ -45,7 +65,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: pip
       - name: Install
         run: python -m pip install -U pip setuptools wheel && python -m pip install -e ".[docs,test]"
@@ -80,24 +100,18 @@ jobs:
   publish:
     name: publish GitHub release
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-    needs: [build-sdist-wheel, build-docs]
+    needs: [build-sdist-wheel, build-offline-wheelhouse, build-docs]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
       - name: Verify tag matches pyproject version
-        run: |
-          TAG="${GITHUB_REF_NAME#v}"
-          VER="$(python -c "import pathlib,re; t=pathlib.Path('pyproject.toml').read_text(); print(re.search(r'^version = \"([^\"]+)\"', t, re.M).group(1))")"
-          echo "Tag version: $TAG"
-          echo "Package version: $VER"
-          test "$TAG" = "$VER"
+        run: python scripts/ci/verify_release_tag.py
 
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
           path: release-assets
-          merge-multiple: true
 
       - name: Flatten release files
         run: |
@@ -111,15 +125,31 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Colosseum ${{ github.ref_name }}
+          name: Colosseum Core ${{ github.ref_name }}
           generate_release_notes: true
           body: |
-            ## Install
+            ## Install (online)
 
-            - Install `colosseum-core` from the `.whl` or sdist below.
-            - Install bench capabilities from their separate plugin distributions.
-            - Documentation: `colosseum.pdf` and `colosseum-docs-html.zip`.
+            ```bash
+            pip install colosseum-core
+            ```
 
-            See [README](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/README.md#install) for full setup.
+            Or install the `.whl` / sdist attached below.
+
+            ## Offline wheelhouses
+
+            Use the zip matching your OS and Python (3.9 or 3.12):
+
+            - `colosseum-core-offline-linux-py*.zip`
+            - `colosseum-core-offline-windows-py*.zip`
+
+            ```bash
+            unzip colosseum-core-offline-<os>-py<ver>.zip -d wheelhouse
+            python -m pip install --no-index --find-links=wheelhouse colosseum-core
+            ```
+
+            GUI requires Tk in the Python install (Windows python.org OK; Linux bake `python3-tk`).
+
+            Documentation: PDF and `colosseum-docs-html.zip`.
           files: release-files/*
           fail_on_unmatched_files: true

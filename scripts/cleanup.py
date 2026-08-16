@@ -2,14 +2,16 @@
 """
 Remove Colosseum build artifacts and temporary files from the repository tree.
 
-Aligned with .gitignore (includes ``*.egg-info/``). Does not delete source, docs,
-or local secrets (.env).
-By default, virtual environments are kept but safe generated artifacts inside them are removed.
+Aligned with .gitignore (includes ``*.egg-info/``, ``.deps/``, and local venvs).
+Does not delete source, docs, or local secrets (.env).
+
+By default removes top-level ``.venv`` / ``.venv-*`` / ``venv`` / ``.deps`` directories.
+Pass ``--keep-venvs`` to leave those environments and only scrub cache files inside them.
 
 Usage:
   python scripts/cleanup.py --dry-run
   python scripts/cleanup.py
-  python scripts/cleanup.py --include-venvs
+  python scripts/cleanup.py --keep-venvs
 """
 
 from __future__ import annotations
@@ -46,9 +48,10 @@ ROOT_DIRS = (
     ".tox",
     ".nox",
     ".hypothesis",
+    ".deps",
 )
 
-# Top-level dirs only removed with --include-venvs.
+# Top-level virtualenv directory names (also ``.venv-*`` / ``venv-*`` prefixes).
 VENV_DIR_NAMES = frozenset({".venv", "venv", "ENV", "env"})
 
 
@@ -68,6 +71,7 @@ def _iter_venv_top_level_dirs(root: Path) -> list[Path]:
         if child.is_dir() and _is_venv_top_level(child.name) and child.name not in VENV_DIR_NAMES:
             dirs.append(child)
     return dirs
+
 
 # Directory names removed anywhere in the tree.
 WALK_DIR_NAMES = {"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".hypothesis"}
@@ -136,7 +140,7 @@ def _collect_venv_artifacts(root: Path) -> list[Path]:
 def _collect_paths(
     root: Path,
     *,
-    include_venvs: bool,
+    keep_venvs: bool = False,
 ) -> list[Path]:
     targets: list[Path] = []
 
@@ -145,10 +149,10 @@ def _collect_paths(
         if path.exists():
             targets.append(path)
 
-    if include_venvs:
-        targets.extend(_iter_venv_top_level_dirs(root))
-    else:
+    if keep_venvs:
         targets.extend(_collect_venv_artifacts(root))
+    else:
+        targets.extend(_iter_venv_top_level_dirs(root))
 
     for egg_info in root.glob("*.egg-info"):
         if egg_info.is_dir():
@@ -157,7 +161,7 @@ def _collect_paths(
     for dirpath, dirnames, filenames in os.walk(root, topdown=True):
         current = Path(dirpath)
 
-        if not include_venvs and _is_under_venv(root, current):
+        if _is_under_venv(root, current):
             dirnames.clear()
             continue
 
@@ -165,10 +169,8 @@ def _collect_paths(
             if dirname in WALK_DIR_NAMES or _matches_any(dirname, WALK_DIR_GLOBS):
                 targets.append(current / dirname)
 
-        # Do not descend into paths we are removing (or venvs when skipped).
         skip_names = set(WALK_DIR_NAMES) | {d for d in dirnames if _matches_any(d, WALK_DIR_GLOBS)}
-        if not include_venvs:
-            skip_names |= {d for d in dirnames if _is_venv_top_level(d)}
+        skip_names |= {d for d in dirnames if _is_venv_top_level(d)}
         dirnames[:] = [d for d in dirnames if d not in skip_names]
 
         for filename in filenames:
@@ -204,7 +206,17 @@ def _remove(path: Path, *, dry_run: bool) -> None:
     if dry_run:
         return
     if path.is_dir() and not path.is_symlink():
-        shutil.rmtree(path, ignore_errors=True)
+        def _onerror(func: object, name: str, _exc_info: object) -> None:
+            # Clear read-only bits that commonly block rmtree on Windows checkouts.
+            try:
+                Path(name).chmod(0o700)
+                func(name)  # type: ignore[operator]
+            except OSError:
+                pass
+
+        shutil.rmtree(path, onerror=_onerror)
+        if path.exists():
+            shutil.rmtree(path, ignore_errors=True)
     else:
         path.unlink(missing_ok=True)
 
@@ -225,17 +237,17 @@ def main(argv: list[str] | None = None) -> int:
         help="List paths that would be removed without deleting anything",
     )
     parser.add_argument(
-        "--include-venvs",
+        "--keep-venvs",
         action="store_true",
-        help="Also remove .venv/, .venv-*/, venv/, venv-*/, env/ at repository root",
+        help=(
+            "Keep top-level .venv/, .venv-*/, venv/, venv-*/, env/ "
+            "(only scrub cache files inside)"
+        ),
     )
     args = parser.parse_args(argv)
     root = _repo_root()
 
-    targets = _collect_paths(
-        root,
-        include_venvs=args.include_venvs,
-    )
+    targets = _collect_paths(root, keep_venvs=args.keep_venvs)
     if not targets:
         print("Nothing to clean.")
         return 0

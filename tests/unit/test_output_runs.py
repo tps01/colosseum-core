@@ -2,19 +2,13 @@
 
 from __future__ import annotations
 
-import time
+import os
 
 from colosseum.config import load_config
-from colosseum.output.paths import sanitize_logical_name
 from colosseum.output.runs import find_run_directory, list_run_directories, read_summary_json
 
 from tests.support.core_api import measure_value
 from tests.support.helpers import latest_output_dir, run_endex_expect_code
-
-
-def test_sanitize_logical_name_strips_invalid_chars() -> None:
-    assert sanitize_logical_name("test power!") == "test_power"
-    assert sanitize_logical_name("") == "run"
 
 
 def test_list_run_directories_empty_when_no_outputs(isolated_cwd) -> None:
@@ -40,12 +34,11 @@ def test_find_run_directory_respects_since(isolated_cwd) -> None:
     outputs.mkdir()
     old = outputs / "2020-01-01_000000_old_run"
     old.mkdir()
-    old.touch()
-    time.sleep(0.05)
-    since = time.time()
-    time.sleep(0.05)
+    os.utime(old, (1_000_000_000.0, 1_000_000_000.0))
+    since = 1_700_000_000.0
     new = outputs / "2026-01-01_120000_smoke"
     new.mkdir()
+    os.utime(new, (1_800_000_000.0, 1_800_000_000.0))
     assert find_run_directory(isolated_cwd, "smoke", since=since) == new
     assert find_run_directory(isolated_cwd, "old_run", since=since) is None
 

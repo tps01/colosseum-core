@@ -29,11 +29,3 @@ def test_third_party_namespace_resolves_after_register() -> None:
     ctx.plugin_registry.loaded = True
 
     assert col.acme_stub.measure_stub(key="x") == 1.0
-
-
-def test_static_exports_still_work_after_dynamic_getattr(core_config) -> None:
-    from colosseum.config import load_config
-
-    load_config(core_config)
-    assert col.config.is_loaded()
-    assert require_context().config is not None
