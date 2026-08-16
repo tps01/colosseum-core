@@ -12,8 +12,8 @@ Create and activate a virtual environment with::
    python -m venv .venv
    .\.venv\Scripts\Activate.ps1
 
-The optional GUI uses the standard ``tkinter`` runtime included with normal CPython
-installers.
+python.org CPython installers include ``tkinter``, so ``colosseum --gui`` works after a
+normal ``colosseum-core`` (or offline wheelhouse) install.
 
 Linux
 -----
@@ -23,7 +23,13 @@ Create and activate a virtual environment with::
    python3 -m venv .venv
    . .venv/bin/activate
 
-The GUI may require ``python3-tk`` and a display server.
+For GUI use, the Python build must provide ``tkinter`` (Debian/Ubuntu: ``python3-tk``).
+That is an OS/image prerequisite, not a pip package. Air-gapped hosts should bake it into
+the golden image together with Python. See ``offline/README.md`` in the integration
+checkout.
+
+SSH X11 forwarding (``ssh -X``) still requires Tk on the Linux side and a working
+``DISPLAY``.
 
 Documentation
 -------------

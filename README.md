@@ -18,7 +18,10 @@ separately installed plugins.
 pip install colosseum-core
 ```
 
-Python 3.9+ is supported. Linux GUI use may also need the OS ``python3-tk`` package.
+Python 3.9+ is supported. For air-gapped hosts, use the parent integration checkout's
+`offline/` wheelhouse tooling (build on a networked twin, install with `--no-index`).
+Linux GUI needs Tk on the host image (`python3-tk` or a Tk-enabled Python)—it is not a
+pip dependency.
 
 Plugins expose namespaces such as `col.acme.*` through the `colosseum.plugins` entry-point
 group. See the [plugin guide](docs/sphinx/source/guides/plugins.rst) and
