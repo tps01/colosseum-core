@@ -7,7 +7,7 @@ import sys
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog
-from typing import Any
+from typing import Any, Literal
 
 from ..database.read_from_path import read_from_path
 from ..output.runs import list_run_directories, read_summary_json
@@ -259,7 +259,11 @@ class ColosseumApp:
             mode = str(self._ctk.get_appearance_mode()).lower()
             return "#2b2b2b" if mode == "dark" else "#ebebeb"
 
-    def _make_paned(self, parent: Any, orient: str) -> tk.PanedWindow:  # noqa: ANN401
+    def _make_paned(
+        self,
+        parent: Any,  # noqa: ANN401
+        orient: Literal["horizontal", "vertical"],
+    ) -> tk.PanedWindow:
         bg = self._pane_chrome_color()
         return tk.PanedWindow(
             parent,
