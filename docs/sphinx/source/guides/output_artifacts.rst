@@ -15,7 +15,7 @@ Output artifacts
    * - ``summary.json``
      - End-of-run machine-readable summary (written by ``col.endex()``)
 
-The output directory is created on first log or database write. Suite runs use the suite ``name`` as the directory stem. Disable persisted output with ``--no-artifacts``, ``load_config(..., no_artifacts=True)``, or ``COLOSSEUM_NO_ARTIFACTS=1`` (see :doc:`running_tests`).
+The output directory is created on first log or database write. Suite runs use the suite ``name`` as the directory stem. Completed output directories are renamed with the final result, for example ``outputs/<timestamp>_<name>-pass/`` or ``outputs/<timestamp>_<name>-fail/``. Disable persisted output with ``--no-artifacts``, ``load_config(..., no_artifacts=True)``, or ``COLOSSEUM_NO_ARTIFACTS=1`` (see :doc:`running_tests`).
 
 Plugin-generated files (for example spectrum trace CSV, IQ capture binaries, screenshots) are written under the same output directory. Equipment APIs register them in the ``artifacts`` SQLite table via ``register_artifact``. RF trace files from ``col.equipment.speca.save_trace_data`` typically live at ``traces/<name>.csv`` relative to the run directory.
 

@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import json
+import subprocess
+import sys
+
 import pytest
 
 import colosseum as col
@@ -14,8 +18,15 @@ from tests.support.helpers import latest_output_dir, query_db, run_endex_expect_
 def test_decorators_create_sqlite_log_and_summary(core_config, isolated_cwd) -> None:
     load_config(core_config)
     measure_value(key="v1", value=3.3)
+    active_dir = col.context.require_context().output_dir
+    assert active_dir is not None
+    assert not active_dir.name.endswith("-pass")
+    assert not active_dir.name.endswith("-fail")
     run_endex_expect_code(0)
     run_dir = latest_output_dir(isolated_cwd)
+    assert run_dir.name.endswith("-pass")
+    assert not active_dir.exists()
+    assert col.context.require_context().output_dir == run_dir
     assert (run_dir / "debug.log").is_file()
     assert (run_dir / "execution.sqlite").is_file()
     tables = {
@@ -30,6 +41,7 @@ def test_decorators_create_sqlite_log_and_summary(core_config, isolated_cwd) -> 
     payload = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
     assert payload["overall_result"] == "PASS"
     assert payload["exit_code"] == 0
+    assert payload["output_directory"] == str(run_dir)
 
 
 def test_read_api_returns_measurement_keys(core_config, isolated_cwd) -> None:
@@ -45,6 +57,7 @@ def test_missing_measurement_yields_exit_one(core_config, isolated_cwd) -> None:
     verify_value(key="missing_rail", expected_val=1.0, tolerance=0.1)
     run_endex_expect_code(1)
     run_dir = latest_output_dir(isolated_cwd)
+    assert run_dir.name.endswith("-fail")
     status = query_db(
         run_dir,
         "SELECT status FROM verifications WHERE key=?",
@@ -81,3 +94,46 @@ def test_optional_fail_still_exits_zero(core_config, isolated_cwd) -> None:
     ).fetchone()
     conn.close()
     assert opt is not None and opt[0] == "FAIL"
+
+
+def test_direct_script_unhandled_exception_auto_finalizes_fail(
+    core_config,
+    isolated_cwd,
+    subprocess_env,
+) -> None:
+    script = isolated_cwd / "direct_crash.py"
+    script.write_text(
+        "\n".join(
+            [
+                "import colosseum as col",
+                f"col.config.load_config({str(core_config)!r})",
+                "raise RuntimeError('direct boom')",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    proc = subprocess.run(
+        [sys.executable, str(script)],
+        cwd=isolated_cwd,
+        env=subprocess_env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+
+    assert proc.returncode != 0
+    run_dir = latest_output_dir(isolated_cwd)
+    assert run_dir.name.endswith("-fail")
+    unfinalized = [
+        path
+        for path in (isolated_cwd / "outputs").glob("*_direct_crash")
+        if path.is_dir()
+    ]
+    assert unfinalized == []
+    payload = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+    assert payload["overall_result"] == "FAIL"
+    assert payload["suite_error"] is True
+    assert "unhandled exception" in payload["failed_required_outcomes"][0]["message"]

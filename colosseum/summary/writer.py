@@ -23,7 +23,15 @@ def _count_by_kind(
 
 
 class SummaryWriter:
-    def write(self, output_dir: Path, aggregator: ResultAggregator, ctx: RuntimeContext) -> Path:
+    def write(
+        self,
+        output_dir: Path,
+        aggregator: ResultAggregator,
+        ctx: RuntimeContext,
+        *,
+        measurement_count: int | None = None,
+        command_count: int | None = None,
+    ) -> Path:
         summary_path = output_dir / "summary.txt"
         records = aggregator._records  # noqa: SLF001 — summary formatting
         required_verifications = _count_by_kind(records, kind="verification", optional=False)
@@ -32,11 +40,15 @@ class SummaryWriter:
         optional_commands = _count_by_kind(records, kind="command", optional=True)
         failed_required = aggregator.failed_required_outcomes()
 
-        measurement_count = 0
-        command_count = 0
-        if ctx.db.is_initialized():
-            measurement_count = ctx.db.count_rows("measurements")
-            command_count = ctx.db.count_rows("commands")
+        if measurement_count is None or command_count is None:
+            if ctx.db.is_initialized():
+                if measurement_count is None:
+                    measurement_count = ctx.db.count_rows("measurements")
+                if command_count is None:
+                    command_count = ctx.db.count_rows("commands")
+            else:
+                measurement_count = measurement_count or 0
+                command_count = command_count or 0
 
         lines = [
             "Colosseum Run Summary",

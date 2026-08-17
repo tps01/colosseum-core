@@ -33,6 +33,7 @@ class RuntimeContext:
     final_exit_code: int | None = None
     debug_logging: bool = False
     no_artifacts: bool = False
+    auto_finalize: bool = False
     runtime_ready: bool = False
     resource_cache: dict[str, Any] = field(default_factory=dict)
     config_warnings: list[str] = field(default_factory=list)
@@ -79,6 +80,7 @@ def init_context(
     suite_name: str | None = None,
     config_path: Path | str | None = None,
     no_artifacts: bool = False,
+    auto_finalize: bool = False,
 ) -> RuntimeContext:
     from . import __version__
     from .plugins.registry import PluginRegistry
@@ -95,5 +97,10 @@ def init_context(
         config_path=config_path,
         framework_version=__version__,
         no_artifacts=no_artifacts or _env_no_artifacts(),
+        auto_finalize=auto_finalize,
     )
+    if auto_finalize:
+        from .results.exit_policy import register_auto_finalize_hooks
+
+        register_auto_finalize_hooks()
     return set_context(ctx)

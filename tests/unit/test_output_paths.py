@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import re
 
-from colosseum.output.paths import allocate_run_directory, sanitize_logical_name
+from colosseum.output.paths import (
+    allocate_run_directory,
+    rename_run_directory_for_result,
+    sanitize_logical_name,
+)
 
 
 def test_sanitize_strips_unsafe_characters() -> None:
@@ -20,3 +24,22 @@ def test_allocate_run_directory_format_and_collision(isolated_cwd) -> None:
     assert pattern.match(first.name)
     assert second != first
     assert second.name.endswith("_1") or first.name != second.name
+
+
+def test_rename_run_directory_for_result_appends_status(isolated_cwd) -> None:
+    run_dir = isolated_cwd / "outputs" / "2026-01-01_120000_smoke"
+    run_dir.mkdir(parents=True)
+    final_dir = rename_run_directory_for_result(run_dir, "FAIL")
+    assert final_dir.name == "2026-01-01_120000_smoke-fail"
+    assert final_dir.is_dir()
+    assert not run_dir.exists()
+
+
+def test_rename_run_directory_for_result_avoids_collision(isolated_cwd) -> None:
+    run_dir = isolated_cwd / "outputs" / "2026-01-01_120000_smoke"
+    existing = isolated_cwd / "outputs" / "2026-01-01_120000_smoke-pass"
+    run_dir.mkdir(parents=True)
+    existing.mkdir()
+    final_dir = rename_run_directory_for_result(run_dir, "PASS")
+    assert final_dir.name == "2026-01-01_120000_smoke-pass_1"
+    assert final_dir.is_dir()
