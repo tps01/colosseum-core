@@ -157,6 +157,7 @@ def load_config(path: str | Path, *, no_artifacts: bool = False) -> ConfigStore:
             test_case_name=default_test_name(),
             config_path=config_path,
             no_artifacts=no_artifacts,
+            auto_finalize=True,
         )
     else:
         ctx = existing_ctx

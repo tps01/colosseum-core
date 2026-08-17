@@ -35,6 +35,24 @@ def allocate_run_directory(cwd: Path, logical_name: str) -> Path:
     return candidate
 
 
+def rename_run_directory_for_result(output_dir: Path, overall: str) -> Path:
+    """Rename a completed run directory to include its final PASS/FAIL result."""
+    normalized = overall.lower()
+    if normalized not in {"pass", "fail"}:
+        raise ValueError(f"Unsupported run result: {overall}")
+
+    target_base = output_dir.with_name(f"{output_dir.name}-{normalized}")
+    candidate = target_base
+    suffix = 1
+    while candidate.exists() and candidate != output_dir:
+        candidate = target_base.with_name(f"{target_base.name}_{suffix}")
+        suffix += 1
+    if candidate == output_dir:
+        return output_dir
+    output_dir.rename(candidate)
+    return candidate
+
+
 def _logical_output_name(ctx: RuntimeContext) -> str:
     return ctx.suite_name or ctx.test_case_name
 

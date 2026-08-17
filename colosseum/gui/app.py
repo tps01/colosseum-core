@@ -4,13 +4,19 @@ import json
 import os
 import queue
 import sys
+import threading
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog
 from typing import Any, Literal
 
-from ..database.read_from_path import read_from_path
-from ..output.runs import list_run_directories, read_summary_json
+from .loaders import (
+    DetailSnapshot,
+    RunBrowserRow,
+    RunBrowserSnapshot,
+    load_detail_snapshot,
+    load_run_browser_snapshot,
+)
 from .run_worker import RunFinished, RunKind, RunRequest, RunWorker
 
 _CORE_DB_TABLES = (
@@ -107,11 +113,16 @@ class ColosseumApp:
 
         self._cwd = Path.cwd()
         self._worker = RunWorker(cwd=self._cwd)
+        self._ui_events: queue.Queue[Any] = queue.Queue()
         self._test_path = ctk.StringVar(value="")
         self._suite_path = ctk.StringVar(value="")
         self._config_path = ctk.StringVar(value=os.environ.get("COLOSSEUM_BENCH_CONFIG", ""))
         self._debug = ctk.BooleanVar(value=False)
-        self._run_buttons: list[Any] = []
+        self._run_widgets: dict[tuple[str, Path], Any] = {}
+        self._browser_snapshot = RunBrowserSnapshot(rows=[])
+        self._browser_generation = 0
+        self._detail_generation = 0
+        self._expanded_output_dirs: set[Path] = set()
         self._selected_run_dir: Path | None = None
         self._db_table = ctk.StringVar(value=_CORE_DB_TABLES[0])
 
@@ -226,8 +237,22 @@ class ColosseumApp:
         ctk.CTkLabel(runs_frame, text="Runs").grid(row=0, column=0, sticky="w", padx=4, pady=2)
         self._run_list = ctk.CTkScrollableFrame(runs_frame)
         self._run_list.grid(row=1, column=0, sticky="nsew", padx=4, pady=4)
-        ctk.CTkButton(runs_frame, text="Refresh runs", command=self._refresh_run_list).grid(
-            row=2, column=0, padx=4, pady=4, sticky="ew"
+        run_controls = ctk.CTkFrame(runs_frame, fg_color="transparent")
+        run_controls.grid(row=2, column=0, padx=4, pady=4, sticky="ew")
+        for column in range(3):
+            run_controls.grid_columnconfigure(column, weight=1)
+        ctk.CTkButton(run_controls, text="Refresh", command=self._refresh_run_list).grid(
+            row=0, column=0, padx=(0, 2), sticky="ew"
+        )
+        ctk.CTkButton(run_controls, text="Expand all", command=self._expand_all_output_dirs).grid(
+            row=0, column=1, padx=2, sticky="ew"
+        )
+        ctk.CTkButton(
+            run_controls,
+            text="Collapse all",
+            command=self._collapse_all_output_dirs,
+        ).grid(
+            row=0, column=2, padx=(2, 0), sticky="ew"
         )
 
         detail_frame = ctk.CTkFrame(results)
@@ -248,8 +273,11 @@ class ColosseumApp:
         body.add(results, minsize=220, stretch="always")
         results.add(runs_frame, minsize=100, stretch="always")
         results.add(detail_frame, minsize=160, stretch="always")
+        log_frame.grid_propagate(False)
+        runs_frame.grid_propagate(False)
+        detail_frame.grid_propagate(False)
         # Prefer a wider log pane on first layout.
-        self._root.after(50, lambda: self._set_initial_sashes(body, results))
+        self._root.after(100, lambda: self._set_initial_sashes(body, results))
 
     def _pane_chrome_color(self) -> str:
         """Match tk.PanedWindow chrome to the active CTk window background."""
@@ -281,10 +309,11 @@ class ColosseumApp:
 
     def _set_initial_sashes(self, body: tk.PanedWindow, results: tk.PanedWindow) -> None:
         try:
+            self._root.update_idletasks()
             width = max(body.winfo_width(), 1)
             height = max(results.winfo_height(), 1)
             body.sash_place(0, int(width * 0.65), 1)
-            results.sash_place(0, 1, int(height * 0.35))
+            results.sash_place(0, 1, int(height * 0.50))
         except tk.TclError:
             pass
 
@@ -367,12 +396,18 @@ class ColosseumApp:
         self._log_text.configure(state="disabled")
 
     def _append_log(self, line: str) -> None:
+        self._append_log_lines([line])
+
+    def _append_log_lines(self, lines: list[str]) -> None:
+        if not lines:
+            return
         self._log_text.configure(state="normal")
-        self._log_text.insert("end", line + "\n")
+        self._log_text.insert("end", "\n".join(lines) + "\n")
         self._log_text.see("end")
         self._log_text.configure(state="disabled")
 
     def _poll_worker(self) -> None:
+        log_lines: list[str] = []
         while True:
             try:
                 event = self._worker.events.get_nowait()
@@ -380,62 +415,230 @@ class ColosseumApp:
                 break
             kind = event[0]
             if kind == "log":
-                self._append_log(event[1])
+                log_lines.append(event[1])
             elif kind == "started":
+                self._append_log_lines(log_lines)
+                log_lines = []
                 self._append_log(f"--- Run started: {event[1]} ---")
             elif kind == "error":
+                self._append_log_lines(log_lines)
+                log_lines = []
                 self._append_log(f"ERROR: {event[1]}")
                 self._stop_btn.configure(state="disabled")
             elif kind == "finished":
+                self._append_log_lines(log_lines)
+                log_lines = []
                 finished: RunFinished = event[1]
                 self._append_log(f"--- Run finished (exit {finished.exit_code}) ---")
                 self._stop_btn.configure(state="disabled")
+                if finished.run_dir is not None:
+                    self._expanded_output_dirs.add(finished.run_dir.parent)
                 self._refresh_run_list()
                 if finished.run_dir is not None:
-                    self._select_run(finished.run_dir)
+                    self._select_run(finished.run_dir, load_log=False)
+        self._append_log_lines(log_lines)
+
+        while True:
+            try:
+                event = self._ui_events.get_nowait()
+            except queue.Empty:
+                break
+            kind = event[0]
+            if kind == "browser_snapshot":
+                generation: int = event[1]
+                browser_snapshot: RunBrowserSnapshot = event[2]
+                if generation == self._browser_generation:
+                    self._browser_snapshot = browser_snapshot
+                    self._render_run_list()
+            elif kind == "detail_snapshot":
+                generation = event[1]
+                detail_snapshot: DetailSnapshot = event[2]
+                load_log: bool = event[3]
+                if generation == self._detail_generation:
+                    self._apply_detail_snapshot(detail_snapshot, load_log=load_log)
 
         self._root.after(200, self._poll_worker)
 
-    def _run_status_label(self, run_dir: Path) -> str:
-        summary = read_summary_json(run_dir)
-        if summary is None:
-            return "incomplete"
-        return str(summary.get("overall_result", "?"))
+    def _outputs_dir_label(self, outputs_dir: Path) -> str:
+        try:
+            relative = outputs_dir.relative_to(self._cwd)
+        except ValueError:
+            return str(outputs_dir)
+        return str(relative)
+
+    def _run_list_label(self, row: RunBrowserRow, *, include_prefix: bool) -> str:
+        run_dir = row.entry.path
+        if include_prefix:
+            prefix = self._outputs_dir_label(row.entry.outputs_dir)
+            return f"{prefix} > {run_dir.name}  [{row.status}]"
+        return f"{run_dir.name}  [{row.status}]"
+
+    def _toggle_outputs_dir(self, outputs_dir: Path) -> None:
+        if outputs_dir in self._expanded_output_dirs:
+            self._expanded_output_dirs.remove(outputs_dir)
+        else:
+            self._expanded_output_dirs.add(outputs_dir)
+        self._render_run_list()
+
+    def _expand_all_output_dirs(self) -> None:
+        self._expanded_output_dirs = set(self._browser_snapshot.output_dirs)
+        self._render_run_list()
+
+    def _collapse_all_output_dirs(self) -> None:
+        self._expanded_output_dirs.clear()
+        self._render_run_list()
 
     def _refresh_run_list(self) -> None:
-        for btn in self._run_buttons:
-            btn.destroy()
-        self._run_buttons.clear()
-        ctk = self._ctk
+        self._browser_generation += 1
+        generation = self._browser_generation
+        thread = threading.Thread(
+            target=self._load_run_browser_snapshot,
+            args=(generation,),
+            daemon=True,
+        )
+        thread.start()
 
-        for run_dir in list_run_directories(self._cwd):
-            status = self._run_status_label(run_dir)
-            label = f"{run_dir.name}  [{status}]"
+    def _load_run_browser_snapshot(self, generation: int) -> None:
+        snapshot = load_run_browser_snapshot(self._cwd)
+        self._ui_events.put(("browser_snapshot", generation, snapshot))
+
+    def _render_run_list(self) -> None:
+        for widget in self._run_widgets.values():
+            widget.pack_forget()
+
+        ctk = self._ctk
+        rows = self._browser_snapshot.rows
+        outputs_dirs = self._browser_snapshot.output_dirs
+        grouped = len(outputs_dirs) > 1
+        active_keys: set[tuple[str, Path]] = set()
+
+        if grouped:
+            rows_by_outputs: dict[Path, list[RunBrowserRow]] = {}
+            for row in rows:
+                rows_by_outputs.setdefault(row.entry.outputs_dir, []).append(row)
+            ordered_outputs = sorted(
+                rows_by_outputs,
+                key=lambda outputs_dir: max(
+                    row.mtime for row in rows_by_outputs[outputs_dir]
+                ),
+                reverse=True,
+            )
+            for outputs_dir in ordered_outputs:
+                expanded = outputs_dir in self._expanded_output_dirs
+                marker = "[-]" if expanded else "[+]"
+                key = ("outputs", outputs_dir)
+                active_keys.add(key)
+                header = self._run_widgets.get(key)
+                if header is None:
+                    header = ctk.CTkButton(
+                        self._run_list,
+                        anchor="w",
+                        fg_color="transparent",
+                        text_color=("gray10", "gray90"),
+                        hover_color=("gray85", "gray25"),
+                        command=lambda od=outputs_dir: self._toggle_outputs_dir(od),
+                    )
+                    self._run_widgets[key] = header
+                header.configure(text=f"{marker} {self._outputs_dir_label(outputs_dir)}")
+                header.pack(fill="x", pady=(3, 1))
+                if not expanded:
+                    continue
+                for row in rows_by_outputs[outputs_dir]:
+                    active_keys.add(("run", row.entry.path))
+                    self._add_run_button(row, include_prefix=False, indent=True)
+        else:
+            for row in rows:
+                active_keys.add(("run", row.entry.path))
+                self._add_run_button(row, include_prefix=False, indent=False)
+
+        for key, widget in list(self._run_widgets.items()):
+            if key not in active_keys:
+                widget.destroy()
+                del self._run_widgets[key]
+
+    def _add_run_button(
+        self,
+        row: RunBrowserRow,
+        *,
+        include_prefix: bool,
+        indent: bool,
+    ) -> None:
+        ctk = self._ctk
+        run_dir = row.entry.path
+        key = ("run", run_dir)
+        btn = self._run_widgets.get(key)
+        if btn is None:
             btn = ctk.CTkButton(
                 self._run_list,
-                text=label,
                 anchor="w",
                 fg_color="transparent",
-                text_color=self._status_button_color(status),
                 hover_color=("gray85", "gray25"),
                 command=lambda rd=run_dir: self._select_run(rd),
             )
+            self._run_widgets[key] = btn
+        btn.configure(
+            text=self._run_list_label(row, include_prefix=include_prefix),
+            text_color=self._status_button_color(row.status),
+        )
+        if indent:
+            btn.pack(fill="x", padx=(18, 0), pady=1)
+        else:
             btn.pack(fill="x", pady=1)
-            self._run_buttons.append(btn)
 
-    def _select_run(self, run_dir: Path) -> None:
+    def _select_run(self, run_dir: Path, *, load_log: bool = True) -> None:
         self._selected_run_dir = run_dir
-        self._show_log(run_dir)
-        self._show_database(run_dir)
-        self._show_summary(run_dir)
-        self._show_verifications(run_dir)
+        self._detail_generation += 1
+        generation = self._detail_generation
+        table = self._db_table.get().strip() or _CORE_DB_TABLES[0]
+        self._show_detail_loading(run_dir, load_log=load_log)
+        thread = threading.Thread(
+            target=self._load_detail_snapshot,
+            args=(generation, run_dir, table, load_log),
+            daemon=True,
+        )
+        thread.start()
+
+    def _load_detail_snapshot(
+        self,
+        generation: int,
+        run_dir: Path,
+        table: str,
+        load_log: bool,
+    ) -> None:
+        snapshot = load_detail_snapshot(run_dir, table=table, include_log=load_log)
+        self._ui_events.put(("detail_snapshot", generation, snapshot, load_log))
+
+    def _show_detail_loading(self, run_dir: Path, *, load_log: bool) -> None:
+        if load_log:
+            self._replace_text(self._log_text, f"Loading debug.log for {run_dir.name}...")
+        self._replace_text(
+            self._db_text,
+            f"Loading {self._db_table.get().strip() or _CORE_DB_TABLES[0]} from {run_dir.name}...",
+        )
+        self._replace_text(self._summary_text, f"Loading summary for {run_dir.name}...")
+        self._replace_text(self._verify_text, f"Loading verifications for {run_dir.name}...")
+
+    def _apply_detail_snapshot(self, snapshot: DetailSnapshot, *, load_log: bool) -> None:
+        if self._selected_run_dir != snapshot.run_dir:
+            return
+        if load_log:
+            self._show_log_snapshot(snapshot)
+        self._show_database_snapshot(snapshot)
+        self._show_summary_snapshot(snapshot)
+        self._show_verifications_snapshot(snapshot)
 
     def _on_db_table_changed(self, _choice: str) -> None:
         self._reload_database()
 
     def _reload_database(self) -> None:
         if self._selected_run_dir is not None:
-            self._show_database(self._selected_run_dir)
+            self._select_run(self._selected_run_dir, load_log=False)
+
+    def _replace_text(self, textbox: Any, text: str) -> None:  # noqa: ANN401
+        textbox.configure(state="normal")
+        textbox.delete("1.0", "end")
+        textbox.insert("end", text)
+        textbox.configure(state="disabled")
 
     @staticmethod
     def _format_db_cell(value: object) -> str:
@@ -450,22 +653,16 @@ class ColosseumApp:
             return text[: _DB_CELL_MAX - 3] + "..."
         return text
 
-    def _show_database(self, run_dir: Path) -> None:
-        db_path = run_dir / "execution.sqlite"
-        table = self._db_table.get().strip() or _CORE_DB_TABLES[0]
+    def _show_database_snapshot(self, snapshot: DetailSnapshot) -> None:
+        run_dir = snapshot.run_dir
+        table = snapshot.table
         self._db_text.configure(state="normal")
         self._db_text.delete("1.0", "end")
-        if not db_path.is_file():
-            self._db_text.insert("end", f"No execution.sqlite in {run_dir.name}.")
+        if snapshot.table_error is not None:
+            self._db_text.insert("end", snapshot.table_error)
             self._db_text.configure(state="disabled")
             return
-        try:
-            with read_from_path(db_path) as reader:
-                rows = reader.read_table(table)
-        except (OSError, FileNotFoundError, ValueError) as exc:
-            self._db_text.insert("end", f"Cannot read {table}: {exc}")
-            self._db_text.configure(state="disabled")
-            return
+        rows = snapshot.table_rows or []
 
         noun = "row" if len(rows) == 1 else "rows"
         self._db_text.insert("end", f"{run_dir.name} / {table}  ({len(rows)} {noun})\n")
@@ -490,29 +687,22 @@ class ColosseumApp:
         self._db_text.see("1.0")
         self._db_text.configure(state="disabled")
 
-    def _show_log(self, run_dir: Path) -> None:
-        log_path = run_dir / "debug.log"
+    def _show_log_snapshot(self, snapshot: DetailSnapshot) -> None:
         self._log_text.configure(state="normal")
         self._log_text.delete("1.0", "end")
-        if not log_path.is_file():
-            self._log_text.insert("end", f"No debug.log in {run_dir.name}.")
+        if snapshot.log_error is not None:
+            self._log_text.insert("end", snapshot.log_error)
+        elif snapshot.log_text:
+            self._log_text.insert("end", snapshot.log_text)
+            if not snapshot.log_text.endswith("\n"):
+                self._log_text.insert("end", "\n")
+            self._log_text.see("1.0")
         else:
-            try:
-                text = log_path.read_text(encoding="utf-8", errors="replace")
-            except OSError as exc:
-                self._log_text.insert("end", f"Cannot read debug.log: {exc}")
-            else:
-                if text:
-                    self._log_text.insert("end", text)
-                    if not text.endswith("\n"):
-                        self._log_text.insert("end", "\n")
-                    self._log_text.see("1.0")
-                else:
-                    self._log_text.insert("end", f"{log_path.name} is empty.")
+            self._log_text.insert("end", "debug.log is empty.")
         self._log_text.configure(state="disabled")
 
-    def _show_summary(self, run_dir: Path) -> None:
-        summary = read_summary_json(run_dir)
+    def _show_summary_snapshot(self, snapshot: DetailSnapshot) -> None:
+        summary = snapshot.summary
         self._summary_text.configure(state="normal")
         self._summary_text.delete("1.0", "end")
         if summary is None:
@@ -555,21 +745,14 @@ class ColosseumApp:
                     )
         self._summary_text.configure(state="disabled")
 
-    def _show_verifications(self, run_dir: Path) -> None:
-        db_path = run_dir / "execution.sqlite"
+    def _show_verifications_snapshot(self, snapshot: DetailSnapshot) -> None:
         self._verify_text.configure(state="normal")
         self._verify_text.delete("1.0", "end")
-        if not db_path.is_file():
-            self._verify_text.insert("end", "No execution.sqlite.")
+        if snapshot.verifications_error is not None:
+            self._verify_text.insert("end", snapshot.verifications_error)
             self._verify_text.configure(state="disabled")
             return
-        try:
-            with read_from_path(db_path) as reader:
-                rows = reader.read_verifications()
-        except (OSError, FileNotFoundError) as exc:
-            self._verify_text.insert("end", f"Cannot read database: {exc}")
-            self._verify_text.configure(state="disabled")
-            return
+        rows = snapshot.verifications or []
 
         if not rows:
             self._verify_text.insert("end", "No verifications recorded.")

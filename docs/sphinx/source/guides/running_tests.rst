@@ -9,7 +9,9 @@ The CLI initializes and finalizes the runtime around ``main()``::
 The CLI does not execute the script's ``if __name__ == "__main__"`` block.
 
 Normal runs create ``debug.log``, ``execution.sqlite``, ``summary.txt``, and
-``summary.json`` beneath ``outputs/<timestamp>_<name>/``.
+``summary.json`` beneath ``outputs/<timestamp>_<name>-pass/`` or
+``outputs/<timestamp>_<name>-fail/``. During execution, before the final result is
+known, the active directory is named ``outputs/<timestamp>_<name>/``.
 
 Use ``--no-artifacts``, ``load_config(..., no_artifacts=True)``, or
 ``COLOSSEUM_NO_ARTIFACTS=1`` for console logging and in-memory SQLite without files.

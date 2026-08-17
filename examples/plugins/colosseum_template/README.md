@@ -178,9 +178,10 @@ The extension must be installed; the CLI loads plugins before running `main()`.
 
 ### 6. Evidence
 
-Normal runs create `outputs/<timestamp>_<name>/` with `debug.log`, `execution.sqlite`,
-`summary.txt`, and `summary.json`. Use `--no-artifacts` or `no_artifacts=True` for
-utility calls without persisted evidence.
+Normal runs create `debug.log`, `execution.sqlite`, `summary.txt`, and `summary.json`.
+The active directory is `outputs/<timestamp>_<name>/` during execution and is renamed to
+`outputs/<timestamp>_<name>-pass/` or `outputs/<timestamp>_<name>-fail/` at finalization.
+Use `--no-artifacts` or `no_artifacts=True` for utility calls without persisted evidence.
 
 ### 7. Troubleshooting
 

@@ -75,7 +75,7 @@ class RunWorker:
         return suite.name
 
     def _build_argv(self, request: RunRequest) -> list[str]:
-        argv = [sys.executable, "-m", "colosseum.runner.cli"]
+        argv = [sys.executable, "-u", "-m", "colosseum.runner.cli"]
         if request.kind == RunKind.TEST:
             argv.extend(["run", str(request.path)])
         else:
@@ -86,16 +86,12 @@ class RunWorker:
             argv.append("--debug")
         return argv
 
-    def _tail_log(self, log_path: Path, offset: int) -> tuple[int, list[str]]:
-        if not log_path.is_file():
-            return offset, []
-        data = log_path.read_bytes()
-        if len(data) <= offset:
-            return offset, []
-        chunk = data[offset:]
-        new_offset = len(data)
-        text = chunk.decode("utf-8", errors="replace")
-        return new_offset, text.splitlines()
+    def _stream_stdout(self, pipe: Any) -> None:  # noqa: ANN401
+        try:
+            for line in iter(pipe.readline, ""):
+                self._queue.put(("log", line.rstrip("\r\n")))
+        finally:
+            pipe.close()
 
     def _run(self, request: RunRequest) -> None:
         logical_name = self._logical_name(request)
@@ -107,8 +103,12 @@ class RunWorker:
             self._process = subprocess.Popen(
                 argv,
                 cwd=str(self._cwd),
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                bufsize=1,
             )
         except OSError as exc:
             self._queue.put(("error", str(exc)))
@@ -116,8 +116,15 @@ class RunWorker:
             return
 
         run_dir: Path | None = None
-        log_offset = 0
         proc = self._process
+        stdout_thread: threading.Thread | None = None
+        if proc.stdout is not None:
+            stdout_thread = threading.Thread(
+                target=self._stream_stdout,
+                args=(proc.stdout,),
+                daemon=True,
+            )
+            stdout_thread.start()
 
         while proc.poll() is None or (run_dir is None and not self._stop_requested):
             if run_dir is None:
@@ -125,27 +132,17 @@ class RunWorker:
                 if run_dir is None:
                     run_dir = find_run_directory(self._cwd, logical_name, since=None)
 
-            if run_dir is not None:
-                log_path = run_dir / "debug.log"
-                log_offset, lines = self._tail_log(log_path, log_offset)
-                for line in lines:
-                    self._queue.put(("log", line))
-
             if proc.poll() is not None:
                 break
             time.sleep(0.3)
 
         exit_code = proc.wait()
-        if run_dir is None:
-            run_dir = find_run_directory(self._cwd, logical_name, since=start_time - 1.0)
-        if run_dir is None:
-            run_dir = find_run_directory(self._cwd, logical_name, since=None)
+        if stdout_thread is not None:
+            stdout_thread.join(timeout=2.0)
 
-        if run_dir is not None:
-            log_path = run_dir / "debug.log"
-            log_offset, lines = self._tail_log(log_path, log_offset)
-            for line in lines:
-                self._queue.put(("log", line))
+        final_run_dir = find_run_directory(self._cwd, logical_name, since=start_time - 1.0)
+        if final_run_dir is None:
+            final_run_dir = find_run_directory(self._cwd, logical_name, since=None)
 
-        self._queue.put(("finished", RunFinished(run_dir=run_dir, exit_code=exit_code)))
+        self._queue.put(("finished", RunFinished(run_dir=final_run_dir, exit_code=exit_code)))
         self._process = None
