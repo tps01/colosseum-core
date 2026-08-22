@@ -12,7 +12,7 @@ from .decorators import (
 from .plugins.namespace import LazyNamespaceProxy
 from .results import endex
 
-__version__ = "0.15.3"
+__version__ = "0.15.4"
 
 
 def __getattr__(name: str) -> LazyNamespaceProxy:
