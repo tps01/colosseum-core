@@ -38,6 +38,15 @@ def test_explicit_section_replacement() -> None:
     assert reg.config_section_specs() == [replacement]
 
 
+def test_config_section_specs_is_a_snapshot() -> None:
+    reg = PluginRegistry()
+    spec = ConfigSectionSpec("equipment.psu", "psu_id", ("driver",))
+    reg.register_config_section(spec)
+    listed = reg.config_section_specs()
+    listed.clear()
+    assert reg.config_section_specs() == [spec]
+
+
 def test_duplicate_namespace_fails_fast() -> None:
     reg = PluginRegistry()
     module = types.ModuleType("plugin")

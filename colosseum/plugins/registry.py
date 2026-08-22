@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import types
 from collections import defaultdict
-from collections.abc import Iterable
 from typing import Callable
 
 from colosseum.logging import get_logger
@@ -59,9 +58,6 @@ class PluginRegistry:
 
     def config_section_specs(self) -> list[ConfigSectionSpec]:
         return list(self._sections.values())
-
-    def iter_config_sections(self) -> Iterable[ConfigSectionSpec]:
-        return self.config_section_specs()
 
     def validators_for(self, dotted_path: str) -> list[ConfigValidator]:
         return self._validators.get(dotted_path, [])

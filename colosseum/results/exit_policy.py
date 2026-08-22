@@ -9,6 +9,7 @@ from typing import NoReturn
 
 from ..context import RuntimeContext, get_context
 from ..output import ensure_runtime_ready, rename_run_directory_for_result
+from ..resource_cache import close_cached_resources
 
 _ORIGINAL_EXCEPTHOOK = sys.excepthook
 _AUTO_FINALIZE_HOOKS_REGISTERED = False
@@ -41,18 +42,8 @@ def _finalize_context(ctx: RuntimeContext) -> int:
     if ctx.logger is not None:
         ctx.logger.debug("Running plugin shutdown hooks")
     ctx.plugin_registry.run_shutdown()
-    resource_count = len(ctx.resource_cache)
-    if ctx.logger is not None and resource_count:
-        ctx.logger.debug("Closing %d cached resource(s)", resource_count)
-    for resource in list(ctx.resource_cache.values()):
-        close = getattr(resource, "close", None)
-        if callable(close):
-            try:
-                close()
-            except Exception:
-                if ctx.logger is not None:
-                    ctx.logger.exception("Failed to close resource")
-    ctx.resource_cache.clear()
+    # Empty prefix matches every remaining key after plugin shutdown hooks.
+    close_cached_resources(ctx.resource_cache, (("",),), logger=ctx.logger)
     measurement_count = 0
     command_count = 0
     if ctx.db.is_initialized():
@@ -76,7 +67,6 @@ def _finalize_context(ctx: RuntimeContext) -> int:
         )
     ctx.finalized = True
     ctx.final_exit_code = code
-    ctx._finalized_count += 1
     return code
 
 

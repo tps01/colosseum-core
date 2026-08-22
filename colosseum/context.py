@@ -37,7 +37,6 @@ class RuntimeContext:
     runtime_ready: bool = False
     resource_cache: dict[str, Any] = field(default_factory=dict)
     config_warnings: list[str] = field(default_factory=list)
-    _finalized_count: int = field(default=0, repr=False)
 
 
 def get_context() -> RuntimeContext | None:

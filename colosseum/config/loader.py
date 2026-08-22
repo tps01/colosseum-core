@@ -118,7 +118,7 @@ def apply_raw_config(
     validator_map = {
         spec.dotted_path: ctx.plugin_registry.validators_for(spec.dotted_path) for spec in specs
     }
-    ctx.config_warnings.extend(run_section_validators(normalized, spec_map, validator_map))
+    ctx.config_warnings.extend(run_section_validators(normalized, validator_map))
     if ctx.runtime_ready and ctx.logger is not None:
         for warning in ctx.config_warnings:
             ctx.logger.warning(warning)
