@@ -2,6 +2,9 @@ Measurements, commands, and verifications
 ==========================================
 
 Core records decorated API calls in ``execution.sqlite`` and ``debug.log``.
+Plugin internals should use :func:`colosseum.logging.get_logger` with
+``colosseum.<namespace>`` (see :doc:`plugins`); those DEBUG lines land in the
+same ``debug.log`` and are distinct from decorator pass/fail records.
 
 Commands
 --------

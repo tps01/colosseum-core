@@ -5,8 +5,8 @@ from __future__ import annotations
 from importlib.metadata import distribution
 from types import SimpleNamespace
 
-from colosseum.compat import entry_points as entry_points_module
-from colosseum.compat.entry_points import entry_points_for_group
+from colosseum.compatibility import entry_points as entry_points_module
+from colosseum.compatibility.entry_points import entry_points_for_group
 
 
 def test_core_distribution_does_not_declare_runtime_plugins() -> None:

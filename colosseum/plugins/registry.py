@@ -47,6 +47,7 @@ class PluginRegistry:
                 "Use replace_namespace() for an intentional override."
             )
         self._namespaces[name] = module
+        _logger.debug("Registered namespace `%s`", name)
 
     def replace_namespace(self, name: str, module: types.ModuleType) -> None:
         if name not in self._namespaces:

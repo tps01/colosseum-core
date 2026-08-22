@@ -18,8 +18,9 @@ Edit `colosseum_template/api.py` (rename the package directory when forking):
 
 - Use `@command` for setup/actions, `@measurement` for evidence, `@verification` for checks (import from `colosseum.decorators`).
 - Set `MeasurementSource(domain="template", ...)` to match your namespace (change `"template"` when forking).
+- Log with `get_logger("colosseum.template")` (change `template` when forking). That name is required so lines appear in the run `debug.log`.
 - In test and example scripts use **one keyword argument per `col.*` call** on a single line (Colosseum project style).
-- Replace `# TODO: Your code here` stubs with real logic.
+- Replace `# TODO: Your code here` stubs with real logic. Decorators already record API pass/fail; use `_logger.debug(...)` for plugin internals.
 
 Optional helpers:
 
@@ -36,6 +37,20 @@ In `colosseum_template/__init__.py`:
 - **Optional:** `registry.register_shutdown(callable)` — release hardware on `col.endex()`.
 
 Keep optional imports inside `register()` so importing the package stays lightweight.
+
+### Logging
+
+Every plugin module that emits logs should do this (already in `api.py`, `__init__.py`, `connections.py`, `validators.py`):
+
+```python
+from colosseum.logging import get_logger
+
+_logger = get_logger("colosseum.template")
+```
+
+`setup_logging` attaches handlers to the `colosseum` logger. Records from `colosseum.template` (or a child such as `colosseum.template.api`) propagate into `outputs/<run>/debug.log` as `[colosseum.template]`. A logger named `template` or `colosseum_template` will **not** appear in that file.
+
+When you fork, rename `colosseum.template` to `colosseum.<yournamespace>` everywhere `get_logger` is called. File handlers record DEBUG; console (when enabled) defaults to INFO.
 
 ### 4. Declare entry points
 

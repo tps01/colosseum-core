@@ -1,7 +1,10 @@
 """Colosseum extension template — register() wires namespace and config."""
 
 from colosseum.config.sections import ConfigSectionSpec
+from colosseum.logging import get_logger
 from colosseum.plugins.registry import PluginRegistry
+
+_logger = get_logger("colosseum.template")
 
 
 def register(registry: PluginRegistry) -> None:
@@ -9,6 +12,7 @@ def register(registry: PluginRegistry) -> None:
 
     # Required: expose public API as col.template.* (TODO: rename namespace when forking).
     registry.register_namespace("template", api)
+    _logger.debug("Registered col.template namespace")
 
     # Required: declare repeatable bench TOML section(s).
     registry.register_config_section(

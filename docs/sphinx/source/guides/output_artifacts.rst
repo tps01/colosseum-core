@@ -7,7 +7,10 @@ Output artifacts
    * - File
      - Description
    * - ``debug.log``
-     - Run header and execution log
+     - Run header and execution log. Lines use ``%(name)s`` (for example
+       ``[colosseum.template]``). Plugin code must call
+       :func:`colosseum.logging.get_logger` with ``colosseum.<namespace>`` so
+       DEBUG records reach this file (see :doc:`plugins`).
    * - ``execution.sqlite``
      - Measurements, verifications, events, metadata, and registered artifacts
    * - ``summary.txt``

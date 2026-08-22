@@ -12,7 +12,7 @@ def discover_specs() -> list[DocgenModuleSpec]:
     :returns: Sorted list of docgen module specifications.
     :rtype: list[DocgenModuleSpec]
     """
-    from colosseum.compat.entry_points import entry_points_for_group
+    from colosseum.compatibility.entry_points import entry_points_for_group
 
     specs: list[DocgenModuleSpec] = []
     for ep in entry_points_for_group(DOCGEN_ENTRY_GROUP):

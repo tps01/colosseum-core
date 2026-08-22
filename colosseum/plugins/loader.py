@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from colosseum.compat.entry_points import entry_points_for_group
+from colosseum.compatibility.entry_points import entry_points_for_group
 from colosseum.logging import get_logger
 
 from .registry import PluginRegistrationError, PluginRegistry
