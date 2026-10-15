@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import runpy
+import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 from colosseum.context import get_context
@@ -22,6 +25,23 @@ def _system_exit_code(exc: SystemExit) -> int:
     return 1
 
 
+@contextmanager
+def _script_import_path(script: Path) -> Iterator[None]:
+    """Put the script directory on ``sys.path``, matching ``python script.py``."""
+    directory = str(script.parent)
+    if directory in sys.path:
+        yield
+        return
+    sys.path.insert(0, directory)
+    try:
+        yield
+    finally:
+        try:
+            sys.path.remove(directory)
+        except ValueError:
+            pass
+
+
 def run_script(path: Path) -> None:
     """Execute a test/setup/teardown script (calls main() only; no endex)."""
     ctx = get_context()
@@ -32,13 +52,14 @@ def run_script(path: Path) -> None:
         ctx.logger.info("Running script %s (phase=%s)", resolved, ctx.phase)
         ctx.logger.debug("Loading script module: %s", resolved)
     try:
-        module_globals = runpy.run_path(str(resolved), run_name="colosseum.test_run")
-        main_fn = module_globals.get("main")
-        if not callable(main_fn):
-            raise ScriptRunError(f"Script does not define callable main(): {resolved}")
-        if ctx.logger is not None:
-            ctx.logger.debug("Calling main() in %s", resolved)
-        main_fn()
+        with _script_import_path(resolved):
+            module_globals = runpy.run_path(str(resolved), run_name="colosseum.test_run")
+            main_fn = module_globals.get("main")
+            if not callable(main_fn):
+                raise ScriptRunError(f"Script does not define callable main(): {resolved}")
+            if ctx.logger is not None:
+                ctx.logger.debug("Calling main() in %s", resolved)
+            main_fn()
     except SystemExit as exc:
         if ctx.finalized:
             raise
