@@ -41,9 +41,21 @@ scripts/docgen/build_all.py`.
 User-facing test scripts and guide snippets use one line per `col.*` call with
 keyword arguments inline. See [examples/](../examples/).
 
+## Public HTML hub
+
+Browsed docs live on GitHub Pages:
+
+- **Hub (this repo):** https://tps01.github.io/colosseum-core/
+- **Plugins (separate sites):** equipment, gui, host, messaging, shared — each
+  under `https://tps01.github.io/colosseum-<name>/`. Linked from the Sphinx
+  landing page. `colosseum-library` is not published yet.
+
+There is no separate umbrella `tps01/colosseum` docs repo.
+
 ## CI documentation outputs
 
 - The Sphinx **PDF** is the primary manual (release builds it; CI uploads the
   PDF artifact when `latexmk` is available).
-- HTML is a backup of the same sources. The GitHub Pages workflow is
-  manual-only and not part of routine CI.
+- HTML is a backup of the same sources and is what GitHub Pages deploys.
+- The Documentation workflow (`.github/workflows/docs.yml`) builds HTML and
+  deploys Pages on `workflow_dispatch` and on pushes that touch docs sources.
