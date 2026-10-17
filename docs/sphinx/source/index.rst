@@ -33,8 +33,8 @@ library is not documented here yet.
 First-party plugins
 -------------------
 
-Each plugin hosts its own HTML docs. Start there for package-specific APIs;
-return here for framework guides.
+Each plugin site is an **API reference** for that package's ``col.*`` surface.
+Return here for framework guides (install, config, runners, plugins).
 
 * `colosseum-equipment <https://tps01.github.io/colosseum-equipment/>`__ —
   instruments and I/O (`col.equipment.*`, `col.io.*`) —
