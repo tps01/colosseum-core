@@ -14,6 +14,13 @@ Core of the Colosseum test automation framework. It provides:
 pip install colosseum-core
 ```
 
+## Documentation
+
+HTML hub (GitHub Pages): https://tps01.github.io/colosseum-core/
+
+First-party plugins publish their own Pages sites; they are linked from that
+hub. See [docs/README.md](docs/README.md).
+
 ## Develop
 
 ```sh
