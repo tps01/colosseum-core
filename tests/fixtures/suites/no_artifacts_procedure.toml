@@ -1,0 +1,4 @@
+name = "no_artifacts_procedure"
+
+setup = ["../scripts/setup_ok.py"]
+tests = ["../scripts/optional_fail_test.py"]

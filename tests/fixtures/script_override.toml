@@ -1,0 +1,3 @@
+# Distinct from CLI core.toml — must not win when -g is pinned.
+[runtime]
+label = "script-override"

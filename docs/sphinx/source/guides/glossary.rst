@@ -76,9 +76,10 @@ Terms used in the runtime and in the user guides. See
       In-memory list of command and verification outcomes. Required FAIL or
       ERROR (or a marked script error) produces exit code 1.
 
-   rip_cord
-      Suite TOML flag. Any script-slot failure skips remaining setup/tests
-      and runs teardown; the suite fails. See :doc:`running_suites`.
+   fail_fast
+      Suite TOML flag. After a setup, between, or test slot failure, skip
+      remaining non-teardown work, always run every teardown script, and fail
+      the suite (``suite_failed``). See :doc:`running_suites`.
 
    RuntimeContext
       Process-wide singleton for one run or suite: config, plugins, SQLite,

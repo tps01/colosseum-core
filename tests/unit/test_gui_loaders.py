@@ -36,6 +36,33 @@ def test_load_run_snapshot_reads_debug_log(isolated_cwd) -> None:
     assert snapshot.summary["overall_result"] == "PASS"
 
 
+def test_load_run_snapshot_preserves_slot_identity_header(isolated_cwd) -> None:
+    """GUI log pane source returns slot debug.log text, including the identity header."""
+    run_dir = isolated_cwd / "outputs" / "2026-01-01_120000_pass_test-pass"
+    run_dir.mkdir(parents=True)
+    header = (
+        "2026-01-01 12:00:00,000 INFO [colosseum] Colosseum version: 0.16.2\n"
+        "2026-01-01 12:00:00,000 INFO [colosseum] Python version: 3.12.4\n"
+        "2026-01-01 12:00:00,000 INFO [colosseum] Platform: Windows-11\n"
+        "2026-01-01 12:00:00,000 INFO [colosseum] Test case: pass_test\n"
+        "2026-01-01 12:00:00,000 INFO [colosseum] Suite: fixture_happy\n"
+        "2026-01-01 12:00:00,000 INFO [colosseum] Start time: 2026-01-01T17:00:00+00:00\n"
+        "2026-01-01 12:00:00,000 INFO [colosseum] Config file: C:\\tmp\\config.toml\n"
+        f"2026-01-01 12:00:00,000 INFO [colosseum] Output directory: {run_dir}\n"
+        "2026-01-01 12:00:00,100 INFO [colosseum] Running script pass_test.py (phase=test)\n"
+    )
+    (run_dir / "debug.log").write_text(header, encoding="utf-8")
+    (run_dir / "summary.json").write_text('{"overall_result": "PASS", "exit_code": 0}', encoding="utf-8")
+
+    snapshot = load_run_snapshot(run_dir)
+
+    assert snapshot.log_error is None
+    assert snapshot.log_text == header
+    assert snapshot.log_text.count("Colosseum version:") == 1
+    assert "Test case: pass_test" in snapshot.log_text
+    assert f"Output directory: {run_dir}" in snapshot.log_text
+
+
 def test_load_run_snapshot_missing_log(isolated_cwd) -> None:
     run_dir = isolated_cwd / "outputs" / "2026-01-01_120000_pass-pass"
     run_dir.mkdir(parents=True)

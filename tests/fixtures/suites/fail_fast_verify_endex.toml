@@ -1,0 +1,5 @@
+name = "fail_fast_verify_endex"
+fail_fast = true
+setup = []
+tests = ["../scripts/fail_required_verify_endex.py", "../scripts/pass_test.py"]
+teardown = ["../scripts/teardown_ok.py"]

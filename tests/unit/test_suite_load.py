@@ -85,19 +85,19 @@ def test_load_repeat_for_table(fixtures_dir) -> None:
     assert suite.tests[0].repeat_for == timedelta(seconds=1)
 
 
-def test_load_rip_cord(fixtures_dir) -> None:
-    suite = load_suite_toml(fixtures_dir / "suites" / "setup_fail_rip_cord.toml")
-    assert suite.rip_cord is True
+def test_load_fail_fast_setup_fixture(fixtures_dir) -> None:
+    suite = load_suite_toml(fixtures_dir / "suites" / "setup_fail_fail_fast.toml")
+    assert suite.fail_fast is True
 
 
-def test_rip_cord_non_bool_raises(tmp_path, fixtures_dir) -> None:
+def test_rip_cord_key_rejected(tmp_path, fixtures_dir) -> None:
     script = fixtures_dir / "scripts" / "pass_test.py"
     path = tmp_path / "bad_rip_cord.toml"
     path.write_text(
-        f'name = "x"\nrip_cord = "yes"\ntests = ["{script.as_posix()}"]\n',
+        f'name = "x"\nrip_cord = true\ntests = ["{script.as_posix()}"]\n',
         encoding="utf-8",
     )
-    with pytest.raises(SuiteError, match="rip_cord.*boolean"):
+    with pytest.raises(SuiteError, match="rip_cord.*removed.*fail_fast"):
         load_suite_toml(path)
 
 

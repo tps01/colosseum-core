@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 from .database import DatabaseManager
 from .results.aggregation import ResultAggregator
 from .runner.run_options import ExecutionMode, RunOptions
+from .runner.session import RunKind, RunSession
 
 if TYPE_CHECKING:
     import logging
@@ -48,7 +49,6 @@ class RuntimeContext:
     slot_finalized: bool = False
     slot_affects_suite_result: bool = False
     suite_finalized: bool = False
-    rip_cord_triggered: bool = False
     slot_script_path: Path | None = None
     slot_test_index: int | None = None
     slot_repeat_index: int | None = None
@@ -57,6 +57,7 @@ class RuntimeContext:
     started_at: datetime | None = None
     run_options: RunOptions = field(default_factory=RunOptions)
     active_execution_mode: ExecutionMode = "full"
+    session: RunSession = field(default_factory=RunSession)
 
 
 def get_context() -> RuntimeContext:
@@ -104,6 +105,8 @@ def init_context(
     from . import __version__
     from .plugins.registry import PluginRegistry
 
+    options = run_options if run_options is not None else RunOptions()
+    kind: RunKind = "suite" if suite_name is not None else "single"
     ctx = RuntimeContext(
         config=None,
         output_dir=None,
@@ -119,9 +122,11 @@ def init_context(
         auto_finalize=auto_finalize,
         metadata_path=str(Path(metadata_path).resolve()) if metadata_path else None,
         started_at=datetime.now(timezone.utc).astimezone(),
-        run_options=run_options if run_options is not None else RunOptions(),
-        active_execution_mode=(
-            run_options.execution_mode if run_options is not None else "full"
+        run_options=options,
+        active_execution_mode=options.execution_mode,
+        session=RunSession(
+            kind=kind,
+            requested_execution_mode=options.execution_mode,
         ),
     )
     if auto_finalize:

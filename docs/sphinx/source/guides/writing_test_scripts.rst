@@ -48,6 +48,10 @@ CLI skeleton (``colosseum run`` loads config and metadata from flags)::
        col.template.measure_widget_count(device_id=1, key="widgets")
        col.template.verify_widget_count(key="widgets", expected_val=10.0, tolerance=0.0)
 
+Omit ``load_config`` / ``load_metadata`` under the CLI: ``-g`` and ``-m`` pin
+those values. A leftover script ``load_config`` / ``load_metadata`` is ignored
+(warn once) unless you pass ``force=True`` for an intentional reload.
+
 Direct-Python skeleton (script loads config and calls ``endex()``)::
 
    import colosseum as col
@@ -66,6 +70,20 @@ Direct-Python skeleton (script loads config and calls ``endex()``)::
 When you run through the CLI, the runner does not execute the script's
 ``if __name__ == "__main__"`` block. It calls ``main()`` and finalizes the slot
 automatically if the script returns without calling ``endex()``.
+
+While the script runs, the runner puts the script directory first on
+``sys.path`` (the same as ``python my_test.py``), so sibling helpers in that
+directory import cleanly. After the script returns or raises, ``sys.path`` is
+restored. Sibling modules stay in ``sys.modules`` for the process, so suite
+setup and later tests share the same helper state. A multi-directory suite is
+still one process: the same helper basename in two folders reuses the first
+import. Names that collide with an already-imported module, or with a stdlib or
+plugin name, resolve the same way as a direct Python launch.
+
+Relative filesystem paths inside a script (``open("data.csv")``, relative
+``load_config``) still use the process working directory, not the script
+directory. Prefer paths relative to ``Path(__file__).resolve().parent`` when
+assets sit next to the script.
 
 Configuration
 -------------

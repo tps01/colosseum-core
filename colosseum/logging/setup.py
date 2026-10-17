@@ -10,6 +10,52 @@ if TYPE_CHECKING:
     from colosseum.context import RuntimeContext
 
 
+def _detach_handlers(logger: logging.Logger) -> None:
+    """Drop handlers without closing ``sys.stdout``.
+
+    File handlers are closed so Windows can rename the run directory. Stream
+    handlers are removed only; closing them can close the process console.
+    """
+    for handler in list(logger.handlers):
+        if isinstance(handler, logging.FileHandler):
+            handler.flush()
+            handler.close()
+        logger.removeHandler(handler)
+
+
+def _formatter() -> logging.Formatter:
+    return logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
+
+
+def _output_dir_line(ctx: RuntimeContext) -> str:
+    if ctx.no_artifacts:
+        return "(none — no-artifacts mode)"
+    if ctx.output_dir is not None:
+        return str(ctx.output_dir)
+    if ctx.suite_output_dir is not None:
+        return str(ctx.suite_output_dir)
+    # Suite kind must not be inferred from missing paths (no-artifacts clears
+    # suite_output_dir). Prefer an explicit suite label over a fake no-artifacts line.
+    if ctx.session.kind == "suite":
+        return "(suite — container not allocated)"
+    return "(none — no-artifacts mode)"
+
+
+def _emit_identity_header(logger: logging.Logger, ctx: RuntimeContext) -> None:
+    header = [
+        f"Colosseum version: {ctx.framework_version}",
+        f"Python version: {sys.version}",
+        f"Platform: {platform.platform()}",
+        f"Test case: {ctx.test_case_name}",
+        f"Suite: {ctx.suite_name or 'N/A'}",
+        f"Start time: {datetime.now(timezone.utc).isoformat()}",
+        f"Config file: {ctx.config_path or 'N/A'}",
+        f"Output directory: {_output_dir_line(ctx)}",
+    ]
+    for line in header:
+        logger.info(line)
+
+
 def setup_logging(
     ctx: RuntimeContext,
     *,
@@ -17,11 +63,17 @@ def setup_logging(
     console_level: int = logging.INFO,
     file: bool = True,
 ) -> logging.Logger:
+    """Attach Colosseum log handlers and record the run identity header.
+
+    Call this when a run or suite slot starts. The header is written to every
+    attached handler (console and/or ``debug.log``).
+    """
     logger = logging.getLogger("colosseum")
     logger.setLevel(logging.DEBUG)
-    logger.handlers.clear()
+    logger.propagate = False
+    _detach_handlers(logger)
 
-    formatter = logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
+    formatter = _formatter()
     if file:
         assert ctx.output_dir is not None
         file_handler = logging.FileHandler(ctx.output_dir / "debug.log", mode="a", encoding="utf-8")
@@ -35,22 +87,31 @@ def setup_logging(
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
 
-    if ctx.no_artifacts or ctx.output_dir is None:
-        output_dir_line = "(none — no-artifacts mode)"
-    else:
-        output_dir_line = str(ctx.output_dir)
-    header = [
-        f"Colosseum version: {ctx.framework_version}",
-        f"Python version: {sys.version}",
-        f"Platform: {platform.platform()}",
-        f"Test case: {ctx.test_case_name}",
-        f"Suite: {ctx.suite_name or 'N/A'}",
-        f"Start time: {datetime.now(timezone.utc).isoformat()}",
-        f"Config file: {ctx.config_path or 'N/A'}",
-        f"Output directory: {output_dir_line}",
-    ]
-    for line in header:
-        logger.info(line)
+    _emit_identity_header(logger, ctx)
+    return logger
+
+
+def attach_console_logger(
+    ctx: RuntimeContext,
+    *,
+    console_level: int = logging.INFO,
+) -> logging.Logger:
+    """Restore a console-only logger without printing another identity header.
+
+    Suite slots call this after finalize closes the slot ``debug.log`` so later
+    suite messages still reach stdout. The next ``begin_script_slot`` call
+    prints the next slot's header via ``setup_logging``.
+    """
+    logger = logging.getLogger("colosseum")
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = False
+    _detach_handlers(logger)
+
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(console_level)
+    console_handler.setFormatter(_formatter())
+    logger.addHandler(console_handler)
+    ctx.logger = logger
     return logger
 
 

@@ -1,0 +1,3 @@
+name = "no_artifacts_endex"
+
+tests = ["../scripts/pass_endex_test.py"]

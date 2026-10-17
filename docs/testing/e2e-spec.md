@@ -256,7 +256,7 @@ only.
 
 ### E2E-SUITE-03
 
-**Behavior:** Setup failure does not fail the suite when `rip_cord` is false.
+**Behavior:** Setup failure does not fail the suite when `fail_fast` is false.
 
 **Acceptance criteria:**
 
@@ -265,11 +265,12 @@ only.
 
 **Fixtures:** `suites/setup_fail.toml`
 
-**Test:** `test_suite_cli.py::test_setup_fail_exits_zero_without_rip_cord`
+**Test:** `test_suite_cli.py::test_setup_fail_exits_zero_without_fail_fast`
 
 ### E2E-SUITE-04
 
-**Behavior:** Teardown failure does not fail the suite when tests pass.
+**Behavior:** Teardown failure does not fail the suite when tests pass and
+`fail_fast` is false.
 
 **Acceptance criteria:**
 
@@ -302,7 +303,7 @@ only.
 
 - Exit code 1.
 - Second test script does not run.
-- Failing slot has `fail_fast_stopped` metadata.
+- Container summary has `fail_fast_stopped`.
 
 **Fixtures:** `suites/multi_test_fail_fast_crash.toml`
 
@@ -310,18 +311,18 @@ only.
 
 ### E2E-SUITE-07
 
-**Behavior:** `rip_cord=true` aborts on setup failure, runs teardown, fails
-suite.
+**Behavior:** `fail_fast=true` aborts on setup failure, runs all teardown,
+fails suite even when teardown passes.
 
 **Acceptance criteria:**
 
 - Exit code 1.
 - Test script does not run.
-- `rip_cord_triggered` in container summary JSON.
+- `suite_failed` and `fail_fast_stopped` in container summary JSON.
 
-**Fixtures:** `suites/setup_fail_rip_cord.toml`
+**Fixtures:** `suites/setup_fail_fail_fast.toml`
 
-**Test:** `test_suite_cli.py::test_rip_cord_aborts_on_setup_failure`
+**Test:** `test_suite_cli.py::test_fail_fast_aborts_on_setup_failure`
 
 ### E2E-SUITE-08
 

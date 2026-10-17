@@ -193,6 +193,30 @@ def test_procedure_mode_skips_verifications(core_config, isolated_cwd, subproces
     assert query_db(run_dir, "SELECT COUNT(*) FROM measurements")[0][0] >= 1
 
 
+def test_missing_test_file_prints_stderr(core_config, isolated_cwd, subprocess_env) -> None:
+    """Missing script path exits 1 with a clear stderr message."""
+    proc = run_cli(
+        isolated_cwd / "no_such_test.py",
+        core_config,
+        isolated_cwd,
+        subprocess_env,
+    )
+    assert proc.returncode == 1
+    assert "Test file not found:" in proc.stderr
+
+
+def test_missing_config_prints_stderr(isolated_cwd, subprocess_env) -> None:
+    """Missing -g config exits 1 with a clear stderr message."""
+    proc = run_cli(
+        OPTIONAL_FAIL,
+        isolated_cwd / "no_such_config.toml",
+        isolated_cwd,
+        subprocess_env,
+    )
+    assert proc.returncode == 1
+    assert "Config file not found:" in proc.stderr
+
+
 @pytest.mark.requirement("E2E-RUN-13")
 def test_use_previous_output_reruns_verifications(core_config, isolated_cwd, subprocess_env) -> None:
     """-u imports prior measurements/commands and re-runs verifications only."""
@@ -211,3 +235,42 @@ def test_use_previous_output_reruns_verifications(core_config, isolated_cwd, sub
     assert query_db(rerun_dir, "SELECT COUNT(*) FROM measurements")[0][0] >= 1
     assert query_db(rerun_dir, "SELECT status FROM verifications WHERE key=?", ("stored",))[0][0] == "PASS"
     assert run_metadata(rerun_dir).get("imported_from") == str(prior_dir)
+
+
+def test_cli_config_and_metadata_pin_ignore_script_loads(
+    isolated_cwd, subprocess_env,
+) -> None:
+    """CLI -g / -m win over script load_config / load_metadata without force=True."""
+    from tests.support.e2e_specifications import read_summary_json
+
+    cli_config = REPO / "tests" / "fixtures" / "cli_pin.toml"
+    cli_meta = METADATA
+    script = REPO / "tests" / "fixtures" / "scripts" / "cli_pin_probe.py"
+    proc = run_cli(
+        script,
+        cli_config,
+        isolated_cwd,
+        subprocess_env,
+        extra_args=["-m", str(cli_meta)],
+    )
+    assert proc.returncode == 0, proc.stderr
+    combined = (proc.stdout or "") + (proc.stderr or "")
+    assert "Ignoring load_config" in combined
+    assert "Ignoring load_metadata" in combined
+    run_dir = latest_output_dir(isolated_cwd)
+    summary = read_summary_json(run_dir)
+    assert Path(summary["config_path"]).resolve() == cli_config.resolve()
+    assert "script_override" not in str(summary["config_path"]).lower()
+    payload = load_wats_json(run_dir)
+    assert_wats_identity_fields(
+        payload,
+        {
+            "uut": "PARTNUMBER",
+            "revision": "1.2.3",
+            "serial_number": "123",
+            "process_code": "1234",
+            "location": "TBD_PHYSICAL_LOCATION",
+            "test_intent": "Acceptance",
+        },
+    )
+    assert "SCRIPT_OVERRIDE" not in str(payload)

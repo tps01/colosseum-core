@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import runpy
 import sys
-from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 from colosseum.context import get_context
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
 
@@ -27,19 +27,22 @@ def _system_exit_code(exc: SystemExit) -> int:
 
 @contextmanager
 def _script_import_path(script: Path) -> Iterator[None]:
-    """Put the script directory on ``sys.path``, matching ``python script.py``."""
+    """Put the script directory first on ``sys.path`` for this script only.
+
+    Matches ``python script.py``: the script directory is ``sys.path[0]`` while
+    ``runpy`` loads the file and ``main()`` runs. ``sys.path`` is restored
+    afterward. Sibling modules stay in ``sys.modules`` for the process so suite
+    slots share helpers. Names that collide with an already-imported module or
+    with stdlib/plugin names resolve the same way as a direct Python launch.
+    """
     directory = str(script.parent)
-    if directory in sys.path:
-        yield
-        return
-    sys.path.insert(0, directory)
+    saved = list(sys.path)
+    if not sys.path or sys.path[0] != directory:
+        sys.path.insert(0, directory)
     try:
         yield
     finally:
-        try:
-            sys.path.remove(directory)
-        except ValueError:
-            pass
+        sys.path[:] = saved
 
 
 def run_script(path: Path) -> None:
@@ -63,19 +66,25 @@ def run_script(path: Path) -> None:
     except SystemExit as exc:
         if ctx.finalized:
             raise
-        if ctx.suite_output_dir is not None and ctx.slot_finalized:
+        # Suite slot already finalized via endex() — do not treat as script crash.
+        if ctx.session.kind == "suite" and ctx.slot_finalized:
             return
         code = _system_exit_code(exc)
         message = f"script_exit:{resolved}: code={code}"
-        ctx.db.insert_event("ERROR", "runner", message)
+        if ctx.db.is_initialized():
+            ctx.db.insert_event("ERROR", "runner", message)
         if ctx.logger is not None:
             ctx.logger.error("Script exited before col.endex(): %s (code=%s)", resolved, code)
         raise ScriptRunError(message) from exc
     except Exception as exc:
-        ctx.db.insert_event("ERROR", "runner", f"script_fail:{resolved}: {exc}")
+        if ctx.db.is_initialized():
+            ctx.db.insert_event("ERROR", "runner", f"script_fail:{resolved}: {exc}")
         if ctx.logger is not None:
             ctx.logger.exception("Script failed: %s", resolved)
         raise ScriptRunError(str(exc)) from exc
+    # endex() may have already finalized (and closed) the slot database.
+    if ctx.slot_finalized:
+        return
     ctx.db.insert_event("INFO", "runner", f"script_done:{resolved}")
     if ctx.logger is not None:
         ctx.logger.debug("Script finished: %s", resolved)

@@ -1,3 +1,3 @@
-from .setup import get_logger, setup_logging
+from .setup import attach_console_logger, get_logger, setup_logging
 
-__all__ = ["get_logger", "setup_logging"]
+__all__ = ["attach_console_logger", "get_logger", "setup_logging"]

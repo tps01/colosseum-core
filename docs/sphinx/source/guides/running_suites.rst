@@ -8,8 +8,7 @@ Suites are TOML files whose script paths are relative to the suite file::
    tests = ["tests/check_device.py"]
    between_tests = ["scripts/delay.py"]
    teardown = ["teardown/cleanup.py"]
-   # fail_fast = true   # optional: stop remaining test iterations after a failure
-   # rip_cord = true    # optional: abort to teardown on any script-slot failure
+   # fail_fast = true   # optional: abort remaining setup/between/test work after any of those fail
 
 Each entry in ``tests`` is either a path string (one run) or an inline table with
 ``path`` and optional repeat settings:
@@ -36,9 +35,10 @@ Suite CLI options
 
 Suites accept the shared path and config flags documented in :doc:`running_tests`
 (``-i``, ``-o``, ``-g``, ``-m``, ``-d``, ``--no-artifacts``). Suites also accept
-``-p/--procedure``, which runs **test** slots in procedure mode (commands and
-measurements only; verifications are skipped). Setup, ``between_tests``, and teardown
-slots are unaffected.
+``-p/--procedure`` or ``--mode procedure``, which run **test** slots in procedure
+mode (commands and measurements only; verifications are skipped). Setup,
+``between_tests``, and teardown slots always use full mode. Suites reject
+``--mode verify_only`` and ``--use-previous-output`` (those remain single-run only).
 
 Worked example: between two tests
 ---------------------------------
@@ -100,24 +100,32 @@ Supporting slots (setup, ``between_tests``, teardown) keep a timestamped folder 
 result suffix. They write ``debug.log`` and ``execution.sqlite`` only. They do not write
 ``summary.txt``, ``summary.json``, or the JSON test report.
 
-Suite pass/fail is determined **only from test script slots**. Setup, ``between_tests``,
-and teardown outcomes are recorded in their slot folders but do not change the suite
-result unless ``rip_cord = true``.
+Suite pass/fail is determined from **test script slots**, plus session-level
+``suite_failed`` when ``fail_fast = true`` aborts after a supporting-slot failure
+(or a teardown failure under fail_fast). With ``fail_fast = false``, setup,
+``between_tests``, and teardown outcomes are recorded in their slot folders but do
+not change the suite result.
 
 During a suite run, ``col.endex()`` finalizes the **current script slot** and returns
 control to the runner (it does not exit the process). The runner finalizes each slot
 automatically when a script returns without calling ``endex()``.
 
-``fail_fast`` and ``rip_cord``
-------------------------------
+Each slot finalize closes ``resource_cache`` (calling ``.close()`` on cached
+handles). Plugin ``register_shutdown`` hooks run once in ``finalize_suite`` after
+all slots, not on per-slot ``endex()``. Scripts that stash live connections in the
+cache must reopen them after each slot (or after a mid-suite ``load_config``).
+
+``fail_fast``
+-------------
 
 By default (``fail_fast = false``), a failed **test** iteration does not prevent later
-test iterations or teardown. Set ``fail_fast = true`` to skip remaining scheduled test
-runs after a test-slot failure. Optional verification failures never trigger fail-fast.
+test iterations or teardown. Supporting-slot failures do not fail the suite.
 
-Set ``rip_cord = true`` when any script-slot failure must abort the suite immediately
-(exception, non-zero exit, or required verification/command FAIL/ERROR in that slot).
-The runner skips remaining setup/tests/between slots, runs teardown, and fails the suite.
+Set ``fail_fast = true`` to abort remaining **setup / between / test** work after any
+of those slots fail (exception, non-zero exit, or required verification/command
+FAIL/ERROR). The runner always runs **every** teardown script. The suite fails
+(``suite_failed`` in the container summary). Optional verification failures never
+trigger fail-fast.
 
 Soak-style suites accumulate failures across repeat iterations; the suite container
-summary and exit code reflect whether any test slot failed.
+summary and exit code reflect whether any test slot failed or ``suite_failed`` was set.
