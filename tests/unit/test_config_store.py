@@ -76,7 +76,7 @@ def test_load_config_accepts_utf8_bom(tmp_path) -> None:
     config_path = tmp_path / "bom.toml"
     config_path.write_bytes(
         b"\xef\xbb\xbf"
-        b"[[acme.device]]\n"
+        b"[acme.device]\n"
         b"device_id = 1\n"
         b"driver = \"sim\"\n"
         b"resource = \"SIM::1\"\n"
