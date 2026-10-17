@@ -14,7 +14,12 @@ from colosseum.runner.command_invoke import (
     command_logical_name,
     invoke_plugin_commands,
 )
-from colosseum.runner.run_options import ExecutionMode, RunOptions, resolve_input_path
+from colosseum.runner.run_options import (
+    RunOptions,
+    RunOptionsError,
+    resolve_execution_mode,
+    resolve_input_path,
+)
 from colosseum.runner.runtime import ensure_runtime_ready
 
 from .single_test import ScriptRunError, run_script
@@ -75,6 +80,39 @@ def _add_shared_run_options(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_execution_mode_options(
+    parser: argparse.ArgumentParser,
+    *,
+    allow_verify_only: bool,
+) -> None:
+    parser.add_argument(
+        "--mode",
+        dest="execution_mode",
+        choices=("full", "procedure", "verify_only") if allow_verify_only else ("full", "procedure"),
+        default=None,
+        help=(
+            "Execution mode: full (default), procedure, or verify_only"
+            if allow_verify_only
+            else "Execution mode: full (default) or procedure"
+        ),
+    )
+    parser.add_argument(
+        "-p",
+        "--procedure",
+        action="store_true",
+        help="Alias for --mode procedure (commands/measurements only; skip verifications)",
+    )
+    if allow_verify_only:
+        parser.add_argument(
+            "-u",
+            "--use-previous-output",
+            dest="previous_output_dir",
+            metavar="PATH",
+            type=Path,
+            help="Import prior measurements/commands and re-run verifications (verify_only)",
+        )
+
+
 def _add_run_only_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--show-faults",
@@ -90,21 +128,7 @@ def _add_run_only_options(parser: argparse.ArgumentParser) -> None:
         metavar="SPEC",
         help="Invoke a plugin @command (namespace.function,key=val,...); repeatable",
     )
-    mode = parser.add_mutually_exclusive_group()
-    mode.add_argument(
-        "-p",
-        "--procedure",
-        action="store_true",
-        help="Run commands/measurements only; verifications are no-ops",
-    )
-    mode.add_argument(
-        "-u",
-        "--use-previous-output",
-        dest="previous_output_dir",
-        metavar="PATH",
-        type=Path,
-        help="Import prior measurements/commands and re-run verifications",
-    )
+    _add_execution_mode_options(parser, allow_verify_only=True)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -139,12 +163,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     suite_parser.add_argument("suite_file", help="Path to the suite TOML file")
     _add_shared_run_options(suite_parser)
-    suite_parser.add_argument(
-        "-p",
-        "--procedure",
-        action="store_true",
-        help="Run test scripts in procedure mode (skip verifications)",
-    )
+    _add_execution_mode_options(suite_parser, allow_verify_only=False)
 
     help_parser = sub.add_parser(
         "help",
@@ -174,27 +193,40 @@ def _print_help(parser: argparse.ArgumentParser, topic: str | None = None) -> No
 
 
 def _load_run_config(config_path: str | None, metadata_path: str | None = None) -> None:
+    from colosseum.context import get_context
+
     if config_path:
         load_config(config_path, metadata_path=metadata_path)
     elif metadata_path:
         from colosseum.config.metadata import load_metadata
 
         load_metadata(metadata_path)
+    ctx = get_context()
+    if config_path:
+        ctx.session.config_pinned = True
+    if metadata_path:
+        ctx.session.metadata_pinned = True
 
 
-def _shared_run_options(args: argparse.Namespace) -> RunOptions:
-    execution_mode: ExecutionMode = "full"
-    if getattr(args, "procedure", False):
-        execution_mode = "procedure"
-    elif getattr(args, "previous_output_dir", None) is not None:
-        execution_mode = "verify_only"
+def _shared_run_options(
+    args: argparse.Namespace,
+    *,
+    command: str,
+) -> RunOptions:
+    """Resolve mode flags before any output-directory allocation."""
+    previous_raw = getattr(args, "previous_output_dir", None)
+    previous_path = Path(previous_raw).resolve() if previous_raw is not None else None
+    execution_mode, previous_output_dir = resolve_execution_mode(
+        command=command,  # type: ignore[arg-type]
+        mode=getattr(args, "execution_mode", None),
+        procedure=bool(getattr(args, "procedure", False)),
+        previous_output=previous_path,
+    )
+
     outputs_root = None
     if getattr(args, "output_dir", None) is not None:
         outputs_root = Path(args.output_dir).resolve()
         outputs_root.mkdir(parents=True, exist_ok=True)
-    previous_output_dir = None
-    if getattr(args, "previous_output_dir", None) is not None:
-        previous_output_dir = Path(args.previous_output_dir).resolve()
     return RunOptions(
         input_dir=Path(args.input_dir).resolve() if getattr(args, "input_dir", None) else None,
         outputs_root=outputs_root,
@@ -250,8 +282,17 @@ def _run_single_test(
             run_script(test_path)
     except (ScriptRunError, CommandInvokeError):
         ctx.result_aggregator.mark_suite_error("test script failed")
+    except Exception as exc:
+        ctx.result_aggregator.mark_suite_error(f"test run failed: {exc}")
+        if ctx.logger is not None:
+            ctx.logger.exception("Unhandled error during test run")
     finally:
         endex()
+
+
+def _exit_with_message(message: str) -> None:
+    print(message, file=sys.stderr)
+    raise SystemExit(1) from None
 
 
 def run_cli(argv: list[str] | None = None) -> int:
@@ -273,7 +314,10 @@ def run_cli(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "run":
-        run_options = _shared_run_options(args)
+        try:
+            run_options = _shared_run_options(args, command="run")
+        except RunOptionsError as exc:
+            _exit_with_message(str(exc))
         _maybe_enable_faulthandler(show_faults=run_options.show_faults)
         if not args.test_file and not run_options.plugin_commands:
             parser.error("run requires a test_file and/or at least one -c/--command")
@@ -281,7 +325,7 @@ def run_cli(argv: list[str] | None = None) -> int:
         if args.test_file:
             test_path = resolve_input_path(run_options.input_dir, args.test_file)
             if not test_path.exists():
-                raise SystemExit(1)
+                _exit_with_message(f"Test file not found: {test_path}")
         try:
             _run_single_test(
                 test_path,
@@ -291,15 +335,18 @@ def run_cli(argv: list[str] | None = None) -> int:
                 no_artifacts=bool(getattr(args, "no_artifacts", False)),
                 run_options=run_options,
             )
-        except ConfigError:
-            raise SystemExit(1) from None
+        except ConfigError as exc:
+            _exit_with_message(str(exc))
         return 0
 
     if args.command == "run-suite":
-        run_options = _shared_run_options(args)
+        try:
+            run_options = _shared_run_options(args, command="run-suite")
+        except RunOptionsError as exc:
+            _exit_with_message(str(exc))
         suite_path = resolve_input_path(run_options.input_dir, args.suite_file)
         if not suite_path.exists():
-            raise SystemExit(1)
+            _exit_with_message(f"Suite file not found: {suite_path}")
         try:
             config = Path(args.config_path).resolve() if args.config_path else None
             run_suite(
@@ -310,8 +357,8 @@ def run_cli(argv: list[str] | None = None) -> int:
                 no_artifacts=bool(getattr(args, "no_artifacts", False)),
                 run_options=run_options,
             )
-        except (ConfigError, SuiteError):
-            raise SystemExit(1) from None
+        except (ConfigError, SuiteError) as exc:
+            _exit_with_message(str(exc))
         return 0
 
     parser.error(f"Unknown command: {args.command}")

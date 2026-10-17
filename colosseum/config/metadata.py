@@ -66,8 +66,28 @@ def load_metadata_yaml(path: str | Path) -> dict[str, Any]:
     return normalize_metadata_dict(block)
 
 
-def load_metadata(path: str | Path) -> dict[str, Any]:
+def load_metadata(path: str | Path, *, force: bool = False) -> dict[str, Any]:
+    """Load (or replace) WATS metadata YAML.
+
+    When the CLI/suite already loaded ``-m``, subsequent calls without
+    ``force=True`` are no-ops (warn once). Pass ``force=True`` to replace.
+    """
+    from colosseum.logging import get_logger
+
     ctx = get_context()
+    if ctx.session.metadata_pinned and not force:
+        if not ctx.session.metadata_pin_warned:
+            ctx.session.metadata_pin_warned = True
+            message = (
+                "Ignoring load_metadata(%s): CLI/suite -m metadata is pinned; "
+                "pass force=True to replace"
+            )
+            if ctx.logger is not None:
+                ctx.logger.warning(message, path)
+            else:
+                get_logger("colosseum.config").warning(message, path)
+        return ctx.metadata_yaml
+
     parsed = load_metadata_yaml(path)
     ctx.metadata_yaml = parsed
     ctx.metadata_path = str(Path(path).resolve())

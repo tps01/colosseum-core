@@ -54,7 +54,7 @@ def test_happy_suite_container_and_slot_outputs(fixtures_dir, core_config, isola
     assert len(summary["test_slots"]) == 1
 
 
-def test_setup_failure_does_not_skip_tests_without_rip_cord(
+def test_setup_failure_does_not_skip_tests_without_fail_fast(
     fixtures_dir, core_config, isolated_cwd
 ) -> None:
     suite = fixtures_dir / "suites" / "setup_fail.toml"
@@ -183,12 +183,70 @@ def test_between_tests_crash_continues_when_fail_fast_false(
     assert _slot_with_stem(container, "crash_test")
 
 
-def test_rip_cord_aborts_on_setup_failure(fixtures_dir, core_config, isolated_cwd) -> None:
-    suite = fixtures_dir / "suites" / "setup_fail_rip_cord.toml"
+def test_fail_fast_aborts_on_setup_failure(fixtures_dir, core_config, isolated_cwd) -> None:
+    suite = fixtures_dir / "suites" / "setup_fail_fail_fast.toml"
     _run_suite_expect_exit(suite, core_config, isolated_cwd, 1)
     container = latest_suite_container(isolated_cwd)
     assert container.name.endswith("-fail")
     assert _slot_with_stem(container, "setup_fail")
     assert slot_dirs_matching(container, "pass_test") == []
+    assert _slot_with_stem(container, "teardown_ok")
     summary = _container_summary(container)
-    assert summary["rip_cord_triggered"] is True
+    assert summary["suite_failed"] is True
+    assert summary["fail_fast_stopped"] is True
+
+
+def test_suite_shutdown_hook_runs_once(fixtures_dir, core_config, isolated_cwd) -> None:
+    """Plugin shutdown hooks run once at suite finalize, not per slot."""
+    from colosseum.context import get_context
+    from colosseum.plugins.registry import PluginRegistry
+
+    suite = fixtures_dir / "suites" / "happy.toml"
+    hooks = {"count": 0}
+    original_init = PluginRegistry.__init__
+
+    def _counting_init(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        self.register_shutdown(lambda: hooks.__setitem__("count", hooks["count"] + 1))
+
+    PluginRegistry.__init__ = _counting_init  # type: ignore[method-assign]
+    try:
+        with pytest.raises(SystemExit) as exc:
+            run_suite(suite, core_config)
+        assert exc.value.code == 0
+    finally:
+        PluginRegistry.__init__ = original_init  # type: ignore[method-assign]
+    assert hooks["count"] == 1
+    # Context still reachable until next init; suite finalized.
+    assert get_context().suite_finalized is True
+
+
+def test_no_artifacts_suite_endex_finalizes_slot_only(
+    fixtures_dir, core_config, isolated_cwd,
+) -> None:
+    """no-artifacts suite: endex() must not exit the process (session.kind=suite)."""
+    suite = fixtures_dir / "suites" / "no_artifacts_endex.toml"
+    with pytest.raises(SystemExit) as exc:
+        run_suite(suite, core_config, no_artifacts=True)
+    assert exc.value.code == 0
+    assert not (isolated_cwd / "outputs").exists()
+
+
+def test_no_artifacts_suite_procedure_skips_test_verifications(
+    fixtures_dir, core_config, isolated_cwd,
+) -> None:
+    """Procedure mode on no-artifacts suites still skips test-slot verifications."""
+    from colosseum.runner.run_options import RunOptions
+
+    suite = fixtures_dir / "suites" / "no_artifacts_procedure.toml"
+    with pytest.raises(SystemExit) as exc:
+        run_suite(
+            suite,
+            core_config,
+            no_artifacts=True,
+            run_options=RunOptions(execution_mode="procedure"),
+        )
+    # optional_fail_test would exit 0 even with verification FAIL; procedure skips
+    # verifications entirely so the suite stays green.
+    assert exc.value.code == 0
+    assert not (isolated_cwd / "outputs").exists()

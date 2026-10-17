@@ -57,7 +57,12 @@ Load configuration before calling plugin APIs::
 
 or ``colosseum run my_test.py -g config.toml`` (``-g`` is the legacy short form of
 ``--config``). That discovers plugins, normalizes registered sections, then attaches a
-config store to the run.
+config store to the run. CLI ``-g`` **pins** that store: a later script
+``load_config`` is ignored unless you pass ``force=True``.
+
+Calling ``load_config`` again (unpinned, or with ``force=True``) replaces the
+whole store. Sections present only in the previous file are dropped unless the
+new TOML includes them.
 
 Reading rows
 ------------
@@ -98,13 +103,15 @@ warnings.
 The same keys may appear in a metadata YAML file (``test_metadata:`` block).
 Load YAML with ``col.config.load_metadata("metadata.yaml")`` or
 ``colosseum run my_test.py -m metadata.yaml`` (``-m`` is the short form of
-``--metadata``).
+``--metadata``). CLI ``-m`` **pins** that YAML: a later script
+``load_metadata`` is ignored unless you pass ``force=True``.
 
 Metadata precedence
 ~~~~~~~~~~~~~~~~~~~
 
 1. Values from ``[colosseum.metadata]`` in config TOML (if present).
-2. YAML ``test_metadata`` overrides TOML when both are loaded.
+2. YAML ``test_metadata`` overrides TOML when both are loaded (CLI ``-m`` wins
+   over a script ``load_metadata`` unless ``force=True``).
 3. Runtime defaults (hostname, OS user, empty identity fields) fill any remaining gaps.
 
 Finalize writes ``wats_<datetime>_<script>.json`` beside ``summary.json`` (see

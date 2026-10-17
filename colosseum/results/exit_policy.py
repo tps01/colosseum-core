@@ -10,6 +10,7 @@ from colosseum.logging.setup import close_logger_handlers
 from colosseum.runner.runtime import rename_run_directory_for_result
 
 from .finalize import close_resource_cache, finalize_run
+from .finalize_policy import policy_for_single
 
 if TYPE_CHECKING:
     from types import TracebackType
@@ -19,7 +20,7 @@ _AUTO_FINALIZE_HOOKS_REGISTERED = False
 
 
 def _finalize_context(ctx: RuntimeContext) -> int:
-    result = finalize_run(ctx, mode="single", run_shutdown=True)
+    result = finalize_run(ctx, policy=policy_for_single(run_shutdown=True))
     ctx.finalized = True
     ctx.final_exit_code = result.exit_code
     return result.exit_code
@@ -97,6 +98,8 @@ def endex() -> None:
 
     During a suite run, finalizes the current script slot and returns without
     exiting the process. For single-test runs, exits with the aggregate code.
+    Suite vs single is determined by ``session.kind`` (not artifact paths), so
+    no-artifacts suites still finalize the slot only.
     """
     try:
         ctx = get_context()
@@ -106,7 +109,7 @@ def endex() -> None:
     if ctx.finalized:
         raise SystemExit(ctx.final_exit_code if ctx.final_exit_code is not None else 1)
 
-    if ctx.suite_output_dir is not None and not ctx.suite_finalized:
+    if ctx.session.kind == "suite" and not ctx.suite_finalized:
         from colosseum.runner.runtime import finalize_script_slot
 
         if ctx.slot_finalized:

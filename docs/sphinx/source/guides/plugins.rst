@@ -209,7 +209,10 @@ Layer 3: Resources and extras
 
 Optional registry hooks:
 
-* ``registry.register_shutdown(callable)``: cleanup on ``col.endex()`` (LIFO order).
+* ``registry.register_shutdown(callable)``: cleanup at process finalize (LIFO).
+  On a single ``colosseum run``, that is ``col.endex()``. During
+  ``colosseum run-suite``, hooks run once in ``finalize_suite`` after all slots;
+  per-slot ``endex()`` closes ``resource_cache`` but does not run shutdown hooks.
 
 Connection helpers (config lookup, cached resources on ``ctx.resource_cache``) are ordinary module functions,
 not a framework decorator. Network and hardware I/O use ordinary Python libraries

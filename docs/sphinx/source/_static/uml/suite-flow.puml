@@ -7,15 +7,15 @@ start
 :allocate suite container;
 if (setup scripts?) then (yes)
   :run setup slots;
-  if (rip_cord and failed?) then (yes)
-    :skip tests;
+  if (fail_fast and failed?) then (yes)
+    :skip remaining tests;
   else (no)
     :run test schedule;
   endif
 else (no)
   :run test schedule;
 endif
-:run teardown slots;
+:run all teardown slots;
 :finalize suite, rename container;
 stop
 @enduml

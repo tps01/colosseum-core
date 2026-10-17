@@ -77,13 +77,25 @@ def ensure_runtime_context() -> RuntimeContext:
     return ctx
 
 
+# execution_mode -> which decorator families are no-ops
+_SKIP_BY_MODE: dict[str, frozenset[str]] = {
+    "full": frozenset(),
+    "procedure": frozenset({"verification"}),
+    "verify_only": frozenset({"command", "measurement"}),
+}
+
+
+def _should_skip(ctx: RuntimeContext, family: str) -> bool:
+    return family in _SKIP_BY_MODE.get(ctx.active_execution_mode, frozenset())
+
+
 def should_skip_command(ctx: RuntimeContext) -> bool:
-    return ctx.active_execution_mode == "verify_only"
+    return _should_skip(ctx, "command")
 
 
 def should_skip_measurement(ctx: RuntimeContext) -> bool:
-    return ctx.active_execution_mode == "verify_only"
+    return _should_skip(ctx, "measurement")
 
 
 def should_skip_verification(ctx: RuntimeContext) -> bool:
-    return ctx.active_execution_mode == "procedure"
+    return _should_skip(ctx, "verification")

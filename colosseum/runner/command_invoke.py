@@ -65,7 +65,7 @@ def resolve_plugin_command(namespace: str, function: str) -> Callable[..., Any]:
     ensure_plugins_loaded(ctx.plugin_registry)
     try:
         module = ctx.plugin_registry.get_namespace(namespace)
-    except KeyError as exc:
+    except (KeyError, RuntimeError) as exc:
         raise CommandInvokeError(f"plugin namespace not found: {namespace}") from exc
     try:
         callable_obj = getattr(module, function)

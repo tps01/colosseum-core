@@ -87,6 +87,14 @@ Config and plugin discovery
 ---------------------------
 
 ``load_config`` applies TOML to the existing context (CLI already created one).
+When the CLI/suite supplied ``-g``, that config is **pinned**: a later script
+``load_config`` without ``force=True`` is a no-op (warn once) so operators'
+``-g`` wins over hardcoded paths. The same pin applies to ``-m`` /
+``load_metadata``. Intentional reloads (placeholder ``-g`` then a generated
+GUI config in setup) must use ``force=True``; the new TOML still replaces the
+entire :term:`ConfigStore` (omitted sections disappear—keep every section you
+still need).
+
 ``apply_raw_config`` then:
 
 1. **Discovers plugins** via setuptools entry points ``colosseum.plugins``.
@@ -277,7 +285,7 @@ Suite variant
 
 1. Parse suite TOML: ``name``, ``setup[]``, ``tests[]`` (optional
    ``repeat_count`` / ``repeat_for``), ``between_tests[]``, ``teardown[]``,
-   ``fail_fast``, ``rip_cord``.
+   ``fail_fast``. Suites that still set ``rip_cord`` raise at load time.
 2. Allocate a :term:`suite container` directory; console logging only at this
    level.
 3. For each script, ``begin_script_slot``: new aggregator, new SQLite, nested
@@ -287,12 +295,14 @@ Suite variant
 5. **Test** slots affect the suite result and get full artifacts (summary plus
    WATS). Setup, between, and teardown do not; they get ``debug.log`` and
    ``execution.sqlite`` only.
-6. ``rip_cord=true``: a failing supporting or test slot skips remaining tests
-   but still runs teardown, and the suite fails.
-7. ``fail_fast=true``: after a failing **test** slot, skip remaining tests.
-8. After all slots: ``finalize_suite`` - plugin shutdown once, write container
-   summaries, rename the container ``-pass`` / ``-fail``. Suite exit is 0 iff
-   every test slot passed.
+6. ``fail_fast=true``: after a failing setup, between, or test slot, skip
+   remaining non-teardown work, always run every teardown script, and set
+   session ``suite_failed``. A teardown failure under fail_fast also sets
+   ``suite_failed`` but does not stop later teardown scripts.
+7. After all slots: ``finalize_suite`` - plugin shutdown once, write container
+   summaries, rename the container ``-pass`` / ``-fail``. Suite exit is 1 if
+   any test slot failed or ``suite_failed`` is set. Each earlier slot finalize
+   already closed ``resource_cache``; only shutdown hooks wait until this step.
 
 See :doc:`running_suites` for TOML shape and operator flags.
 

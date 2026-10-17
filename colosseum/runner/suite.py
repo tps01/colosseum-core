@@ -45,7 +45,6 @@ class SuiteDefinition:
     between_tests: list[Path]
     teardown: list[Path]
     fail_fast: bool = False
-    rip_cord: bool = False
 
 
 @dataclass(frozen=True)
@@ -141,6 +140,13 @@ def load_suite_toml(path: Path) -> SuiteDefinition:
     except tomllib.TOMLDecodeError as exc:
         raise SuiteError(f"Invalid suite TOML: {exc}") from exc
 
+    if "rip_cord" in raw:
+        raise SuiteError(
+            "Suite field `rip_cord` was removed; use `fail_fast = true` instead "
+            "(abort remaining setup/between/test work after any of those slots fail, "
+            "always run teardown, and fail the suite)",
+        )
+
     name = raw.get("name")
     if not name or not isinstance(name, str):
         raise SuiteError("Suite TOML requires string field `name`")
@@ -164,11 +170,12 @@ def load_suite_toml(path: Path) -> SuiteDefinition:
         between_tests=between_tests,
         teardown=teardown,
         fail_fast=_as_bool(raw.get("fail_fast"), "fail_fast"),
-        rip_cord=_as_bool(raw.get("rip_cord"), "rip_cord"),
     )
 
 
-def _stop_remaining_tests(ctx: RuntimeContext, test_path: Path, reason: str) -> None:
+def _stop_remaining_work(ctx: RuntimeContext, test_path: Path, reason: str) -> None:
+    """Record fail-fast stop on the session (durable), then best-effort slot DB."""
+    ctx.session.mark_fail_fast_stopped(test_path, reason)
     if ctx.db.is_initialized():
         ctx.db.insert_run_metadata("fail_fast_stopped", "1")
         ctx.db.insert_event("INFO", "runner", f"fail_fast_stop:{test_path}:{reason}")
@@ -197,8 +204,8 @@ def _run_script_slot(
     test_index: int | None = None,
     repeat_index: int | None = None,
     entry: SuiteTestEntry | None = None,
-) -> tuple[bool, bool]:
-    """Run one script slot. Returns (rip_cord_abort, fail_fast_stop)."""
+) -> bool:
+    """Run one script slot. Returns True when fail_fast should stop non-teardown work."""
     begin_script_slot(ctx, script.stem, phase=phase, affects_suite_result=affects_suite_result)
     ctx.slot_script_path = script
     ctx.slot_test_index = test_index
@@ -229,20 +236,24 @@ def _run_script_slot(
         ctx.result_aggregator.mark_suite_error(f"{phase} script failed")
 
     slot_has_failure = script_crash or not ctx.result_aggregator.overall_pass()
-    if suite.rip_cord and slot_has_failure:
-        ctx.rip_cord_triggered = True
-    rip_abort = suite.rip_cord and slot_has_failure
-
     stop_fail_fast = False
-    if affects_suite_result and suite.fail_fast and slot_has_failure:
-        _stop_remaining_tests(ctx, script, "script_error" if script_crash else "required_failure")
-        stop_fail_fast = True
+    if suite.fail_fast and slot_has_failure:
+        reason = "script_error" if script_crash else "required_failure"
+        if phase == "teardown":
+            # Fail the suite but never skip remaining teardown scripts.
+            ctx.session.mark_suite_failed(f"teardown_failure:{script}:{reason}")
+        else:
+            # setup / between / test: abort remaining non-teardown work.
+            _stop_remaining_work(ctx, script, reason)
+            stop_fail_fast = True
+        if affects_suite_result:
+            ctx.session.mark_suite_failed(f"test_failure:{script}:{reason}")
 
     if not ctx.slot_finalized:
         finalize_script_slot(
             ctx, script_path=script, test_index=test_index, repeat_index=repeat_index,
         )
-    return rip_abort, stop_fail_fast
+    return stop_fail_fast
 
 
 def _run_phase_scripts(
@@ -253,9 +264,15 @@ def _run_phase_scripts(
     *,
     phase: str,
     affects_suite_result: bool,
-) -> tuple[bool, bool]:
+    stop_on_fail_fast: bool,
+) -> bool:
+    """Run phase scripts. Returns True if fail_fast should stop non-teardown work.
+
+    Teardown always runs every script (``stop_on_fail_fast=False``).
+    """
+    stopped = False
     for script in scripts:
-        rip_abort, stop_fail_fast = _run_script_slot(
+        stop = _run_script_slot(
             suite,
             ctx,
             script,
@@ -263,9 +280,11 @@ def _run_phase_scripts(
             phase=phase,
             affects_suite_result=affects_suite_result,
         )
-        if rip_abort or stop_fail_fast:
-            return rip_abort, stop_fail_fast
-    return False, False
+        if stop and stop_on_fail_fast:
+            return True
+        if stop:
+            stopped = True
+    return stopped and stop_on_fail_fast
 
 
 def _run_test_schedule(
@@ -279,7 +298,7 @@ def _run_test_schedule(
         )
         repeat_index = 0
         while not _repeat_exhausted(entry, repeat_index, deadline):
-            rip_abort, stop_fail_fast = _run_script_slot(
+            stop = _run_script_slot(
                 suite,
                 ctx,
                 entry.path,
@@ -291,21 +310,22 @@ def _run_test_schedule(
                 entry=entry,
             )
             repeat_index += 1
-            if rip_abort or stop_fail_fast:
+            if stop:
                 return True
             another_in_entry = (
                 entry.repeat_for is not None and time.monotonic() < deadline  # type: ignore[operator]
             ) or repeat_index < entry.repeat_count
             if (another_in_entry or test_index + 1 < len(suite.tests)) and suite.between_tests:
-                between_rip, _ = _run_phase_scripts(
+                between_stop = _run_phase_scripts(
                     suite,
                     ctx,
                     suite.between_tests,
                     runner,
                     phase="between_tests",
                     affects_suite_result=False,
+                    stop_on_fail_fast=True,
                 )
-                if between_rip:
+                if between_stop:
                     return True
             if not another_in_entry:
                 break
@@ -343,35 +363,39 @@ def run_suite(
     ctx.debug_logging = debug
     if config_path:
         load_config(config_path, metadata_path=metadata_path)
+        ctx.session.config_pinned = True
+        if metadata_path:
+            ctx.session.metadata_pinned = True
     elif metadata_path:
         load_metadata(metadata_path)
+        ctx.session.metadata_pinned = True
 
     ensure_suite_runtime_ready(ctx, suite.name)
     runner = _ScriptRunner(run_script, ScriptRunError)
     if ctx.logger is not None:
         ctx.logger.debug(
-            "Suite %r: setup=%d tests=%d between=%d teardown=%d fail_fast=%s rip_cord=%s",
+            "Suite %r: setup=%d tests=%d between=%d teardown=%d fail_fast=%s",
             suite.name,
             len(suite.setup),
             len(suite.tests),
             len(suite.between_tests),
             len(suite.teardown),
             suite.fail_fast,
-            suite.rip_cord,
         )
 
-    rip_abort = False
+    stop = False
     if suite.setup:
-        rip_abort, _ = _run_phase_scripts(
+        stop = _run_phase_scripts(
             suite,
             ctx,
             suite.setup,
             runner,
             phase="setup",
             affects_suite_result=False,
+            stop_on_fail_fast=True,
         )
-    if not rip_abort:
-        rip_abort = _run_test_schedule(suite, ctx, runner)
+    if not stop:
+        stop = _run_test_schedule(suite, ctx, runner)
     if suite.teardown:
         _run_phase_scripts(
             suite,
@@ -380,6 +404,7 @@ def run_suite(
             runner,
             phase="teardown",
             affects_suite_result=False,
+            stop_on_fail_fast=False,
         )
 
     raise SystemExit(finalize_suite(ctx))
