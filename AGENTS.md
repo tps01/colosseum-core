@@ -14,7 +14,8 @@ the user explicitly requests it.
 - SQLite evidence, output paths, artifacts, logging, and summaries
 - user documentation (guides + generated config reference)
 
-Device drivers, transports, SSH, host inspection, and bench-specific APIs belong
+Device drivers, transports, SSH, host inspection, UI automation, and other
+domain APIs belong
 in plugins.
 Core tests must run without sibling repositories or first-party plugins
 installed.
