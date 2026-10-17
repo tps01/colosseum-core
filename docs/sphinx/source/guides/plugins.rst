@@ -215,9 +215,10 @@ Optional registry hooks:
   per-slot ``endex()`` closes ``resource_cache`` but does not run shutdown hooks.
 
 Connection helpers (config lookup, cached resources on ``ctx.resource_cache``) are ordinary module functions,
-not a framework decorator. Network and hardware I/O use ordinary Python libraries
-(for example ``socket`` for UDP). The template demo reads config inline; first-party
-plugins such as messaging and equipment show cached-resource patterns.
+not a framework decorator. I/O uses ordinary Python libraries or plugin drivers
+(for example ``socket`` for UDP, or vendor stacks behind equipment/GUI plugins).
+The template demo reads config inline; first-party plugins such as messaging and
+equipment show cached-resource patterns.
 
 If a measurement reflects a prior command's side effect, store the value in module
 state in the command body and return it from the measurement, or compute it directly
@@ -262,7 +263,7 @@ Plugin authors should ship (or document) the same files shown in :doc:`writing_t
 
    [template.device]
    device_id = 1
-   serial = "LAB-DUT-001"
+   serial = "UNIT-001"
 
 **metadata.yaml** (optional run identity)::
 

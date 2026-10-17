@@ -88,7 +88,8 @@ assets sit next to the script.
 Configuration
 -------------
 
-Config TOML describes devices, instruments, and other rows owned by installed plugins.
+Config TOML describes plugin-owned rows (instruments, hosts, UI targets,
+services, and whatever else installed plugins register).
 Load it before any ``col.*`` API call::
 
    col.config.load_config("config.toml")

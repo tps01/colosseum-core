@@ -19,11 +19,11 @@ Colosseum Core is the plugin-oriented runtime for Python-based test automation.
 
 The following belong in independently versioned plugins or end-user projects:
 
-- device and instrument APIs
+- device, instrument, UI, and protocol APIs
 - transports and protocol implementations
 - host, network, SSH, and operating-system inspection
-- vendor models, hardware fixtures, and simulation definitions
-- bench-specific examples and configuration
+- vendor models, fixtures, and simulation definitions
+- environment-specific examples and configuration
 - aggregate/offline bundles spanning multiple distributions
 
 ## Compatibility boundary
