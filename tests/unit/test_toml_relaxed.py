@@ -10,14 +10,14 @@ from colosseum.config.toml_relaxed import loads_relaxed, prepare_toml_text
 def test_bare_words_become_strings() -> None:
     raw = loads_relaxed(
         """
-[[equipment.speca]]
+[equipment.speca]
 speca_id = 1
 visa_backend = sim
 model = keysight-e4407b
 resource = GPIB::18::INSTR
 """
     )
-    item = raw["equipment"]["speca"][0]
+    item = raw["equipment"]["speca"]
     assert item["visa_backend"] == "sim"
     assert item["model"] == "keysight-e4407b"
     assert item["resource"] == "GPIB::18::INSTR"
@@ -26,7 +26,7 @@ resource = GPIB::18::INSTR
 def test_booleans_and_numbers_unchanged() -> None:
     raw = loads_relaxed(
         """
-[[equipment.psu]]
+[equipment.psu]
 psu_id = 1
 driver = sim
 output = false
@@ -34,7 +34,7 @@ voltage = 3.3
 timeout = 5
 """
     )
-    item = raw["equipment"]["psu"][0]
+    item = raw["equipment"]["psu"]
     assert item["driver"] == "sim"
     assert item["output"] is False
     assert item["voltage"] == pytest.approx(3.3)
