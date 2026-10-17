@@ -1,0 +1,3 @@
+test_metadata:
+  uut: SCRIPT_OVERRIDE_UUT
+  location: SCRIPT_LOCATION

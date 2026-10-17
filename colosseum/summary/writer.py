@@ -190,7 +190,8 @@ class SuiteSummaryWriter:
             f"End time: {datetime.now(timezone.utc).isoformat()}",
             f"Overall result: {overall}",
             f"Exit code: {exit_code}",
-            f"Rip cord triggered: {'yes' if ctx.rip_cord_triggered else 'no'}",
+            f"Suite failed: {'yes' if ctx.session.suite_failed else 'no'}",
+            f"Fail-fast stopped: {'yes' if ctx.session.fail_fast_stopped else 'no'}",
             "",
             "Test slots (determine suite pass/fail):",
         ]
@@ -219,7 +220,11 @@ class SuiteSummaryWriter:
             "end_time_utc": datetime.now(timezone.utc).isoformat(),
             "overall_result": overall,
             "exit_code": exit_code,
-            "rip_cord_triggered": ctx.rip_cord_triggered,
+            "suite_failed": ctx.session.suite_failed,
+            "suite_fail_reason": ctx.session.suite_fail_reason,
+            "fail_fast_stopped": ctx.session.fail_fast_stopped,
+            "fail_fast_stop_reason": ctx.session.fail_fast_stop_reason,
+            "fail_fast_stop_script": ctx.session.fail_fast_stop_script,
             "test_slots": [_slot_dict(slot) for slot in ctx.suite_test_results],
             "all_slots": [_slot_dict(slot) for slot in ctx.suite_slot_results],
         }
@@ -230,7 +235,7 @@ class SuiteSummaryWriter:
 
     @staticmethod
     def suite_exit_code(ctx: RuntimeContext) -> int:
-        if ctx.rip_cord_triggered:
+        if ctx.session.suite_failed:
             return 1
         if not ctx.suite_test_results:
             return 0

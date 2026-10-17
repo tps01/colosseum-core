@@ -167,15 +167,43 @@ def load_config(
     *,
     no_artifacts: bool = False,
     metadata_path: str | Path | None = None,
+    force: bool = False,
 ) -> ConfigStore:
+    """Load (or replace) the TOML config store.
+
+    When the CLI/suite already loaded ``-g``, subsequent calls without
+    ``force=True`` are no-ops (warn once) so operators' ``-g`` wins over
+    hardcoded script paths. Pass ``force=True`` for intentional reloads
+    (for example GUI placeholder → generated TOML).
+    """
+    try:
+        ctx = get_context()
+    except RuntimeError:
+        ctx = None
+
+    if ctx is not None and ctx.session.config_pinned and not force:
+        if not ctx.session.config_pin_warned:
+            ctx.session.config_pin_warned = True
+            message = (
+                "Ignoring load_config(%s): CLI/suite -g config is pinned; "
+                "pass force=True to replace"
+            )
+            if ctx.logger is not None:
+                ctx.logger.warning(message, path)
+            else:
+                _logger.warning(message, path)
+        if ctx.config is None:
+            raise ConfigError(
+                "CLI config is pinned but ConfigStore is missing; this is an internal error",
+            )
+        return ctx.config
+
     config_path = Path(path).resolve()
     if not config_path.exists():
         raise ConfigError(f"Config file not found: {config_path}")
     raw = _load_toml(config_path)
 
-    try:
-        ctx = get_context()
-    except RuntimeError:
+    if ctx is None:
         ctx = init_context(
             test_case_name=default_test_name(),
             config_path=config_path,
@@ -192,7 +220,7 @@ def load_config(
     if metadata_path is not None:
         from .metadata import load_metadata
 
-        load_metadata(metadata_path)
+        load_metadata(metadata_path, force=force)
     return store
 
 

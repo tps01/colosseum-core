@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from colosseum.database import DatabaseManager, initialize_database_if_needed
-from colosseum.logging import setup_logging
 from colosseum.results.aggregation import ResultAggregator
 from colosseum.runner.run_options import resolve_outputs_root
 
@@ -71,14 +70,18 @@ def ensure_runtime_ready(ctx: RuntimeContext, logical_name: str | None = None) -
         logical_name = ctx.suite_name or ctx.test_case_name
     console_level = logging.DEBUG if ctx.debug_logging else logging.INFO
     if ctx.no_artifacts:
-        ctx.logger = setup_logging(ctx, console=True, console_level=console_level, file=False)
+        ctx.logger = ctx.session.start_logging(
+            ctx, console=True, console_level=console_level, file=False,
+        )
         ctx.logger.debug("Runtime ready (no-artifacts mode)")
         initialize_database_if_needed(ctx)
     else:
         output_dir = allocate_run_directory(resolve_outputs_root(ctx.run_options), logical_name)
         output_dir.mkdir(parents=True, exist_ok=True)
         ctx.output_dir = output_dir
-        ctx.logger = setup_logging(ctx, console=True, console_level=console_level, file=True)
+        ctx.logger = ctx.session.start_logging(
+            ctx, console=True, console_level=console_level, file=True,
+        )
         ctx.logger.debug("Allocated output directory: %s", output_dir)
         initialize_database_if_needed(ctx)
     from colosseum.config.loader import log_loaded_config
@@ -116,12 +119,16 @@ def ensure_suite_runtime_ready(ctx: RuntimeContext, suite_name: str) -> None:
     console_level = logging.DEBUG if ctx.debug_logging else logging.INFO
     if ctx.no_artifacts:
         ctx.suite_output_dir = None
-        ctx.logger = setup_logging(ctx, console=True, console_level=console_level, file=False)
+        ctx.logger = ctx.session.start_logging(
+            ctx, console=True, console_level=console_level, file=False,
+        )
         return
     container = allocate_run_directory(resolve_outputs_root(ctx.run_options), suite_name)
     container.mkdir(parents=True, exist_ok=True)
     ctx.suite_output_dir = container
-    ctx.logger = setup_logging(ctx, console=True, console_level=console_level, file=False)
+    ctx.logger = ctx.session.start_logging(
+        ctx, console=True, console_level=console_level, file=False,
+    )
     if ctx.logger is not None:
         ctx.logger.info("Suite container: %s", container)
 
@@ -142,17 +149,21 @@ def begin_script_slot(
     ctx.runtime_ready = False
     ctx.output_dir = None
     ctx.started_at = datetime.now(timezone.utc).astimezone()
+    # Mode/phase bookkeeping must run before the no-artifacts early return so
+    # procedure applies only to test slots and supporting phases stay full.
+    ctx.active_execution_mode = (
+        "procedure"
+        if phase == "test" and ctx.session.requested_execution_mode == "procedure"
+        else "full"
+    )
     console_level = logging.DEBUG if ctx.debug_logging else logging.INFO
     if ctx.no_artifacts:
-        ctx.logger = setup_logging(ctx, console=True, console_level=console_level, file=False)
+        ctx.logger = ctx.session.start_logging(
+            ctx, console=True, console_level=console_level, file=False,
+        )
         initialize_database_if_needed(ctx)
         ctx.runtime_ready = True
         return
-    ctx.active_execution_mode = (
-        "procedure"
-        if phase == "test" and ctx.run_options.execution_mode == "procedure"
-        else "full"
-    )
     parent = ctx.suite_output_dir
     if parent is None:
         raise RuntimeError("Suite container is not allocated")
@@ -163,7 +174,9 @@ def begin_script_slot(
     )
     slot_dir.mkdir(parents=True, exist_ok=True)
     ctx.output_dir = slot_dir
-    ctx.logger = setup_logging(ctx, console=True, console_level=console_level, file=True)
+    ctx.logger = ctx.session.start_logging(
+        ctx, console=True, console_level=console_level, file=True,
+    )
     initialize_database_if_needed(ctx)
     ctx.db.insert_run_metadata("phase", phase)
     ctx.db.insert_run_metadata("suite_name", ctx.suite_name or "")
@@ -179,11 +192,12 @@ def finalize_script_slot(
     repeat_index: int | None = None,
 ) -> SuiteSlotResult:
     from colosseum.results.finalize import finalize_run
+    from colosseum.results.finalize_policy import policy_for_suite_slot
 
     if ctx.slot_finalized:
         raise RuntimeError("Script slot is already finalized")
     affects = ctx.slot_affects_suite_result
-    result_data = finalize_run(ctx, mode="slot", affects_suite_result=affects)
+    result_data = finalize_run(ctx, policy=policy_for_suite_slot(affects_suite_result=affects))
     final_dir = ctx.output_dir or Path.cwd()
     result = SuiteSlotResult(
         phase=ctx.phase,
@@ -202,7 +216,8 @@ def finalize_script_slot(
     ctx.runtime_ready = False
     ctx.slot_finalized = True
     console_level = logging.DEBUG if ctx.debug_logging else logging.INFO
-    ctx.logger = setup_logging(ctx, console=True, console_level=console_level, file=False)
+    # Never call start_logging here — that would reprint the identity header.
+    ctx.logger = ctx.session.reattach_console(ctx, console_level=console_level)
     return result
 
 

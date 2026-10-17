@@ -50,3 +50,12 @@ def test_resolve_and_invoke_plugin_command(unit_runtime_context) -> None:
     assert resolved is ping
     invoke_plugin_commands(unit_runtime_context, ["stub.ping,key=abc"])
     assert calls == ["abc"]
+
+
+def test_resolve_plugin_command_missing_namespace(unit_runtime_context, monkeypatch) -> None:
+    _ = unit_runtime_context
+    import colosseum.plugins.loader as loader
+
+    monkeypatch.setattr(loader, "entry_points_for_group", lambda _group: [])
+    with pytest.raises(CommandInvokeError, match="plugin namespace not found: nosuch"):
+        resolve_plugin_command("nosuch", "fn")

@@ -40,10 +40,12 @@ CLI options
 Shared path and config flags for ``colosseum run`` and ``colosseum run-suite``:
 
 - ``-i/--input-dir PATH`` - base directory for the positional script or suite path
+  only (joined with the positional argument; pass a basename when using ``-i``)
 - ``-o/--output-dir PATH`` - custom output root for timestamped run folders (default:
   ``cwd/outputs``)
-- ``-g/--config PATH`` - config TOML (legacy short form)
-- ``-m/--metadata PATH`` - metadata YAML (short form)
+- ``-g/--config PATH`` - config TOML (legacy short form); resolved from the process
+  cwd and not affected by ``-i``
+- ``-m/--metadata PATH`` - metadata YAML (short form); likewise cwd-relative
 - ``-d/--debug`` - include DEBUG logs on stdout
 - ``--no-artifacts`` - in-memory SQLite and console logging only
 
@@ -58,7 +60,7 @@ Shared path and config flags for ``colosseum run`` and ``colosseum run-suite``:
 
 Examples::
 
-   colosseum run scripts/my_test.py -i scripts -g config/config.toml -m config/metadata.yaml
+   colosseum run my_test.py -i scripts -g config/config.toml -m config/metadata.yaml
    colosseum run -o D:/test_runs -c template.arm_device,device_id=1 -g config/config.toml
    colosseum run scripts/my_test.py -p -g config/config.toml
    colosseum run scripts/my_test.py -u outputs/2026-01-01_120000_my_test-pass -g config/config.toml
