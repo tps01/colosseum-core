@@ -35,6 +35,14 @@ _COMMAND_COLUMNS = (
     "message",
     "timestamp",
 )
+_MEASUREMENT_SELECT = (
+    "SELECT domain, command, key, row_index, value_json, units, artifact_path, "
+    "status, timestamp FROM measurements ORDER BY id ASC"
+)
+_COMMAND_SELECT = (
+    "SELECT domain, command, key, result_json, status, optional, message, timestamp "
+    "FROM commands ORDER BY id ASC"
+)
 
 
 def resolve_previous_run_dir(path: Path) -> Path:
@@ -68,14 +76,14 @@ def import_evidence_from_previous(ctx: object, previous_dir: Path) -> None:
         _copy_table_rows(
             source,
             ctx,
-            "measurements",
+            _MEASUREMENT_SELECT,
             _MEASUREMENT_COLUMNS,
             _insert_measurement_row,
         )
         _copy_table_rows(
             source,
             ctx,
-            "commands",
+            _COMMAND_SELECT,
             _COMMAND_COLUMNS,
             _insert_command_row,
         )
@@ -88,14 +96,11 @@ def import_evidence_from_previous(ctx: object, previous_dir: Path) -> None:
 def _copy_table_rows(
     source: sqlite3.Connection,
     ctx: RuntimeContext,
-    table: str,
+    select_sql: str,
     columns: tuple[str, ...],
     inserter: Callable[[RuntimeContext, dict[str, object]], None],
 ) -> None:
-    column_sql = ", ".join(columns)
-    rows = source.execute(
-        f"SELECT {column_sql} FROM {table} ORDER BY id ASC",  # nosec B608  # columns/table validated
-    ).fetchall()
+    rows = source.execute(select_sql).fetchall()
     for row in rows:
         if len(row) != len(columns):
             raise ValueError(f"row length {len(row)} != column count {len(columns)}")

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import queue
-import subprocess
+import subprocess  # nosec B404  # GUI launches this interpreter only; shell stays off
 import sys
 import threading
 import time
@@ -103,7 +103,7 @@ class RunWorker:
         self._queue.put(("started", logical_name))
 
         try:
-            self._process = subprocess.Popen(
+            self._process = subprocess.Popen(  # nosec B603  # argv[0] is sys.executable
                 argv,
                 cwd=str(self._cwd),
                 stdout=subprocess.PIPE,
@@ -112,6 +112,7 @@ class RunWorker:
                 encoding="utf-8",
                 errors="replace",
                 bufsize=1,
+                shell=False,
             )
         except OSError as exc:
             self._queue.put(("error", str(exc)))

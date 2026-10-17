@@ -53,7 +53,8 @@ def format_wats_start(dt: datetime) -> str:
     if dt.tzinfo is None or dt.utcoffset() is None:
         raise ValueError("WATS start time requires a timezone-aware datetime")
     offset = dt.utcoffset()
-    assert offset is not None
+    if offset is None:
+        raise ValueError("WATS start time requires a timezone-aware datetime")
     wall = dt.strftime("%Y-%m-%dT%H:%M:%S")
     total_seconds = int(offset.total_seconds())
     sign = "+" if total_seconds >= 0 else "-"
@@ -164,7 +165,11 @@ def wats_export_enabled(ctx: RuntimeContext) -> bool:
 
 
 def _wats_status(status: str) -> str:
-    return {"PASS": "P", "ERROR": "E"}.get(status, "F")
+    if status == "PASS":
+        return "P"
+    if status == "ERROR":
+        return "E"
+    return "F"
 
 
 def _overall_wats_result(

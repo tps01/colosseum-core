@@ -75,8 +75,10 @@ def setup_logging(
 
     formatter = _formatter()
     if file:
-        assert ctx.output_dir is not None
-        file_handler = logging.FileHandler(ctx.output_dir / "debug.log", mode="a", encoding="utf-8")
+        output_dir = ctx.output_dir
+        if output_dir is None:
+            raise RuntimeError("file logging requires an output directory")
+        file_handler = logging.FileHandler(output_dir / "debug.log", mode="a", encoding="utf-8")
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
