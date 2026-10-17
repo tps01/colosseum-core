@@ -2,7 +2,8 @@ Configuration
 =============
 
 Core reads one TOML config file. Installed plugins declare the sections they own.
-Core itself does not define instrument or device keys.
+Core itself does not define domain-specific keys (instruments, UI targets,
+services, and so on).
 
 The :doc:`writing_test_scripts` walkthrough uses a ``[template.device]`` table from the
 ``colosseum_template`` plugin. The rules below apply to any plugin section.

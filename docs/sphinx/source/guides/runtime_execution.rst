@@ -5,8 +5,8 @@ Runtime execution
 
 A **standard run** is one process, one :term:`RuntimeContext`, one timestamped
 output folder, and a ``main()`` that issues decorated plugin calls. Core never
-talks to instruments. It records :term:`evidence`, aggregates outcomes, and
-exits 0 or 1.
+talks to devices, services, or UIs itself—plugins do. It records
+:term:`evidence`, aggregates outcomes, and exits 0 or 1.
 
 The canonical command is::
 
@@ -329,7 +329,7 @@ End-to-end picture
 
 ::
 
-   colosseum run my_test.py -g bench.toml
+   colosseum run my_test.py -g config.toml
            |
            v
      init_context (process singleton)

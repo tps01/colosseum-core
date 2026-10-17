@@ -7,7 +7,8 @@ HTML hub (GitHub Pages): https://tps01.github.io/colosseum-core/
 First-party plugins publish API-reference Pages sites; they are linked from
 that hub. See [docs/README.md](docs/README.md).
 
-Core of the Colosseum test automation framework. It provides:
+Core of the Colosseum test automation framework (hardware and software). It
+provides:
 
 - command, measurement, and verification decorators
 - TOML configuration and plugin registration

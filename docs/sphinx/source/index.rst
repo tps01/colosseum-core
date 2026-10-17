@@ -1,7 +1,7 @@
 Colosseum
 =========
 
-Test automation for embedded systems.
+A Python test automation framework for hardware and software testing.
 
 This site is the **documentation hub** for Colosseum core. First-party plugins
 publish their own GitHub Pages sites (linked below). The copy-out testware
@@ -43,7 +43,7 @@ Return here for framework guides (install, config, runners, plugins).
   product UI automation (`col.gui.*`) —
   `GitHub <https://github.com/tps01/colosseum-gui>`__
 * `colosseum-host <https://tps01.github.io/colosseum-host/>`__ —
-  bench-PC prerequisites and local telemetry (`col.host.*`) —
+  local host prerequisites and telemetry (`col.host.*`) —
   `GitHub <https://github.com/tps01/colosseum-host>`__
 * `colosseum-messaging <https://tps01.github.io/colosseum-messaging/>`__ —
   HTTP, Redis, ZMQ, MQTT, SSH, SCP (`col.messaging.*`) —

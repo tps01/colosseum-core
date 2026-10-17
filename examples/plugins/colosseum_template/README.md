@@ -238,7 +238,7 @@ row or `[[dotted.path]]` for several; each row needs that section's integer id f
 ```toml
 [template.device]
 device_id = 1
-serial = "LAB-DUT-001"
+serial = "UNIT-001"
 ```
 
 ### 4. Use in test scripts
