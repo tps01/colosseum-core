@@ -12,13 +12,13 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
-from colosseum.runner.run_options import ExecutionMode
-
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from colosseum.context import RuntimeContext
+    from colosseum.runner.run_options import ExecutionMode
 
 RunKind = Literal["single", "suite"]
 

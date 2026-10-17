@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 from .database import DatabaseManager
 from .results.aggregation import ResultAggregator
 from .runner.run_options import ExecutionMode, RunOptions
-from .runner.session import RunSession
+from .runner.session import RunKind, RunSession
 
 if TYPE_CHECKING:
     import logging
@@ -106,7 +106,7 @@ def init_context(
     from .plugins.registry import PluginRegistry
 
     options = run_options if run_options is not None else RunOptions()
-    kind = "suite" if suite_name is not None else "single"
+    kind: RunKind = "suite" if suite_name is not None else "single"
     ctx = RuntimeContext(
         config=None,
         output_dir=None,

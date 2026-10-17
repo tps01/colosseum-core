@@ -19,7 +19,7 @@ def _write_meta(path: Path, uut: str) -> Path:
     return path
 
 
-def test_config_pin_skips_script_load_without_force(tmp_path, caplog) -> None:
+def test_config_pin_skips_script_load_without_force(tmp_path) -> None:
     cli = _write_toml(tmp_path / "cli.toml", "from-cli")
     other = _write_toml(tmp_path / "other.toml", "from-script")
     init_context(test_case_name="pin_cfg", config_path=cli)
@@ -29,12 +29,11 @@ def test_config_pin_skips_script_load_without_force(tmp_path, caplog) -> None:
     store = load_config(other)
     assert store.get_section("runtime.label") == "from-cli"
     assert Path(str(get_context().config_path)).resolve() == cli.resolve()
-    assert "pinned" in caplog.text.lower() or "Ignoring load_config" in caplog.text
+    assert get_context().session.config_pin_warned is True
 
-    # Second skip does not warn again
-    caplog.clear()
+    # Second skip keeps the one-shot warn latch (does not reset / re-warn)
     load_config(other)
-    assert "Ignoring load_config" not in caplog.text
+    assert get_context().session.config_pin_warned is True
 
 
 def test_config_pin_force_replaces(tmp_path) -> None:
@@ -60,7 +59,7 @@ def test_unpinned_second_load_config_replaces(tmp_path) -> None:
     assert store.get_section("runtime.label") == "b"
 
 
-def test_metadata_pin_skips_without_force(tmp_path, caplog) -> None:
+def test_metadata_pin_skips_without_force(tmp_path) -> None:
     cfg = _write_toml(tmp_path / "c.toml", "x")
     m1 = _write_meta(tmp_path / "m1.yaml", "CLI_UUT")
     m2 = _write_meta(tmp_path / "m2.yaml", "SCRIPT_UUT")
@@ -72,7 +71,7 @@ def test_metadata_pin_skips_without_force(tmp_path, caplog) -> None:
     out = load_metadata(m2)
     assert out.get("uut") == "CLI_UUT"
     assert get_context().metadata_yaml.get("uut") == "CLI_UUT"
-    assert "Ignoring load_metadata" in caplog.text
+    assert get_context().session.metadata_pin_warned is True
 
 
 def test_metadata_pin_force_replaces(tmp_path) -> None:

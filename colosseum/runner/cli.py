@@ -85,10 +85,13 @@ def _add_execution_mode_options(
     *,
     allow_verify_only: bool,
 ) -> None:
+    mode_choices: tuple[str, ...] = (
+        ("full", "procedure", "verify_only") if allow_verify_only else ("full", "procedure")
+    )
     parser.add_argument(
         "--mode",
         dest="execution_mode",
-        choices=("full", "procedure", "verify_only") if allow_verify_only else ("full", "procedure"),
+        choices=mode_choices,
         default=None,
         help=(
             "Execution mode: full (default), procedure, or verify_only"

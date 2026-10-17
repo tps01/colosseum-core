@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import runpy
 import sys
-from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 from colosseum.context import get_context
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
 
