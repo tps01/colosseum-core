@@ -4,8 +4,8 @@
 
 HTML hub (GitHub Pages): https://tps01.github.io/colosseum-core/
 
-First-party plugins publish their own Pages sites; they are linked from that
-hub. See [docs/README.md](docs/README.md).
+First-party plugins publish API-reference Pages sites; they are linked from
+that hub. See [docs/README.md](docs/README.md).
 
 Core of the Colosseum test automation framework. It provides:
 
