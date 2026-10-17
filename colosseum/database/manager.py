@@ -11,6 +11,28 @@ if TYPE_CHECKING:
     from colosseum.context import RuntimeContext
 from .schema import SCHEMA_SQL
 
+_TABLE_SELECT_SQL = {
+    "run_metadata": "SELECT * FROM run_metadata",
+    "measurements": "SELECT * FROM measurements",
+    "verifications": "SELECT * FROM verifications",
+    "events": "SELECT * FROM events",
+    "commands": "SELECT * FROM commands",
+}
+_TABLE_COUNT_SQL = {
+    "run_metadata": "SELECT COUNT(*) FROM run_metadata",
+    "measurements": "SELECT COUNT(*) FROM measurements",
+    "verifications": "SELECT COUNT(*) FROM verifications",
+    "events": "SELECT COUNT(*) FROM events",
+    "commands": "SELECT COUNT(*) FROM commands",
+}
+_TABLE_COUNT_KEY_SQL = {
+    "run_metadata": "SELECT COUNT(*) FROM run_metadata WHERE key = ?",
+    "measurements": "SELECT COUNT(*) FROM measurements WHERE key = ?",
+    "verifications": "SELECT COUNT(*) FROM verifications WHERE key = ?",
+    "events": "SELECT COUNT(*) FROM events WHERE key = ?",
+    "commands": "SELECT COUNT(*) FROM commands WHERE key = ?",
+}
+
 
 @dataclass
 class MeasurementRow:
@@ -393,28 +415,35 @@ class DatabaseManager:
         return [RunMetadataRecord(key=item[0], value=item[1]) for item in cur.fetchall()]
 
     def fetch_table_rows(self, name: str) -> list[dict[str, object]]:
-        import re
-
-        if not re.match(r"^[A-Za-z0-9_]+$", name):
+        query = _TABLE_SELECT_SQL.get(name)
+        if query is None:
             raise ValueError(f"Invalid table name: {name}")
         conn = self._require_conn()
-        cur = conn.execute(f"SELECT * FROM {name}")  # nosec B608  # name validated above
+        cur = conn.execute(query)
         columns = [desc[0] for desc in cur.description]
         return [dict(zip(columns, row)) for row in cur.fetchall()]
 
     def count_rows(
         self, table: str, where: str = "", params: tuple[object, ...] = (),
     ) -> int:
-        import re
-
-        if not re.match(r"^[A-Za-z0-9_]+$", table):
+        if where:
+            if "".join(where.split()) != "key=?":
+                raise ValueError("count_rows where must be 'key=?' with one bound parameter")
+            if len(params) != 1:
+                raise ValueError("count_rows where key=? requires exactly one parameter")
+            query = _TABLE_COUNT_KEY_SQL.get(table)
+        else:
+            if params:
+                raise ValueError("count_rows parameters require a where clause")
+            query = _TABLE_COUNT_SQL.get(table)
+        if query is None:
             raise ValueError(f"Invalid table name: {table}")
         conn = self._require_conn()
-        query = f"SELECT COUNT(*) FROM {table}"  # nosec B608  # table validated above
-        if where:
-            query += f" WHERE {where}"
         cur = conn.execute(query, params)
-        return int(cur.fetchone()[0])
+        row = cur.fetchone()
+        if row is None:
+            return 0
+        return int(row[0])
 
 
 def initialize_database_if_needed(ctx: RuntimeContext) -> None:

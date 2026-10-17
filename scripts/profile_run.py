@@ -13,8 +13,8 @@ Usage (from repo root)::
 from __future__ import annotations
 
 import argparse
+import cProfile
 import pstats
-import subprocess
 import sys
 import time
 import tracemalloc
@@ -41,28 +41,30 @@ def _run_with_cprofile(
     sort: str,
     limit: int,
 ) -> int:
-    cmd = [
-        sys.executable,
-        "-m",
-        "cProfile",
-        "-o",
-        str(stats_path),
-        "-m",
-        "colosseum.runner.cli",
-        cli_command,
-        *cli_argv,
-    ]
-    print("+", " ".join(cmd))
+    cmd = [sys.executable, "-m", "colosseum.runner.cli", cli_command, *cli_argv]
+    print("+", " ".join(cmd), "(in-process cProfile)")
+    from colosseum.runner.cli import run_cli
+
+    profiler = cProfile.Profile()
     started = time.perf_counter()
-    proc = subprocess.run(cmd, cwd=REPO, check=False)
+    code = 0
+    profiler.enable()
+    try:
+        code = run_cli([cli_command, *cli_argv])
+    except SystemExit as exc:
+        raw = exc.code
+        code = raw if isinstance(raw, int) else (1 if raw else 0)
+    finally:
+        profiler.disable()
     wall = time.perf_counter() - started
-    print(f"Wall time: {wall:.3f}s (exit {proc.returncode})")
+    profiler.dump_stats(str(stats_path))
+    print(f"Wall time: {wall:.3f}s (exit {code})")
     if stats_path.is_file():
         print(f"\n=== Top {limit} by {sort} (project paths) ===")
         _print_pstats(stats_path, sort=sort, limit=limit)
         print(f"\nSaved profile: {stats_path}")
         print("  View: python -m snakeviz", stats_path)
-    return proc.returncode
+    return code
 
 
 def _run_with_tracemalloc(cli_command: str, cli_argv: list[str]) -> int:
