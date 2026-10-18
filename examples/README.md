@@ -8,3 +8,7 @@ APIs.
 [`plugins/colosseum_template`](plugins/colosseum_template/) is the maintained
 example
 for creating a standalone plugin package.
+
+[`parameters/`](parameters/) shows optional per-slot parameters files: a
+limit-only rail file, and one receiver script run twice from a suite with
+different limit files.

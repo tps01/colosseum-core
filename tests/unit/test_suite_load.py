@@ -85,6 +85,33 @@ def test_load_repeat_for_table(fixtures_dir) -> None:
     assert suite.tests[0].repeat_for == timedelta(seconds=1)
 
 
+def test_load_per_entry_parameters(tmp_path, fixtures_dir) -> None:
+    script = fixtures_dir / "scripts" / "pass_test.py"
+    low = tmp_path / "low.toml"
+    high = tmp_path / "high.toml"
+    low.write_text("[rail]\nexpected_val = 1.0\n", encoding="utf-8")
+    high.write_text("[rail]\nexpected_val = 5.0\n", encoding="utf-8")
+    path = tmp_path / "params_suite.toml"
+    path.write_text(
+        "\n".join(
+            [
+                'name = "params_demo"',
+                "tests = [",
+                f'  {{ path = "{script.as_posix()}", parameters = "{low.name}" }},',
+                f'  {{ path = "{script.as_posix()}", parameters = "{high.name}" }},',
+                "]",
+                "",
+            ],
+        ),
+        encoding="utf-8",
+    )
+    suite = load_suite_toml(path)
+    assert len(suite.tests) == 2
+    assert suite.tests[0].path == suite.tests[1].path
+    assert suite.tests[0].parameters == low.resolve()
+    assert suite.tests[1].parameters == high.resolve()
+
+
 def test_load_fail_fast_setup_fixture(fixtures_dir) -> None:
     suite = load_suite_toml(fixtures_dir / "suites" / "setup_fail_fail_fast.toml")
     assert suite.fail_fast is True

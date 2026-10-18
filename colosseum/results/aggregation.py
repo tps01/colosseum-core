@@ -18,6 +18,7 @@ class OutcomeRecord(TypedDict):
     key: str
     command: str
     domain: str
+    cause: str
 
 
 class OutcomeCounts(TypedDict):
@@ -40,6 +41,7 @@ class ResultAggregator:
         command: str = "",
         domain: str = "",
         kind: str,
+        cause: str = "",
     ) -> None:
         self._records.append(
             {
@@ -50,6 +52,7 @@ class ResultAggregator:
                 "key": key,
                 "command": command,
                 "domain": domain,
+                "cause": cause,
             },
         )
 
@@ -76,6 +79,7 @@ class ResultAggregator:
         key: str = "",
         command: str = "",
         domain: str = "",
+        cause: str = "",
     ) -> None:
         self._record_outcome(
             result,
@@ -83,6 +87,7 @@ class ResultAggregator:
             command=command,
             domain=domain,
             kind="command",
+            cause=cause,
         )
 
     def mark_suite_error(self, message: str) -> None:
@@ -96,6 +101,7 @@ class ResultAggregator:
                 "key": "",
                 "command": "suite",
                 "domain": "runner",
+                "cause": "",
             },
         )
 
@@ -108,7 +114,7 @@ class ResultAggregator:
         for row in self._records:
             if row["optional"]:
                 continue
-            if row["status"] in {"FAIL", "ERROR"}:
+            if row["status"] in {"FAIL", "ERROR", "BLOCKED"}:
                 return False
         return True
 
@@ -116,8 +122,17 @@ class ResultAggregator:
         return [
             row
             for row in self._records
-            if not row["optional"] and row["status"] in {"FAIL", "ERROR"}
+            if not row["optional"] and row["status"] in {"FAIL", "ERROR", "BLOCKED"}
         ]
+
+    def has_required_procedural_command_error(self) -> bool:
+        return any(
+            row["kind"] == "command"
+            and not row["optional"]
+            and row["status"] == "ERROR"
+            and row.get("cause") == "procedural"
+            for row in self._records
+        )
 
     def optional_outcomes(self) -> list[OutcomeRecord]:
         return [row for row in self._records if row["optional"]]

@@ -25,6 +25,12 @@ def test_run_parser_accepts_shared_and_run_only_flags() -> None:
             "stub.ping,key=dev1",
             "-p",
             "--show-faults",
+            "--parameters",
+            "limits.toml",
+            "--report",
+            "wats",
+            "--report",
+            "junit",
         ],
     )
     assert args.command == "run"
@@ -36,8 +42,20 @@ def test_run_parser_accepts_shared_and_run_only_flags() -> None:
     assert args.plugin_commands == ["stub.ping,key=dev1"]
     assert args.procedure is True
     assert args.show_faults is True
+    assert args.parameters_path.name == "limits.toml"
+    assert args.reports == ["wats", "junit"]
     options = _shared_run_options(args, command="run")
     assert options.execution_mode == "procedure"
+    assert options.parameters_path is not None
+    assert options.parameters_path.name == "limits.toml"
+    assert options.report_cli == ["wats", "junit"]
+
+
+def test_run_parser_without_report_leaves_report_cli_none() -> None:
+    args = _build_parser().parse_args(["run", "pass_test.py", "-g", "config.toml"])
+    options = _shared_run_options(args, command="run")
+    assert options.report_cli is None
+    assert options.parameters_path is None
 
 
 def test_run_parser_allows_command_without_test_file() -> None:

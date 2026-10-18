@@ -161,7 +161,9 @@ def merge_wats_metadata(ctx: RuntimeContext) -> dict[str, Any]:
 
 
 def wats_export_enabled(ctx: RuntimeContext) -> bool:
-    return not ctx.no_artifacts and ctx.output_dir is not None
+    if ctx.no_artifacts or ctx.output_dir is None:
+        return False
+    return "wats" in ctx.enabled_reports
 
 
 def _wats_status(status: str) -> str:
@@ -177,6 +179,8 @@ def _overall_wats_result(
     aggregator: ResultAggregator,
 ) -> str:
     if aggregator.suite_error or aggregator.teardown_failed:
+        return "E"
+    if aggregator.has_required_procedural_command_error():
         return "E"
     if any(not row.optional and row.status == "ERROR" for row in verifications):
         return "E"
@@ -232,7 +236,7 @@ def _step_timings(verifications: list[VerificationRecord], started: datetime) ->
 
 def _first_failure_step_id(verifications: list[VerificationRecord]) -> int | None:
     for index, row in enumerate(verifications, start=2):
-        if not row.optional and row.status in ("FAIL", "ERROR"):
+        if not row.optional and row.status in ("FAIL", "ERROR", "BLOCKED"):
             return index
     return None
 
@@ -449,14 +453,16 @@ def write_wats_report(
     aggregator: ResultAggregator,
     verifications: list[VerificationRecord],
     measurements: list[MeasurementRecord] | None = None,
+    commands: list[Any] | None = None,
 ) -> Path | None:
     """Write the WATS JSON report, or ``None`` when export is disabled."""
+    _ = commands  # retained for listener signature parity; overall uses aggregator
     if not wats_export_enabled(ctx):
         _log_wats(
             output_dir,
             ctx,
             "debug",
-            f"WATS export skipped (no_artifacts={ctx.no_artifacts}, output_dir={ctx.output_dir})",
+            f"WATS export skipped (enabled_reports={sorted(ctx.enabled_reports)})",
         )
         return None
 

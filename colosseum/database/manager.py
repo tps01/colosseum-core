@@ -78,8 +78,12 @@ class CommandRow:
     status: str = "PASS"
     optional: bool = False
     message: str = ""
+    cause: str = ""
     timestamp: str = ""
     id: int | None = None
+
+
+CommandRecord = CommandRow
 
 
 @dataclass
@@ -185,6 +189,21 @@ def _verification_record(item: tuple[object, ...]) -> VerificationRecord:
         message=item[10],  # type: ignore[arg-type]
         step_name=item[11],  # type: ignore[arg-type]
         timestamp=str(item[12]),
+    )
+
+
+def _command_record(item: tuple[object, ...]) -> CommandRecord:
+    return CommandRecord(
+        id=_as_int(item[0]),
+        domain=str(item[1]),
+        command=str(item[2]),
+        key=str(item[3]),
+        result=_loads_json(item[4]),
+        status=str(item[5]),
+        optional=bool(item[6]),
+        message=str(item[7] or ""),
+        cause=str(item[8] or ""),
+        timestamp=str(item[9]),
     )
 
 
@@ -305,8 +324,8 @@ class DatabaseManager:
         return self._execute_insert(
             """
             INSERT INTO commands
-            (domain, command, key, result_json, status, optional, message, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (domain, command, key, result_json, status, optional, message, cause, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 row.domain,
@@ -316,6 +335,7 @@ class DatabaseManager:
                 row.status,
                 1 if row.optional else 0,
                 row.message,
+                row.cause,
                 ts,
             ),
         )
@@ -408,6 +428,22 @@ class DatabaseManager:
             """,
         )
         return [_verification_record(item) for item in cur.fetchall()]
+
+    def fetch_all_commands(self) -> list[CommandRecord]:
+        conn = self._require_conn()
+        cur = conn.execute(
+            """
+            SELECT id, domain, command, key, result_json, status, optional, message,
+                   cause, timestamp
+            FROM commands ORDER BY id ASC
+            """,
+        )
+        return [_command_record(item) for item in cur.fetchall()]
+
+    def measurement_keys(self) -> set[str]:
+        conn = self._require_conn()
+        cur = conn.execute("SELECT DISTINCT key FROM measurements")
+        return {str(row[0]) for row in cur.fetchall()}
 
     def fetch_run_metadata(self) -> list[RunMetadataRecord]:
         conn = self._require_conn()

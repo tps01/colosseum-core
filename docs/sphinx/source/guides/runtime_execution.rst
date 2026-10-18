@@ -242,7 +242,7 @@ aggregator, writes artifacts, and raises ``SystemExit`` with 0 or 1.
 
 1. **Score** via ``ResultAggregator.exit_code()``:
 
-   - required FAIL or ERROR fails the run
+   - required FAIL, ERROR, or BLOCKED fails the run
    - optional FAIL/ERROR is ignored for the exit code
    - uncaught script error (``mark_suite_error``) fails the run
 
@@ -253,13 +253,19 @@ aggregator, writes artifacts, and raises ``SystemExit`` with 0 or 1.
    (releases ``debug.log``).
 5. **Rename** the folder: ``..._my_test`` becomes ``..._my_test-pass`` or
    ``..._my_test-fail``.
-6. Write artifacts into the renamed directory: ``summary.txt``,
-   ``summary.json``, and ``wats_<UTC>_<script>.json`` (identity fields from
-   ``--metadata`` YAML when given).
+6. Write artifacts into the renamed directory: ``summary.txt`` and
+   ``summary.json``, then call enabled report listeners (optional
+   ``wats_<UTC>_<script>.json`` and/or ``junit.xml``).
 
 Exit is only 0 or 1. Optional verification failures stay 0. A required
-verification against a missing measurement is ERROR and exits 1. See
-:doc:`exit_codes` and :doc:`output_artifacts`.
+verification against a missing measurement is ERROR (or BLOCKED after a unit
+command abort) and exits 1. See :doc:`exit_codes` and :doc:`output_artifacts`.
+
+.. figure:: ../_static/uml/single-run-flow.png
+   :alt: Single-run flow including optional report listeners
+   :width: 70%
+
+   Operator single-run path (same finalize as above).
 
 What a finished run looks like
 ------------------------------
@@ -271,11 +277,12 @@ What a finished run looks like
      execution.sqlite
      summary.txt
      summary.json
-     wats_20260830T230512_my_test.json
+     wats_20260830T230512_my_test.json   # only if wats listener enabled
+     junit.xml                           # only if junit listener enabled
 
 SQLite is the source of truth: every command, measurement, verification, and
 runner event (``script_start``, ``script_done``, errors). Summaries and
-:term:`WATS` are projections of that plus the aggregator.
+optional :term:`WATS` / JUnit files are projections of that plus the aggregator.
 
 Suite variant
 -------------
@@ -293,8 +300,8 @@ Suite variant
 4. Run ``main()``. ``endex()`` inside a suite **does not exit the process** -
    it finalizes that slot and returns.
 5. **Test** slots affect the suite result and get full artifacts (summary plus
-   WATS). Setup, between, and teardown do not; they get ``debug.log`` and
-   ``execution.sqlite`` only.
+   enabled report listeners). Setup, between, and teardown do not; they get
+   ``debug.log`` and ``execution.sqlite`` only.
 6. ``fail_fast=true``: after a failing setup, between, or test slot, skip
    remaining non-teardown work, always run every teardown script, and set
    session ``suite_failed``. A teardown failure under fail_fast also sets

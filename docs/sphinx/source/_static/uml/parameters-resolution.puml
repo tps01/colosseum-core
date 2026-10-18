@@ -1,0 +1,22 @@
+@startuml
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam dpi 150
+
+start
+:slot start;
+if (--parameters on CLI?) then (yes)
+  :use that path;
+elseif (suite test entry\nparameters field?\n(test phase only)) then (yes)
+  :use entry path;
+elseif (parameters.toml\nbeside script?) then (yes)
+  :use sibling file;
+else (no)
+  :no parameters file;
+endif
+:script calls with key=;
+:wrappers fill omitted kwargs\nfrom that key section;\ncall values win;
+:finalize;
+:owed limit keys\nwith no measurement\nbecome BLOCKED;
+stop
+@enduml

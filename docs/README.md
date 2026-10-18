@@ -49,7 +49,9 @@ Browsed docs live on GitHub Pages:
 - **Plugins (separate sites):** equipment, gui, host, messaging, shared — each
   under `https://tps01.github.io/colosseum-<name>/`. Those sites lead with
   autodoc **API reference** for `col.*`; README/guides are secondary. Linked
-  from the Sphinx landing page. `colosseum-library` is not published yet.
+  from the Sphinx landing page. The copy-out testware catalog is
+  `colosseum-library` (GitHub); the hub documents it under
+  **Testware library** (`guides/testware_library`).
 
 There is no separate umbrella `tps01/colosseum` docs repo.
 

@@ -148,6 +148,8 @@ def begin_script_slot(
     ctx.db = DatabaseManager()
     ctx.runtime_ready = False
     ctx.output_dir = None
+    ctx.parameters_path = None
+    ctx.parameters_map = None
     ctx.started_at = datetime.now(timezone.utc).astimezone()
     # Mode/phase bookkeeping must run before the no-artifacts early return so
     # procedure applies only to test slots and supporting phases stay full.

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from functools import wraps
 from typing import TYPE_CHECKING, Any, TypeVar, overload
 
+from colosseum.config.parameters import ParametersError, apply_parameters_to_kwargs
 from colosseum.database import VerificationRow
 
 from ._common import (
@@ -33,7 +34,31 @@ class VerificationResult:
     actual: Any = None
 
 
+def _has_required_unit_command_error() -> bool:
+    from colosseum.context import get_context
+
+    try:
+        records = get_context().result_aggregator._records  # noqa: SLF001
+    except RuntimeError:
+        return False
+    for row in records:
+        if (
+            row["kind"] == "command"
+            and not row["optional"]
+            and row["status"] == "ERROR"
+            and row.get("cause", "unit") == "unit"
+        ):
+            return True
+    return False
+
+
 def missing_measurement_result(*, key: str, optional: bool = False) -> VerificationResult:
+    if not optional and _has_required_unit_command_error():
+        return VerificationResult(
+            status="BLOCKED",
+            message=f"no measurement for key={key}",
+            optional=optional,
+        )
     return VerificationResult(
         status="ERROR",
         message=f"no measurement for key={key}",
@@ -112,8 +137,51 @@ def verification(_func: Callable[..., Any] | None = None) -> object:
                     ),
                 )
                 return result
+
+            call_kwargs = dict(kwargs)
             try:
-                result = _coerce_verification_result(func(*args, **kwargs), optional=optional)
+                call_kwargs = apply_parameters_to_kwargs(
+                    call_kwargs,
+                    key=str(key),
+                    parameters=ctx.parameters_map,
+                )
+            except ParametersError as exc:
+                result = VerificationResult(status="ERROR", message=str(exc), optional=optional)
+                ctx.result_aggregator.record_verification(
+                    result, key=str(key), command=command, domain=domain,
+                )
+                expected, compare_op, tolerance = _verification_fields(call_kwargs)
+                ctx.db.insert_verification(
+                    VerificationRow(
+                        domain=domain,
+                        command=command,
+                        key=key,
+                        expected=expected,
+                        actual=None,
+                        tolerance=tolerance,
+                        compare_op=compare_op,
+                        status=result.status,
+                        optional=result.optional,
+                        message=result.message,
+                        step_name=step_name,
+                    ),
+                )
+                log_evidence(
+                    ctx,
+                    kind="verification",
+                    domain=domain,
+                    command=command,
+                    key=str(key),
+                    status=result.status,
+                    optional=result.optional,
+                    detail=f"message={result.message!r}",
+                )
+                return result
+
+            try:
+                result = _coerce_verification_result(
+                    func(*args, **call_kwargs), optional=optional,
+                )
             except Exception as exc:  # noqa: BLE001
                 log_evidence_error(
                     ctx, kind="verification", domain=domain, command=command, key=str(key),
@@ -122,7 +190,7 @@ def verification(_func: Callable[..., Any] | None = None) -> object:
             ctx.result_aggregator.record_verification(
                 result, key=str(key), command=command, domain=domain,
             )
-            expected, compare_op, tolerance = _verification_fields(kwargs)
+            expected, compare_op, tolerance = _verification_fields(call_kwargs)
             ctx.db.insert_verification(
                 VerificationRow(
                     domain=domain,
@@ -146,7 +214,10 @@ def verification(_func: Callable[..., Any] | None = None) -> object:
                 key=str(key),
                 status=result.status,
                 optional=result.optional,
-                detail=f"expected={kwargs.get('expected_val')!r} message={result.message!r}",
+                detail=(
+                    f"expected={call_kwargs.get('expected_val')!r} "
+                    f"message={result.message!r}"
+                ),
             )
             return result
 

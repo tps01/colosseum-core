@@ -1,0 +1,35 @@
+@startuml
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam dpi 150
+
+title Argument and config precedence
+
+rectangle "Config TOML" {
+  (CLI -g / --config) as C1
+  (script load_config) as C2
+  C1 -down-> C2 : pins store;\nscript load ignored\nunless force=True
+}
+
+rectangle "Metadata YAML" {
+  (CLI -m / --metadata) as M1
+  (script load_metadata) as M2
+  ([colosseum.metadata] in TOML) as M3
+  M1 -down-> M2 : pins YAML
+  M3 -down-> M2 : YAML overrides TOML keys
+}
+
+rectangle "Reports" {
+  (CLI --report NAME\nrepeatable) as R1
+  ([colosseum.reports]\nbooleans) as R2
+  R1 -down-> R2 : any --report\nreplaces table
+}
+
+rectangle "Execution mode" {
+  (--mode / -p / -u) as E1
+  note right of E1
+    hard errors on conflicts
+    (e.g. -p with -u)
+  end note
+}
+@enduml

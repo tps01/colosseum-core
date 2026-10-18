@@ -26,9 +26,39 @@ Run a suite with::
 
    colosseum run-suite suites/smoke.toml --config config/config.toml
 
-Pass ``--metadata config/metadata.yaml`` when test slots should include metadata identity
-fields in their JSON test reports. Without metadata, each test slot still writes a
-best-effort report using runtime defaults.
+Pass ``--metadata config/metadata.yaml`` when test slots should include metadata
+identity fields in WATS reports **and** enable WATS with ``--report wats`` (or
+``[colosseum.reports] wats = true``). Without WATS enabled, no WATS file is
+written.
+
+Suite flow
+----------
+
+.. figure:: ../_static/uml/suite-flow.png
+   :alt: Suite setup, test schedule with parameters, between, teardown, finalize
+   :align: center
+
+   Setup and teardown always run (teardown even after fail_fast). Test entries may
+   each set ``parameters``; CLI ``--parameters`` still wins for the process.
+
+Parameterized suite example
+---------------------------
+
+Same script, two limit files (paths relative to the suite TOML)::
+
+   name = "receiver_limits"
+
+   tests = [
+     { path = "receiver_test.py", parameters = "limits_low.toml" },
+     { path = "receiver_test.py", parameters = "limits_high.toml" },
+   ]
+
+Run::
+
+   colosseum run-suite receiver_suite.toml -g config.toml --report junit
+
+See ``examples/parameters/`` in the core package and :doc:`testware_library` for
+copy-out stubs.
 
 Suite CLI options
 -----------------
@@ -52,6 +82,11 @@ The suite below runs ``test_a.py``, then ``between.py``, then ``test_b.py``.
 
    tests = ["../scripts/test_a.py", "../scripts/test_b.py"]
    between_tests = ["../scripts/between.py"]
+
+A test entry may set ``parameters`` to a TOML path (relative to the suite file).
+The same script can appear twice with different files. Setup, between, and
+teardown slots do not inherit a test entry's parameters file. CLI
+``--parameters`` still wins for the whole process when present.
 
 Each test script can be minimal. The runner provides an output directory through
 ``get_context().output_dir``:
@@ -95,10 +130,11 @@ Each suite run creates a **container** directory under ``outputs/``::
 Every script execution (setup, ``between_tests``, each test iteration, teardown) gets its
 own child folder under the container. **Test** slots receive the same artifacts as a
 standalone ``colosseum run`` (``debug.log``, ``execution.sqlite``, ``summary.txt``,
-``wats_<datetime>_<script>.json``, and a ``-pass`` / ``-fail`` directory rename).
-Supporting slots (setup, ``between_tests``, teardown) keep a timestamped folder without a
-result suffix. They write ``debug.log`` and ``execution.sqlite`` only. They do not write
-``summary.txt``, ``summary.json``, or the JSON test report.
+``summary.json``, a ``-pass`` / ``-fail`` directory rename, and optional WATS/JUnit
+when those listeners are enabled). Supporting slots (setup, ``between_tests``,
+teardown) keep a timestamped folder without a result suffix. They write
+``debug.log`` and ``execution.sqlite`` only. They do not write ``summary.txt``,
+``summary.json``, or report listeners.
 
 Suite pass/fail is determined from **test script slots**, plus session-level
 ``suite_failed`` when ``fail_fast = true`` aborts after a supporting-slot failure

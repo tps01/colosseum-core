@@ -282,6 +282,7 @@ def test_golden_wats_example_shape(unit_runtime_context) -> None:
 def test_write_wats_report_creates_timestamped_json(unit_runtime_context, tmp_path: Path) -> None:
     ctx = _ctx(unit_runtime_context)
     ctx.output_dir = tmp_path
+    ctx.enabled_reports = frozenset({"wats"})
     ctx.test_case_name = "example1"
     aggregator = ResultAggregator()
     path = write_wats_report(tmp_path, ctx, aggregator, [])
@@ -296,6 +297,7 @@ def test_write_wats_report_creates_timestamped_json(unit_runtime_context, tmp_pa
 
 def test_write_wats_report_appends_debug_log(unit_runtime_context, tmp_path: Path) -> None:
     ctx = _ctx(unit_runtime_context)
+    ctx.enabled_reports = frozenset({"wats"})
     ctx.test_case_name = "demo"
     log_path = tmp_path / "debug.log"
     log_path.write_text("existing line\n", encoding="utf-8")
@@ -311,6 +313,7 @@ def test_write_wats_report_best_effort_without_metadata(
 ) -> None:
     ctx = unit_runtime_context
     ctx.output_dir = tmp_path
+    ctx.enabled_reports = frozenset({"wats"})
     ctx.test_case_name = "demo"
     ctx.metadata_path = None
     ctx.metadata_yaml = {}
@@ -321,3 +324,12 @@ def test_write_wats_report_best_effort_without_metadata(
     assert data["type"] == "T"
     assert data["pn"] == ""
     assert "user" in data["uut"]
+
+
+def test_write_wats_report_skipped_when_not_enabled(unit_runtime_context, tmp_path: Path) -> None:
+    ctx = _ctx(unit_runtime_context)
+    ctx.output_dir = tmp_path
+    ctx.enabled_reports = frozenset()
+    path = write_wats_report(tmp_path, ctx, ResultAggregator(), [])
+    assert path is None
+    assert list(tmp_path.glob("wats_*.json")) == []

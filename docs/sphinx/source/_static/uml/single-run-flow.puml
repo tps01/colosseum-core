@@ -1,0 +1,24 @@
+@startuml
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam dpi 150
+
+start
+:colosseum run script.py;
+:init RuntimeContext;
+:load config (-g) and metadata (-m);
+:resolve enabled reports\n([colosseum.reports] or --report);
+:resolve parameters file\n(--parameters / sibling / none);
+:ensure_runtime_ready\n(debug.log, execution.sqlite);
+:run main();
+:finalize_run;
+:insert BLOCKED owed limit keys;
+:write summary.txt + summary.json;
+if (enabled listeners?) then (yes)
+  :WATS and/or JUnit\n(synchronous);
+else (no)
+endif
+:rename output dir -pass / -fail;
+:exit 0 or 1;
+stop
+@enduml

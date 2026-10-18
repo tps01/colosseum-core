@@ -23,9 +23,15 @@ _WATS_NAME_RE = re.compile(r"^wats_\d{8}T\d{6}_.+\.json$")
 
 
 @pytest.mark.requirement("E2E-ART-WATS-01")
-def test_wats_file_always_written(core_config, isolated_cwd, subprocess_env) -> None:
-    """WATS JSON is written on every normal run with artifacts enabled."""
-    proc = run_cli(OPTIONAL_FAIL, core_config, isolated_cwd, subprocess_env)
+def test_wats_file_written_when_enabled(core_config, isolated_cwd, subprocess_env) -> None:
+    """WATS JSON is written when ``--report wats`` is passed."""
+    proc = run_cli(
+        OPTIONAL_FAIL,
+        core_config,
+        isolated_cwd,
+        subprocess_env,
+        extra_args=["--report", "wats"],
+    )
     assert proc.returncode == 0, proc.stderr
     run_dir = latest_output_dir(isolated_cwd)
     assert find_wats_json(run_dir).is_file()
@@ -34,7 +40,13 @@ def test_wats_file_always_written(core_config, isolated_cwd, subprocess_env) -> 
 @pytest.mark.requirement("E2E-ART-WATS-02")
 def test_wats_filename_pattern(core_config, isolated_cwd, subprocess_env) -> None:
     """WATS filename matches wats_<UTCdatetime>_<script_stem>.json."""
-    proc = run_cli(OPTIONAL_FAIL, core_config, isolated_cwd, subprocess_env)
+    proc = run_cli(
+        OPTIONAL_FAIL,
+        core_config,
+        isolated_cwd,
+        subprocess_env,
+        extra_args=["--report", "wats"],
+    )
     assert proc.returncode == 0, proc.stderr
     run_dir = latest_output_dir(isolated_cwd)
     wats = find_wats_json(run_dir)
@@ -50,7 +62,7 @@ def test_wats_metadata_identity_fields(core_config, isolated_cwd, subprocess_env
         core_config,
         isolated_cwd,
         subprocess_env,
-        extra_args=["--metadata", str(METADATA)],
+        extra_args=["--metadata", str(METADATA), "--report", "wats"],
     )
     assert proc.returncode == 0, proc.stderr
     run_dir = latest_output_dir(isolated_cwd)
@@ -70,11 +82,27 @@ def test_wats_metadata_identity_fields(core_config, isolated_cwd, subprocess_env
 
 @pytest.mark.requirement("E2E-ART-WATS-04")
 def test_wats_best_effort_without_metadata(core_config, isolated_cwd, subprocess_env) -> None:
-    """Without metadata, best-effort WATS export still succeeds."""
-    proc = run_cli(WATS_BEST_EFFORT, core_config, isolated_cwd, subprocess_env)
+    """Without metadata, best-effort WATS export still succeeds when enabled."""
+    proc = run_cli(
+        WATS_BEST_EFFORT,
+        core_config,
+        isolated_cwd,
+        subprocess_env,
+        extra_args=["--report", "wats"],
+    )
     assert proc.returncode == 0, proc.stderr
     run_dir = latest_output_dir(isolated_cwd)
     payload = load_wats_json(run_dir)
     assert payload.get("type") == "T"
     assert "root" in payload
     assert isinstance(payload.get("pn"), str)
+
+
+@pytest.mark.requirement("E2E-ART-WATS-05")
+def test_wats_not_written_by_default(core_config, isolated_cwd, subprocess_env) -> None:
+    """Without ``--report wats``, no WATS JSON is written."""
+    proc = run_cli(OPTIONAL_FAIL, core_config, isolated_cwd, subprocess_env)
+    assert proc.returncode == 0, proc.stderr
+    run_dir = latest_output_dir(isolated_cwd)
+    assert list(run_dir.glob("wats_*.json")) == []
+    assert (run_dir / "summary.json").is_file()

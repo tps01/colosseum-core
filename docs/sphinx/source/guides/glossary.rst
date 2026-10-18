@@ -8,7 +8,13 @@ Terms used in the runtime and in the user guides. See
 
    artifacts
       Files written for a completed run: ``debug.log``, ``execution.sqlite``,
-      summaries, and the WATS JSON report. Disabled with ``--no-artifacts``.
+      and summaries. Optional report listeners (WATS, JUnit) may add files when
+      enabled. Disabled with ``--no-artifacts``.
+
+   BLOCKED
+      Verification status for an owed limit key that was never measured,
+      usually after a required command aborted. Counts like ``FAIL`` for the
+      aggregate result.
 
    command
       A decorated plugin call that records a stimulus or setup step in the
@@ -62,10 +68,20 @@ Terms used in the runtime and in the user guides. See
       ``optional=True`` on a command or verification. FAIL/ERROR is recorded
       but does not change the aggregate exit code.
 
+   parameters file
+      Optional TOML whose tables are evidence keys and values are kwargs for
+      ``key=`` calls. Resolved from ``--parameters``, a suite entry field, or
+      sibling ``parameters.toml``. See :doc:`writing_test_scripts`.
+
    plugin
       A separate Python distribution with a ``colosseum.plugins`` entry
       point. ``register(registry)`` exposes a namespace and optional config
       sections. See :doc:`plugins`.
+
+   ProceduralFault
+      Exception meaning the procedure could not be carried out (for example a
+      resource that never opened, or an unreadable parameters file). Command
+      rows record ``cause=procedural``. A silent DUT stays ``cause=unit``.
 
    resource cache
       ``RuntimeContext.resource_cache``. Plugin-owned live objects
@@ -73,8 +89,8 @@ Terms used in the runtime and in the user guides. See
       present; plugins may also register shutdown hooks.
 
    ResultAggregator
-      In-memory list of command and verification outcomes. Required FAIL or
-      ERROR (or a marked script error) produces exit code 1.
+      In-memory list of command and verification outcomes. Required FAIL,
+      ERROR, or BLOCKED (or a marked script error) produces exit code 1.
 
    fail_fast
       Suite TOML flag. After a setup, between, or test slot failure, skip
@@ -96,10 +112,11 @@ Terms used in the runtime and in the user guides. See
       after finalize.
 
    verification
-      A decorated plugin call that records PASS, FAIL, or ERROR against prior
-      evidence, usually by :term:`evidence key`.
+      A decorated plugin call that records PASS, FAIL, ERROR, or BLOCKED
+      against prior evidence, usually by :term:`evidence key`.
 
    WATS
-      JSON test report (WSJF format) written as
-      ``wats_<UTC>_<script>.json`` on every normal run with artifacts
-      enabled. Metadata YAML enriches identity fields when provided.
+      Opt-in JSON test report (WSJF format) written as
+      ``wats_<UTC>_<script>.json`` when the ``wats`` report listener is
+      enabled (``[colosseum.reports]`` or ``--report wats``). Metadata YAML
+      enriches identity fields when provided.

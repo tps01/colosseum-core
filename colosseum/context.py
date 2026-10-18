@@ -58,6 +58,9 @@ class RuntimeContext:
     run_options: RunOptions = field(default_factory=RunOptions)
     active_execution_mode: ExecutionMode = "full"
     session: RunSession = field(default_factory=RunSession)
+    parameters_path: Path | None = None
+    parameters_map: dict[str, dict[str, Any]] | None = None
+    enabled_reports: frozenset[str] = field(default_factory=frozenset)
 
 
 def get_context() -> RuntimeContext:
@@ -103,16 +106,18 @@ def init_context(
     from datetime import timezone
 
     from . import __version__
-    from .plugins.registry import PluginRegistry
+    from .plugins.registry import PluginRegistry, register_builtin_listeners
 
     options = run_options if run_options is not None else RunOptions()
     kind: RunKind = "suite" if suite_name is not None else "single"
+    registry = PluginRegistry()
+    register_builtin_listeners(registry)
     ctx = RuntimeContext(
         config=None,
         output_dir=None,
         db=DatabaseManager(),
         logger=None,
-        plugin_registry=PluginRegistry(),
+        plugin_registry=registry,
         result_aggregator=ResultAggregator(),
         test_case_name=test_case_name,
         suite_name=suite_name,

@@ -116,7 +116,7 @@ def test_metadata_enriches_wats_report(core_config, isolated_cwd, subprocess_env
         core_config,
         isolated_cwd,
         subprocess_env,
-        extra_args=["--metadata", str(METADATA)],
+        extra_args=["--metadata", str(METADATA), "--report", "wats"],
     )
     assert proc.returncode == 0, proc.stderr
     run_dir = latest_output_dir(isolated_cwd)
@@ -251,7 +251,7 @@ def test_cli_config_and_metadata_pin_ignore_script_loads(
         cli_config,
         isolated_cwd,
         subprocess_env,
-        extra_args=["-m", str(cli_meta)],
+        extra_args=["-m", str(cli_meta), "--report", "wats"],
     )
     assert proc.returncode == 0, proc.stderr
     combined = (proc.stdout or "") + (proc.stderr or "")

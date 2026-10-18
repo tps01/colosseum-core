@@ -1,0 +1,11 @@
+# Limit-only parameters file. Sections are evidence keys.
+# A section is an owed limit when it includes expected_val, tolerance,
+# minimum, maximum, exact, or expected.
+
+[dut_3v3_rail]
+expected_val = 3.3
+tolerance = 0.1
+
+[dut_1v8_rail]
+minimum = 1.7
+maximum = 1.9

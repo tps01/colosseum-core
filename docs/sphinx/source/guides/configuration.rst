@@ -115,13 +115,35 @@ Metadata precedence
    over a script ``load_metadata`` unless ``force=True``).
 3. Runtime defaults (hostname, OS user, empty identity fields) fill any remaining gaps.
 
-Finalize writes ``wats_<datetime>_<script>.json`` beside ``summary.json`` (see
-:doc:`output_artifacts`). That file uses the WATS WSJF JSON format. Without
-metadata, Colosseum still writes the report using runtime defaults.
+When the ``wats`` report listener is enabled, finalize writes
+``wats_<datetime>_<script>.json`` beside ``summary.json`` (see
+:doc:`output_artifacts`). Without metadata, Colosseum still builds that report
+using runtime defaults. ``wats_folder`` is consulted only when WATS is enabled.
 
 Optional keys (never required) may enrich the report when set in YAML:
 ``process_name``, ``report_text``, ``seq_version``, ``batch_serial``,
 ``fixture_id``, ``comment``, ``misc_infos``, and ``sub_units``. Existing
 metadata files without these keys continue to work unchanged.
 
-Plugin-owned config sections are documented by each plugin (README or project docs).
+Report listeners (``[colosseum.reports]``)
+------------------------------------------
+
+Core owns a boolean table for opt-in report formats. Report choice is run
+configuration, not unit identity (do not put these flags in metadata)::
+
+   [colosseum.reports]
+   wats = false
+   junit = false
+
+Both default to false when the table is absent. CLI ``--report NAME``
+(repeatable) replaces the table for that process. An unknown name warns and
+does not fail the run. See :doc:`output_artifacts`.
+
+.. figure:: ../_static/uml/config-priority.png
+   :alt: Precedence for config, metadata, reports, and execution mode
+   :align: center
+
+   CLI pins and ``--report`` override script loads and the reports table.
+
+Plugin-owned config sections are documented by each plugin (README or project
+docs). For first-party setup recipes, see :doc:`first_party_plugins`.
