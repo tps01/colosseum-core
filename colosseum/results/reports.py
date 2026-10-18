@@ -31,7 +31,10 @@ def reports_from_config(ctx: RuntimeContext) -> frozenset[str]:
     return frozenset(enabled)
 
 
-def resolve_enabled_reports(ctx: RuntimeContext, options: RunOptions | None = None) -> frozenset[str]:
+def resolve_enabled_reports(
+    ctx: RuntimeContext,
+    options: RunOptions | None = None,
+) -> frozenset[str]:
     """CLI ``--report`` replaces the config table when any flag is present."""
     opts = options if options is not None else ctx.run_options
     if opts.report_cli is not None:

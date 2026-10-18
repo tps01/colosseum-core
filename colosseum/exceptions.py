@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-class ProceduralFault(RuntimeError):
+class ProceduralFault(RuntimeError):  # noqa: N818
     """The procedure could not be carried out.
 
     Raised when a resource never opens, a parameters file cannot be read, or

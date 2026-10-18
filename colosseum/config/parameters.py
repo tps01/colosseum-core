@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from colosseum.config.toml_relaxed import read_relaxed_toml
 from colosseum.exceptions import ProceduralFault
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from colosseum.context import RuntimeContext
 
 try:

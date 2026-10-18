@@ -296,7 +296,11 @@ def _run_single_test(
     ctx.active_execution_mode = options.execution_mode
     _load_run_config(config_path, metadata_path)
     ensure_runtime_ready(ctx)
-    from colosseum.config.parameters import ParametersError, attach_parameters, resolve_parameters_path
+    from colosseum.config.parameters import (
+        ParametersError,
+        attach_parameters,
+        resolve_parameters_path,
+    )
     from colosseum.results.reports import apply_enabled_reports
 
     apply_enabled_reports(ctx)

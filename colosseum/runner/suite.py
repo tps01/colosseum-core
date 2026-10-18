@@ -226,7 +226,11 @@ def _run_script_slot(
     ctx.slot_test_index = test_index
     ctx.slot_repeat_index = repeat_index
 
-    from colosseum.config.parameters import ParametersError, attach_parameters, resolve_parameters_path
+    from colosseum.config.parameters import (
+        ParametersError,
+        attach_parameters,
+        resolve_parameters_path,
+    )
 
     entry_parameters = entry.parameters if entry is not None else None
     resolved_parameters = resolve_parameters_path(

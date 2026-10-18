@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 from typing import TYPE_CHECKING
-from xml.dom import minidom
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -63,36 +62,35 @@ def write_junit_report(
         cases.append(case)
 
     if not result.verifications:
-        for row in result.commands:
-            if row.status != "ERROR" or row.optional:
+        for command in result.commands:
+            if command.status != "ERROR" or command.optional:
                 continue
             case = ET.Element("testcase")
-            case.set("classname", f"{row.domain}.{row.command}")
-            case.set("name", row.key or row.command)
+            case.set("classname", f"{command.domain}.{command.command}")
+            case.set("name", command.key or command.command)
             props = ET.SubElement(case, "properties")
-            if row.cause:
-                _add_property(props, "cause", row.cause)
+            if command.cause:
+                _add_property(props, "cause", command.cause)
             if parameters_file:
                 _add_property(props, "parameters_file", parameters_file)
             error = ET.SubElement(case, "error")
-            error.set("message", row.message or "ERROR")
+            error.set("message", command.message or "ERROR")
             error.set("type", "ERROR")
             cases.append(case)
 
-    failures = sum(1 for case in cases if case.find("failure") is not None)
-    errors = sum(1 for case in cases if case.find("error") is not None)
-    skipped = sum(1 for case in cases if case.find("skipped") is not None)
+    failure_count = sum(1 for case in cases if case.find("failure") is not None)
+    error_count = sum(1 for case in cases if case.find("error") is not None)
+    skipped_count = sum(1 for case in cases if case.find("skipped") is not None)
     suite.set("tests", str(len(cases)))
-    suite.set("failures", str(failures))
-    suite.set("errors", str(errors))
-    suite.set("skipped", str(skipped))
+    suite.set("failures", str(failure_count))
+    suite.set("errors", str(error_count))
+    suite.set("skipped", str(skipped_count))
     for case in cases:
         suite.append(case)
 
-    rough = ET.tostring(suite, encoding="utf-8")
-    pretty = minidom.parseString(rough).toprettyxml(indent="  ", encoding="utf-8")
+    ET.indent(suite, space="  ")
     path = output_dir / "junit.xml"
-    path.write_bytes(pretty)
+    ET.ElementTree(suite).write(path, encoding="utf-8", xml_declaration=True)
     if ctx.logger is not None:
         ctx.logger.info("Wrote JUnit report: %s", path)
     return path
