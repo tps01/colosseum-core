@@ -287,7 +287,7 @@ def test_suite_metadata_propagates_to_wats(
         core_config,
         isolated_cwd,
         subprocess_env,
-        extra_args=["--metadata", str(METADATA)],
+        extra_args=["--metadata", str(METADATA), "--report", "wats"],
     )
     assert proc.returncode == 0, proc.stderr
     container = latest_suite_container(isolated_cwd)

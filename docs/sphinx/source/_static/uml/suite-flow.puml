@@ -10,11 +10,24 @@ if (setup scripts?) then (yes)
   if (fail_fast and failed?) then (yes)
     :skip remaining tests;
   else (no)
-    :run test schedule;
   endif
-else (no)
-  :run test schedule;
 endif
+:run test schedule;
+note right
+  each test entry may set
+  parameters= path
+  repeats reuse that path
+end note
+while (more test iterations?) is (yes)
+  :run test slot\n(resolve parameters, main, finalize);
+  if (between_tests and not last?) then (yes)
+    :run between slot;
+  endif
+  if (fail_fast and test failed?) then (yes)
+    :skip remaining tests;
+    break
+  endif
+endwhile (no)
 :run all teardown slots;
 :finalize suite, rename container;
 stop

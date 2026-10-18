@@ -22,6 +22,10 @@ class RunOptions:
     previous_output_dir: Path | None = None
     plugin_commands: list[str] = field(default_factory=list)
     show_faults: bool = False
+    parameters_path: Path | None = None
+    # None means use [colosseum.reports] from config; a list (possibly empty)
+    # means CLI --report replaced the table for this process.
+    report_cli: list[str] | None = None
 
 
 def resolve_input_path(input_dir: Path | None, positional: str) -> Path:

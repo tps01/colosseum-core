@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
+from colosseum.config.parameters import owed_limit_keys
+from colosseum.database import VerificationRow
+from colosseum.decorators.verification import VerificationResult
 from colosseum.logging.setup import close_logger_handlers
 from colosseum.results.finalize_policy import (
     FinalizePolicy,
@@ -16,7 +19,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from colosseum.context import RuntimeContext
-    from colosseum.database.manager import MeasurementRecord, VerificationRecord
+    from colosseum.database.manager import CommandRecord, MeasurementRecord, VerificationRecord
 
 
 @dataclass
@@ -27,6 +30,7 @@ class FinalizeRunResult:
     command_count: int
     verifications: list[VerificationRecord]
     measurements: list[MeasurementRecord]
+    commands: list[CommandRecord] = field(default_factory=list)
 
 
 def close_resource_cache(
@@ -50,12 +54,73 @@ def close_resource_cache(
                 logger.exception("Failed to close cached resource %s", key)
 
 
+def _abort_message(ctx: RuntimeContext) -> str:
+    for row in ctx.result_aggregator._records:  # noqa: SLF001
+        if row["kind"] == "command" and not row["optional"] and row["status"] == "ERROR":
+            domain = row.get("domain", "")
+            command = row.get("command", "")
+            message = row.get("message", "")
+            label = f"{domain}.{command}" if domain else command
+            if message:
+                return f"not measured: {label}: {message}"
+            return f"not measured: {label}"
+    return "owed key never called"
+
+
+def _insert_blocked_owed_keys(ctx: RuntimeContext) -> None:
+    """Insert BLOCKED verification rows for owed limit keys with no measurement."""
+    if ctx.parameters_map is None or not ctx.db.is_initialized():
+        return
+    measured = ctx.db.measurement_keys()
+    abort_message = _abort_message(ctx)
+    for key in owed_limit_keys(ctx.parameters_map):
+        if key in measured:
+            continue
+        fields = ctx.parameters_map[key]
+        expected = None
+        compare_op = None
+        tolerance = None
+        if "expected_val" in fields:
+            expected = fields["expected_val"]
+            compare_op = "GELE"
+            tolerance = float(fields.get("tolerance", 0.0))
+        elif "minimum" in fields:
+            expected = fields["minimum"]
+            compare_op = "GE"
+        elif "maximum" in fields:
+            expected = fields["maximum"]
+            compare_op = "LE"
+        elif "exact" in fields:
+            expected = fields["exact"]
+            compare_op = "EQ"
+        elif "expected" in fields:
+            expected = fields["expected"]
+            compare_op = "EQ" if isinstance(expected, str) else None
+        result = VerificationResult(status="BLOCKED", message=abort_message, optional=False)
+        ctx.result_aggregator.record_verification(
+            result, key=key, command="owed_limit", domain="core",
+        )
+        ctx.db.insert_verification(
+            VerificationRow(
+                domain="core",
+                command="owed_limit",
+                key=key,
+                expected=expected,
+                actual=None,
+                tolerance=tolerance,
+                compare_op=compare_op,
+                status="BLOCKED",
+                optional=False,
+                message=abort_message,
+            ),
+        )
+
+
 def _write_run_artifacts(
     output_dir: Path,
     ctx: RuntimeContext,
     result: FinalizeRunResult,
 ) -> None:
-    from colosseum.summary.wats import write_wats_report
     from colosseum.summary.writer import SummaryWriter
 
     SummaryWriter().write(
@@ -65,13 +130,7 @@ def _write_run_artifacts(
         measurement_count=result.measurement_count,
         command_count=result.command_count,
     )
-    write_wats_report(
-        output_dir,
-        ctx,
-        ctx.result_aggregator,
-        result.verifications,
-        result.measurements,
-    )
+    ctx.plugin_registry.run_listeners(ctx.enabled_reports, output_dir, result, ctx)
 
 
 def finalize_run(
@@ -96,6 +155,9 @@ def finalize_run(
     if policy.kind == "single":
         ensure_runtime_ready(ctx)
 
+    if ctx.db.is_initialized():
+        _insert_blocked_owed_keys(ctx)
+
     code = ctx.result_aggregator.exit_code()
     overall = "PASS" if code == 0 else "FAIL"
 
@@ -115,6 +177,7 @@ def finalize_run(
     command_count = 0
     verifications: list[VerificationRecord] = []
     measurements: list[MeasurementRecord] = []
+    commands: list[CommandRecord] = []
     if ctx.db.is_initialized():
         status = overall if policy.scores_suite else "N/A"
         ctx.db.insert_run_metadata("overall_status", status)
@@ -123,6 +186,7 @@ def finalize_run(
         command_count = ctx.db.count_rows("commands")
         verifications = ctx.db.fetch_all_verifications()
         measurements = ctx.db.fetch_all_measurements()
+        commands = ctx.db.fetch_all_commands()
         ctx.db.flush()
 
     if policy.run_shutdown:
@@ -150,6 +214,7 @@ def finalize_run(
         command_count=command_count,
         verifications=verifications,
         measurements=measurements,
+        commands=commands,
     )
 
     if policy.rename_dir and ctx.output_dir is not None:

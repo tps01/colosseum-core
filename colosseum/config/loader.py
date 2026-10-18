@@ -149,6 +149,9 @@ def apply_raw_config(
         meta_table = colosseum_meta.get("metadata")
         if isinstance(meta_table, dict):
             ctx.config_warnings.extend(validate_colosseum_metadata_table(meta_table))
+    from colosseum.results.reports import apply_enabled_reports, report_section_warnings
+
+    ctx.config_warnings.extend(report_section_warnings(raw))
     if ctx.runtime_ready and ctx.logger is not None:
         for warning in ctx.config_warnings:
             ctx.logger.warning(warning)
@@ -157,6 +160,7 @@ def apply_raw_config(
     ctx.config_path = source_label
     if ctx.db.is_initialized():
         ctx.db.insert_run_metadata("config_path", source_label)
+    apply_enabled_reports(ctx)
     if ctx.logger is not None:
         log_loaded_config(ctx)
     return store

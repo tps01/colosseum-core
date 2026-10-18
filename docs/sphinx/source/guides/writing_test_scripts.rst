@@ -108,12 +108,63 @@ A ``[template.device]`` table matches that plugin's ``ConfigSectionSpec``:
 
 See :doc:`configuration` for section rules, multiple rows, and reading rows from code.
 
+Parameters file (optional)
+--------------------------
+
+An optional TOML parameters file supplies kwargs by evidence key. Tables are
+keys; values are keyword arguments for ``@command`` and ``@verification`` calls
+that pass ``key=``. A value on the call wins over the file.
+
+Resolution order (first hit wins):
+
+1. ``--parameters PATH`` on ``colosseum run`` / ``colosseum run-suite``
+2. A suite test entry's ``parameters`` field
+3. ``parameters.toml`` beside the script
+4. None
+
+.. figure:: ../_static/uml/parameters-resolution.png
+   :alt: Parameters file resolution and BLOCKED owed limits
+   :align: center
+
+When a file is loaded, an unknown ``key=`` fails at the call as a
+:term:`ProceduralFault`. A present but invalid file fails the slot before
+``main``. Sections that contain ``expected_val``, ``tolerance``, ``minimum``,
+``maximum``, ``exact``, or ``expected`` are owed limits: if the run aborts
+before those keys are measured, finalize inserts ``BLOCKED`` verification rows.
+
+**Limit-only parameters file** (``parameters.toml``)::
+
+   [dut_3v3_rail]
+   expected_val = 3.3
+   tolerance = 0.1
+
+   [rx_level]
+   expected_val = 0.0
+   tolerance = 0.5
+
+**Script** (limits come from the file via ``key=``)::
+
+   def main() -> None:
+       measure_level(key="rx_level", value=0.0)
+       verify_level(key="rx_level")  # expected_val / tolerance filled from file
+
+**Suite** (same script, two files)::
+
+   name = "receiver_limits"
+   tests = [
+     { path = "receiver_test.py", parameters = "limits_low.toml" },
+     { path = "receiver_test.py", parameters = "limits_high.toml" },
+   ]
+
+See ``examples/parameters/`` in the core package. For ready-made bench procedures,
+copy a folder from :doc:`testware_library`.
+
 Metadata (optional)
 -------------------
 
-Metadata identifies the unit under test and the test run. It is optional:
-Colosseum still writes a JSON test report (WATS WSJF format) when metadata is not
-configured.
+Metadata identifies the unit under test and the test run. It is optional.
+WATS and JUnit reports are opt-in listeners (see :doc:`output_artifacts`);
+metadata enriches WATS identity fields when that report is enabled.
 
 Provide metadata in one of two ways:
 
@@ -187,8 +238,9 @@ Direct-Python skeleton above)::
 
    python scripts/my_test.py
 
-With metadata omitted, the JSON test report still exports using runtime defaults
-(hostname, OS user, empty identity fields). See :doc:`output_artifacts`.
+When WATS is enabled and metadata is omitted, the report still builds using
+runtime defaults (hostname, OS user, empty identity fields). See
+:doc:`output_artifacts`.
 
 Utility scripts
 ---------------

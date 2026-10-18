@@ -20,6 +20,8 @@ User guide for running tests and developing plugins.
    guides/running_suites
    guides/measurements_verifications
    guides/output_artifacts
+   guides/first_party_plugins
+   guides/testware_library
    guides/exit_codes
    guides/platform_notes
 

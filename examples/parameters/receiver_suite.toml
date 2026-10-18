@@ -1,0 +1,6 @@
+name = "receiver_limits"
+
+tests = [
+  { path = "receiver_test.py", parameters = "limits_low.toml" },
+  { path = "receiver_test.py", parameters = "limits_high.toml" },
+]

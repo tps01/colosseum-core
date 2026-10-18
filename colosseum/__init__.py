@@ -10,6 +10,7 @@ from .decorators import (
     measurement,
     verification,
 )
+from .exceptions import ProceduralFault
 from .plugins.namespace import LazyNamespaceProxy
 from .results.exit_policy import endex
 
@@ -35,5 +36,6 @@ __all__ = [
     "verification",
     "CommandResult",
     "VerificationResult",
+    "ProceduralFault",
     "endex",
 ]

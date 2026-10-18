@@ -21,8 +21,8 @@ def _repo_root() -> Path:
 _pyproject = tomllib.loads((_repo_root() / "pyproject.toml").read_text(encoding="utf-8"))
 
 project = "Colosseum"
-copyright = "Colosseum contributors"
-author = "Colosseum contributors"
+copyright = "tps01"
+author = "tps01"
 release = str(_pyproject["project"]["version"])
 
 extensions: list[str] = []
@@ -32,12 +32,19 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 html_theme = "alabaster"
 html_static_path = ["_static"]
+html_logo = "_static/colosseum-logo.png"
+html_favicon = "_static/colosseum.ico"
+html_theme_options = {
+    "logo_name": True,
+    "description": "Test automation for hardware and software",
+}
 
 latex_engine = "pdflatex"
 latex_elements = {
     # Avoid blank verso pages before each short chapter in the PDF manual.
     "classoptions": ",openany",
 }
+latex_logo = "_static/colosseum-logo.png"
 latex_documents = [
-    ("index_pdf", "colosseum.tex", "Colosseum", "Colosseum contributors", "manual"),
+    ("index_pdf", "colosseum.tex", "Colosseum", "tps01", "manual"),
 ]
