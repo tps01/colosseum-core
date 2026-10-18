@@ -36,7 +36,7 @@ class DatabaseWriteQueue:
     def __init__(
         self,
         *,
-        lock: threading.Lock,
+        lock: threading.RLock,
         batch_size: int = 32,
         batch_interval_s: float = 0.05,
         commit: Callable[[], None],
