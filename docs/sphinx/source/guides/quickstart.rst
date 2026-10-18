@@ -26,7 +26,7 @@ script returns (you do not need ``col.endex()`` under the CLI).
 
    def main() -> None:
        # Replace with calls from installed plugins, for example:
-       # col.shared.wait.wait_seconds(seconds=0.1)
+       # col.shared.wait(duration=0.1)
        pass
 
 3. Minimal config

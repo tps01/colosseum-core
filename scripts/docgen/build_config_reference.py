@@ -42,11 +42,14 @@ def build_config_reference_rst(*, output_path: Path) -> Path:
         "Bench configuration reference",
         "=============================",
         "",
-        ("Generated from plugin ``ConfigSectionSpec`` registration. Each section "
-        "has exactly one dotted TOML path, exactly one integer ID field, and any "
-        "number of required or optional keys (including none). A plugin that owns "
-        "several table types registers several specs. Re-run "
-        "``python scripts/docgen/build_all.py`` after changing required or optional keys."),
+        (
+            "Generated from plugin ``ConfigSectionSpec`` registration. Each section "
+            "has exactly one dotted TOML path, exactly one integer ID field, and any "
+            "number of required or optional keys (including none). A plugin that owns "
+            "several table types registers several specs. Re-run "
+            "``python scripts/docgen/build_config_reference.py --output <file.rst>`` "
+            "after changing required or optional keys."
+        ),
         "",
     ]
     if not specs:

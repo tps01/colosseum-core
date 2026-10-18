@@ -135,10 +135,33 @@ persisted output with ``--no-artifacts``, ``load_config(..., no_artifacts=True)`
 ``COLOSSEUM_NO_ARTIFACTS=1`` (see :doc:`running_tests`).
 
 Plugin-generated files (for example spectrum trace CSV, IQ capture binaries, screenshots)
-are written under the same output directory. RF trace files from
+are written under the same output directory. Saving a file does not automatically create a measurement artifact index:
+equipment exporters explicitly record ``artifact_path`` measurements; GUI
+screenshots/trees save files and sidecars without those rows; host profile
+capture returns its path in the command result. Host samplers save CSV and
+record compact summary measurements. All require artifacts enabled.
+
+RF trace files from
 ``col.equipment.speca.save_trace_data`` typically live at ``traces/<name>.csv`` relative
 to the run directory.
 
+Equipment stores ``artifact_path`` **relative to the run directory** when the
+file is inside it. After the ``-pass`` / ``-fail`` rename, open
+``execution.sqlite`` in the renamed folder and resolve that relative path
+against the database's directory. Older rows may still hold an absolute path
+from before the rename; resolution rebases a matching suffix onto the renamed
+directory when the original path no longer exists. Verification-only import
+keeps the path relative to the previous run (``run_metadata.imported_from``)
+so the file is found there, not in the new run folder.
+
+Listener threads enqueue measurements. Finalize drains and closes the write
+queue before renaming the directory, so those rows are committed first.
+Script-thread artifact registration inserts synchronously and is visible to a
+following verification in the same process. A ``bytes`` measurement value is
+returned as bytes and stored as JSON ``{"encoding": "hex", "data": "...",
+"nbytes": N}``. Row identity is domain, command, key, and ``row_index``.
+
 Use ``col.database.read_verifications`` for inspection only; do not use read helpers to
-decide pass/fail (use ``col.endex()``). The desktop GUI reads completed
-``execution.sqlite`` files offline for run browsing.
+decide pass/fail (use ``col.endex()``). The operator GUI browses completed
+runs through ``summary.json`` and ``debug.log``. It does not provide a
+SQLite measurement, verification, or event-table browser.

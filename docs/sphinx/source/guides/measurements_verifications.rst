@@ -18,7 +18,11 @@ You call plugin APIs; decorators record evidence automatically. The
 
 Each call writes rows to ``execution.sqlite`` and pass/fail lines to ``debug.log``.
 You do not implement decorators in test scripts. Plugin authors add them in the API
-module (see :doc:`plugins`).
+module (see :doc:`plugins`). Measurement identity is domain, command, ``key``, and
+``row_index``. A ``bytes`` return value is given back to the caller unchanged and
+stored as ``{"encoding": "hex", "data": "<hex>", "nbytes": N}`` so the row stays
+JSON. Listener-thread inserts go through the database write queue and become
+durable when the run drains that queue at finalize (requires core 0.17.1 or newer).
 
 Commands
 --------
@@ -70,10 +74,11 @@ Domains
 Evidence is stored under a domain string. Resolution order:
 
 1. Function-level ``__colosseum_domain__`` override.
-2. Package (or parent package) ``__colosseum_domain__``.
-3. Default: when ``register_namespace(name, module)`` runs, core sets the package
-   domain to ``name`` if none is already set. Otherwise undecorated / unregistered
-   APIs fall back to ``core``.
+2. Defining module, then parent packages' ``__colosseum_domain__``.
+3. Fallback ``core`` when no override is present.
 
-Third-party plugins usually get domain equal to namespace automatically from
-``register_namespace``. Set ``__colosseum_domain__`` explicitly when they should differ.
+This resolution happens when the decorator wraps the function. Set the package
+domain before importing decorated APIs, or set it on the API module before
+defining them. ``register_namespace(name, module)`` supplies the namespace name
+on the top-level package when no domain is already present, but it does not
+retroactively change domains captured by existing wrappers. See :doc:`plugins`.

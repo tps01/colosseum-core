@@ -15,9 +15,10 @@ class ConfigSectionSpec:
     :type dotted_path: str
     :param id_field: Integer row identity key (for example ``device_id``).
     :type id_field: str
-    :param required_keys: Keys that must be present and non-empty when a row is loaded.
+    :param required_keys: Keys checked for non-empty values when ``require_item`` is called.
     :type required_keys: tuple[str, ...], optional
-    :param optional_keys: Additional recognized keys. Unknown keys warn at load.
+    :param optional_keys: Additional documented keys. Unknown plugin-row keys
+        are preserved without a core warning.
     :type optional_keys: tuple[str, ...], optional
     """
 

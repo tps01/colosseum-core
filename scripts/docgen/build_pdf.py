@@ -64,6 +64,8 @@ def build_pdf(*, site_source: Path, latex_dir: Path, repo_root: Path) -> Path:
                 "sphinx",
                 "-b",
                 "latex",
+                "-W",
+                "--keep-going",
                 str(site_source),
                 str(latex_dir),
             ],

@@ -7,6 +7,7 @@ import sqlite3
 from typing import TYPE_CHECKING
 
 from colosseum.database import CommandRow, MeasurementRow
+from colosseum.database.artifact_paths import relativize_imported_artifact
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -73,12 +74,13 @@ def import_evidence_from_previous(ctx: object, previous_dir: Path) -> None:
     source_db = resolve_previous_db(previous_dir)
     source = sqlite3.connect(str(source_db))
     try:
+        source_run = source_db.parent
         _copy_table_rows(
             source,
             ctx,
             _MEASUREMENT_SELECT,
             _MEASUREMENT_COLUMNS,
-            _insert_measurement_row,
+            lambda runtime, row: _insert_measurement_row(runtime, row, source_run),
         )
         _copy_table_rows(
             source,
@@ -107,7 +109,16 @@ def _copy_table_rows(
         inserter(ctx, dict(zip(columns, row)))
 
 
-def _insert_measurement_row(ctx: RuntimeContext, row: dict[str, object]) -> None:
+def _insert_measurement_row(
+    ctx: RuntimeContext,
+    row: dict[str, object],
+    source_run: Path,
+) -> None:
+    raw_artifact = row["artifact_path"]
+    artifact = relativize_imported_artifact(
+        None if raw_artifact is None else str(raw_artifact),
+        source_run,
+    )
     ctx.db.insert_measurement(
         MeasurementRow(
             domain=str(row["domain"]),
@@ -116,7 +127,7 @@ def _insert_measurement_row(ctx: RuntimeContext, row: dict[str, object]) -> None
             row_index=int(row["row_index"]),  # type: ignore[call-overload]
             value=_loads_json_value(row["value_json"]),
             units=row["units"],  # type: ignore[arg-type]
-            artifact_path=row["artifact_path"],  # type: ignore[arg-type]
+            artifact_path=artifact,
             status=str(row["status"]),
             timestamp=str(row["timestamp"]),
         ),

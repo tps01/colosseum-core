@@ -1,8 +1,8 @@
 Installation
 ============
 
-Colosseum is **not** published on PyPI. Install wheels from a **GitHub Release**
-(or from an offline wheelhouse built for your OS and Python).
+Install wheels from a **GitHub Release**, or from an offline wheelhouse built
+for your OS and Python. The recipes below do not require a package index.
 
 Python **3.9** and newer are supported for core. ``colosseum-equipment`` requires
 **3.10** or newer when you install that plugin.
@@ -28,7 +28,7 @@ From a GitHub Release
 
       colosseum_core-<version>-py3-none-any.whl
 
-   Download matching plugin wheels for the same release line when you need them
+   Download compatible plugin wheels when you need them
    (for example ``colosseum_equipment-…whl``, ``colosseum_shared-…whl``). Each
    plugin has its own repository under
    `tps01 <https://github.com/tps01>`__.
@@ -40,7 +40,9 @@ From a GitHub Release
       pip install colosseum_shared-<version>-py3-none-any.whl
 
    Install every plugin you need in the **same** environment as core. Core
-   discovers plugins through ``colosseum.plugins`` entry points.
+   discovers plugins through ``colosseum.plugins`` entry points. Plugins are
+   independently versioned: their version numbers need not match core. Check
+   each plugin wheel's ``colosseum-core`` dependency range before installing.
 
 4. Confirm the CLI::
 
@@ -60,17 +62,26 @@ copy-out procedure stubs.
 Offline wheelhouse from a release
 ---------------------------------
 
-Release assets also include prebuilt offline zip archives named like::
+Release assets also include prebuilt offline archives. Prefer the file that
+matches the target OS and Python minor::
 
-   colosseum-core-offline-{windows,linux}-py{3.9,3.12}.zip
+   colosseum-core-offline-windows-py{3.9,3.12}.zip
+   colosseum-core-offline-linux-py{3.9,3.12}.tar.gz
 
-Unpack on a machine with the matching OS and Python minor, then install with
-``pip install --no-index --find-links=<extracted-dir> colosseum-core`` (and any
-plugin wheels included in that house). Prefer the zip that matches the target
-bench Python version.
+Each archive keeps wheels under ``wheels/`` and ships operator scripts at the
+root:
 
-Building a custom wheelhouse from a parent checkout is documented in that
-checkout's ``offline/README.md``::
+* Windows: run ``install.bat``, then ``start_cli.bat`` (CLI) or ``start_gui.bat``
+  (desktop runner).
+* Linux: ``chmod +x install.sh start_*.sh && ./install.sh``, then
+  ``./start_cli.sh`` or ``./start_gui.sh``.
+
+Manual equivalent (after extract)::
+
+   python -m pip install --no-index --find-links=wheels colosseum-core
+
+Building a custom combined wheelhouse from a parent checkout is documented in
+that checkout's ``offline/README.md``::
 
    python offline/build_wheelhouse.py
    python offline/install_offline.py --wheelhouse colosseum-wheelhouse

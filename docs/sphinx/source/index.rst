@@ -4,10 +4,35 @@ Colosseum
 A Python test automation framework for hardware and software testing.
 
 This site is the **documentation hub** for Colosseum core. Install from GitHub
-Release wheels (Colosseum is not on PyPI). First-party plugins publish their own
+Release wheels. First-party plugins publish their own
 GitHub Pages sites (linked below). Copy-out test stubs live in the
 `colosseum-library <https://github.com/tps01/colosseum-library>`__ catalog; see
 :doc:`guides/testware_library`.
+
+How Colosseum works
+-------------------
+
+Colosseum is meant to stay approachable for people who are not primarily
+software developers, without capping what experienced authors can do.
+
+**Readable procedures.** Plugin APIs use keyword arguments at the call site
+(``expected_val=5``, ``units="V"``, ``tolerance=0.5``). Named steps make the
+intent obvious on the page, so reviewers who do not write code can still follow
+a procedure as a checklist. A typical case is a short, straight-line sequence of
+``col.*`` calls.
+
+**Operator desktop GUI.** Users who only need to select a script or suite,
+attach config and metadata, and start a run can do that from the desktop GUI
+(``colosseum --gui``) without editing Python. Completed runs are browsable from
+the same app through summaries and logs.
+
+**Room for advanced cases.** The same scripts are ordinary Python, so authors
+can use loops, variables, conditionals, helpers, and third-party libraries when
+a scenario needs them. Parameters files and suite definitions support
+parameterized limits and multi-slot campaigns without inventing a separate test
+language. Evidence recording (commands, measurements, and verifications) wraps
+those calls; see :doc:`guides/writing_test_scripts` and
+:doc:`guides/measurements_verifications`.
 
 .. toctree::
    :maxdepth: 2

@@ -41,3 +41,38 @@ def test_measurement_json_round_trip(db: DatabaseManager) -> None:
 def test_fetch_table_rejects_invalid_name(db: DatabaseManager) -> None:
     with pytest.raises(ValueError, match="Invalid table name"):
         db.fetch_table_rows("measurements; DROP TABLE measurements")
+
+
+def test_enqueue_measurement_from_background_thread(tmp_path) -> None:
+    import threading
+
+    db = DatabaseManager()
+    db.initialize(tmp_path / "execution.sqlite")
+    try:
+        errors: list[BaseException] = []
+
+        def worker() -> None:
+            try:
+                for index in range(20):
+                    db.enqueue_measurement(
+                        MeasurementRow(
+                            domain="equipment",
+                            command="track_epoch",
+                            key="soak",
+                            row_index=index,
+                            value={"i": index},
+                        ),
+                    )
+            except BaseException as exc:  # noqa: BLE001
+                errors.append(exc)
+
+        thread = threading.Thread(target=worker)
+        thread.start()
+        thread.join(timeout=5)
+        assert not errors
+        db.drain()
+        assert db.count_rows("measurements") == 20
+        rows = db.list_measurements("equipment", "track_epoch", "soak")
+        assert [row.row_index for row in rows] == list(range(20))
+    finally:
+        db.close()

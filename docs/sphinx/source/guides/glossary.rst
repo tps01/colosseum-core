@@ -52,10 +52,6 @@ Terms used in the runtime and in the user guides. See
       ``verify_only`` (``-u``, import prior measurements/commands and re-run
       verifications).
 
-   fail_fast
-      Suite TOML flag. After a failing **test** slot, skip remaining tests.
-      Supporting slots are unaffected. See :doc:`running_suites`.
-
    measurement
       A decorated plugin call that stores a captured value under
       ``(domain, command, key)`` in the ``measurements`` table.

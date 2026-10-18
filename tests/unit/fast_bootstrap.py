@@ -41,15 +41,17 @@ def make_initialize_from_template(template_path: Path):
         self.defer_commits = os.environ.get("COLOSSEUM_DEFER_DB_COMMITS") == "1"
         path_str = str(db_path)
         if path_str == ":memory:":
-            self._conn = sqlite3.connect(":memory:")
+            self._conn = sqlite3.connect(":memory:", check_same_thread=False)
             from colosseum.database.schema import SCHEMA_SQL
 
             self._conn.executescript(SCHEMA_SQL)
             self._conn.commit()
+            self._start_write_queue()
             return
         dest = Path(db_path)
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(template_path, dest)
-        self._conn = sqlite3.connect(str(dest))
+        self._conn = sqlite3.connect(str(dest), check_same_thread=False)
+        self._start_write_queue()
 
     return initialize
