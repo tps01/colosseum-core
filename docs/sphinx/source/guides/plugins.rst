@@ -88,7 +88,7 @@ Greenfield plugins need a full project file, not only the entry point::
    version = "0.1.0"
    description = "My Colosseum extension"
    requires-python = ">=3.9"
-   dependencies = ["colosseum-core>=0.15,<0.17"]
+   dependencies = ["colosseum-core>=0.17.0,<0.18"]
 
    [project.entry-points."colosseum.plugins"]
    acme = "acme:register"
@@ -101,8 +101,8 @@ Keep heavy imports inside ``register()`` so importing the package stays lightwei
 Duplicate namespaces or config sections raise ``PluginRegistrationError``. A failing
 ``register()`` also fails fast at load time.
 
-Reserved namespaces (do not register): ``equipment``, ``shared``, ``io``, ``host``,
-``messaging``.
+First-party namespaces (choose a distinct name for your own plugin):
+``equipment``, ``shared``, ``io``, ``host``, ``messaging``, and ``gui``.
 
 Layer 1: Evidence decorators
 ----------------------------
@@ -113,15 +113,18 @@ Define decorated plugin functions with keyword-only parameters (``def fn(*, ...)
 so test scripts are immediately readable to people less familiar with Python:
 ``expected_val=5``, ``units="V"``, and ``tolerance=0.5`` show intent at the call site.
 
-``register_namespace`` sets the evidence domain on the **module** passed to it when that
-module has no ``__colosseum_domain__``. Decorators on functions in a separate
-``api.py`` submodule do **not** inherit the package domain automatically. Set the
-attribute on the API module::
+Decorators resolve the evidence domain when the function is defined. They
+check its module, then walk parent packages for ``__colosseum_domain__``. Set
+the package domain **before importing decorated APIs**, as the maintained
+template does in its ``__init__.py``::
 
    __colosseum_domain__ = "template"
+   from . import api
 
-Without this, evidence may be stored under domain ``core`` while verifications look up
-your namespace and report ``no measurement for key=…``.
+An API module can set its own domain before its decorated functions instead.
+``register_namespace`` supplies a missing domain on the registered module,
+but late registration does not change wrappers already created with the
+fallback domain ``core``. A mismatched lookup then reports no measurement.
 
 **colosseum_template/api.py** (excerpts)::
 
@@ -201,8 +204,10 @@ Document matching rows for end users. Integer fields such as ``device_id`` and
    serial = "TEMPLATE-001"
    # label = "optional field"
 
-Unknown keys in plugin config sections are ignored at runtime. Missing required keys raise when the row is loaded
-with ``require_item``. Document section keys and example rows in your plugin README.
+Unknown plugin-row keys are preserved without a core warning; a driver may
+consume them or perform its own validation. Missing required keys raise when the
+row is requested with ``require_item``. Document section keys and example rows in
+your plugin README. See :doc:`configuration` for the full contract.
 
 Layer 3: Resources and extras
 -----------------------------

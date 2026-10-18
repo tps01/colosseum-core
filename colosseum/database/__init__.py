@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from .artifact_paths import resolve_stored_artifact, stored_artifact_path
 from .manager import (
     CommandRecord,
     CommandRow,
@@ -32,4 +33,6 @@ __all__ = [
     "read_verifications",
     "read_run_metadata",
     "read_table",
+    "resolve_stored_artifact",
+    "stored_artifact_path",
 ]

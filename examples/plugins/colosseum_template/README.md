@@ -217,7 +217,7 @@ namespace (`equipment`, `shared`, `io`, `host`, `messaging`).
 ### 1. Prerequisites
 
 - Python >= 3.9
-- Core installed (`pip install colosseum-core`)
+- Core installed in the same environment (release wheel or editable checkout)
 - Any optional dependencies declared by your extension
 
 ### 2. Install the extension

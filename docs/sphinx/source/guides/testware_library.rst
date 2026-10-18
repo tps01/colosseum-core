@@ -44,7 +44,7 @@ How to use a stub
 2. Replace every ``FILL_IN_HERE`` in the script (units are in trailing comments).
 3. Wire instruments: leave ``USE_AUTOCONFIG = True`` for VISA discovery, or copy
    ``config.toml.example`` → ``config.toml`` and set ``USE_AUTOCONFIG = False``.
-4. Optionally copy ``parameters.toml.example`` → ``parameters.toml`` (or pass
+4. For the file-driven rail limits, copy ``parameters.toml.example`` → ``parameters.toml`` (or pass
    ``--parameters`` / suite ``parameters=``).
 5. Run::
 
@@ -63,17 +63,17 @@ After copy-out, the procedure looks like this (IDs and setpoints still
        col.equipment.psu.set_current_limit(psu_id=psu_id, current=current_limit_a)
        col.equipment.psu.set_output(psu_id=psu_id, enabled=True)
        col.equipment.dmm.measure_voltage(dmm_id=dmm_id, channel=dmm_channel, key="rail_v")
-       col.equipment.dmm.verify_voltage(
-           key="rail_v",
-           expected_val=expected_voltage_v,
-           tolerance=voltage_tolerance_v,
-       )
+       col.equipment.dmm.verify_voltage(key="rail_v")
 
-Optional limits file (``parameters.toml.example``)::
+File-driven limits (copy ``parameters.toml.example`` to ``parameters.toml``)::
 
    [rail_v]
    expected_val = 3.3
    tolerance = 0.1
+
+For an inline-only variant, pass ``expected_val=3.3, tolerance=0.1`` on
+``verify_voltage`` instead. Explicit kwargs override the parameters file;
+do not pass them when the file should control acceptance.
 
 Suite composition (``suites/power_acceptance.toml.example``)::
 

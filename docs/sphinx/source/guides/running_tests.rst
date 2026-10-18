@@ -55,6 +55,11 @@ both config TOML and metadata YAML are required.
 
 Use ``--no-artifacts``, ``load_config(..., no_artifacts=True)``, or
 ``COLOSSEUM_NO_ARTIFACTS=1`` for console logging and in-memory SQLite without files.
+Use this for measurement/verification procedures that do not save files.
+Plugin commands that need an output directory (screenshots, trace/IQ exports,
+host-profile or telemetry captures) raise an error in this mode; they do not
+turn into in-memory captures. For a measurement-only example see
+:doc:`writing_test_scripts` and run it with ``--no-artifacts``.
 
 Pass ``-d`` or ``--debug`` to include DEBUG messages on stdout. The persisted log always
 includes DEBUG messages.

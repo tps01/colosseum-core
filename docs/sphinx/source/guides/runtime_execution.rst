@@ -213,11 +213,43 @@ Execution modes gate the wrappers:
      - ``-u <prior run>``
      - skipped
      - skipped
-     - run against imported rows
+     - run (data requirements depend on the verifier)
 
 ``-u`` copies ``measurements`` and ``commands`` from the prior
 ``execution.sqlite`` and sets ``imported_from`` in metadata, then re-runs only
-verifications.
+verifications. This controls decorator execution; it does not make every
+plugin verifier an offline reader. Plain Python in ``main()`` still runs.
+
+.. list-table:: Verification-only requirements
+   :header-rows: 1
+
+   * - Verifier family
+     - Required input / limitation
+   * - Numeric/text verifiers reading recorded measurements
+     - Imported rows and matching keys; no live acquisition
+   * - Shared field/regex and measurement timestamp deltas
+     - Imported rows; timestamp deltas compare stored timestamps
+   * - Shared file checks and GUI visual comparison
+     - The actual files and explicit accessible paths; the DB is insufficient
+   * - GUI visible/text/enabled checks
+     - A live backend and target state; imported UI rows are not replayed
+   * - Shared ``verify_elapsed``
+     - A mark in the current timing session; old performance-counter values
+       are not portable replay evidence
+   * - Equipment trace/mask checks
+     - Trace files plus usable artifact paths and masks; persisted path
+       portability across renamed/imported runs needs a separate fix
+
+The plugin-free ``examples/evidence_replay.py`` demonstrates a complete
+numeric/text replay. Run from the core repository root::
+
+   colosseum run examples/evidence_replay.py
+   colosseum run examples/evidence_replay.py -u outputs/<completed-run>-pass
+
+The second run skips both measurements, imports their rows, and records two
+new PASS verifications. It needs no config, hardware, auxiliary files, or plugins.
+The same script supports ``--no-artifacts`` for a measurement-only input
+flow with console output and in-memory evidence.
 
 CLI ``-c namespace.function,key=val`` is the same ``@command`` path without a
 script: parse the spec, resolve the registered namespace, invoke, then

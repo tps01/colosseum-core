@@ -49,13 +49,15 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - name: Build offline wheelhouse zip
-        run: python scripts/ci/build_offline_wheelhouse.py --zip
+      - name: Build offline wheelhouse archive
+        run: python scripts/ci/build_offline_wheelhouse.py --archive
       - name: Upload offline wheelhouse
         uses: actions/upload-artifact@v7
         with:
           name: offline-${{ matrix.os }}-py${{ matrix.python-version }}
-          path: colosseum-core-offline-*.zip
+          path: |
+            colosseum-core-offline-*.zip
+            colosseum-core-offline-*.tar.gz
           if-no-files-found: error
 
   build-docs:
@@ -128,24 +130,28 @@ jobs:
           name: Colosseum Core ${{ github.ref_name }}
           generate_release_notes: true
           body: |
-            ## Install (online)
+            ## Install from release assets
+
+            Download the wheel below and replace `<version>` with its version.
 
             ```bash
-            pip install colosseum-core
+            python -m pip install "./colosseum_core-<version>-py3-none-any.whl"
             ```
 
             Or install the `.whl` / sdist attached below.
 
             ## Offline wheelhouses
 
-            Use the zip matching your OS and Python (3.9 or 3.12):
+            Use the archive matching your OS and Python (3.9 or 3.12).
+            Wheels live under `wheels/`; operator scripts are at the archive root.
 
-            - `colosseum-core-offline-linux-py*.zip`
-            - `colosseum-core-offline-windows-py*.zip`
+            - Windows: `colosseum-core-offline-windows-py*.zip` → `install.bat`, then `start_cli.bat` / `start_gui.bat`
+            - Linux: `colosseum-core-offline-linux-py*.tar.gz` → `./install.sh`, then `./start_cli.sh` / `./start_gui.sh`
 
             ```bash
-            unzip colosseum-core-offline-<os>-py<ver>.zip -d wheelhouse
-            python -m pip install --no-index --find-links=wheelhouse colosseum-core
+            # Linux example
+            tar -xzf colosseum-core-offline-linux-py<ver>.tar.gz -C wheelhouse
+            cd wheelhouse && chmod +x install.sh start_*.sh && ./install.sh
             ```
 
             GUI requires Tk in the Python install (Windows python.org OK; Linux bake `python3-tk`).

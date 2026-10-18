@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from colosseum.context import RuntimeContext
 from .schema import SCHEMA_SQL
+from .write_queue import DatabaseWriteQueue, WriteJob
 
 _TABLE_SELECT_SQL = {
     "run_metadata": "SELECT * FROM run_metadata",
@@ -247,15 +249,40 @@ class DatabaseManager:
     def __init__(self) -> None:
         self._conn: sqlite3.Connection | None = None
         self.defer_commits: bool = False
+        self._lock = threading.RLock()
+        self._write_queue: DatabaseWriteQueue | None = None
+        self._readonly: bool = False
+        self._db_path: Path | None = None
 
     def _maybe_commit(self) -> None:
         if not self.defer_commits:
             self._require_conn().commit()
 
-    def flush(self) -> None:
-        """Commit pending writes (no-op when ``defer_commits`` is false)."""
+    def _queue_commit(self) -> None:
+        """Commit used by the background writer (always commits the batch)."""
         if self._conn is not None:
             self._conn.commit()
+
+    def flush(self) -> None:
+        """Drain the write queue and commit pending writes."""
+        self.drain()
+        with self._lock:
+            if self._conn is not None:
+                self._conn.commit()
+
+    def drain(self, *, timeout: float | None = 30.0) -> None:
+        """Wait until queued listener writes are durable."""
+        if self._write_queue is not None and self._write_queue.started:
+            self._write_queue.drain(timeout=timeout)
+
+    def _start_write_queue(self) -> None:
+        if self._readonly or self._write_queue is not None:
+            return
+        self._write_queue = DatabaseWriteQueue(
+            lock=self._lock,
+            commit=self._queue_commit,
+        )
+        self._write_queue.start()
 
     def initialize(self, db_path: Path) -> None:
         if self._conn is not None:
@@ -263,9 +290,12 @@ class DatabaseManager:
         import os
 
         self.defer_commits = os.environ.get("COLOSSEUM_DEFER_DB_COMMITS") == "1"
-        self._conn = sqlite3.connect(str(db_path))
+        self._readonly = False
+        self._db_path = Path(db_path)
+        self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
         self._conn.executescript(SCHEMA_SQL)
         self._conn.commit()
+        self._start_write_queue()
 
     def open_readonly(self, db_path: Path) -> None:
         if self._conn is not None:
@@ -273,20 +303,30 @@ class DatabaseManager:
         resolved = db_path.resolve()
         if not resolved.is_file():
             raise FileNotFoundError(f"Database not found: {resolved}")
+        self._db_path = resolved
         uri = f"file:{resolved.as_posix()}?mode=ro"
-        self._conn = sqlite3.connect(uri, uri=True)
+        self._readonly = True
+        self._conn = sqlite3.connect(uri, uri=True, check_same_thread=False)
         self._conn.execute("PRAGMA query_only = ON")
 
     def is_initialized(self) -> bool:
         return self._conn is not None
 
     def close(self) -> None:
-        if self._conn is not None:
-            if self.defer_commits:
-                self._conn.commit()
-            self._conn.close()
-            self._conn = None
-            self.defer_commits = False
+        if self._write_queue is not None:
+            try:
+                self._write_queue.stop()
+            finally:
+                self._write_queue = None
+        with self._lock:
+            if self._conn is not None:
+                if self.defer_commits:
+                    self._conn.commit()
+                self._conn.close()
+                self._conn = None
+                self._db_path = None
+                self.defer_commits = False
+                self._readonly = False
 
     def _require_conn(self) -> sqlite3.Connection:
         if self._conn is None:
@@ -294,13 +334,14 @@ class DatabaseManager:
         return self._conn
 
     def _execute_insert(self, sql: str, params: tuple[object, ...]) -> int:
-        cur = self._require_conn().execute(sql, params)
-        self._maybe_commit()
-        return _cursor_rowid(cur)
+        with self._lock:
+            cur = self._require_conn().execute(sql, params)
+            self._maybe_commit()
+            return _cursor_rowid(cur)
 
-    def insert_measurement(self, row: MeasurementRow) -> int:
+    def _insert_measurement_unlocked(self, row: MeasurementRow) -> int:
         ts = row.timestamp or _utc_now()
-        return self._execute_insert(
+        cur = self._require_conn().execute(
             """
             INSERT INTO measurements
             (domain, command, key, row_index, value_json, units, artifact_path, status, timestamp)
@@ -318,6 +359,32 @@ class DatabaseManager:
                 ts,
             ),
         )
+        return _cursor_rowid(cur)
+
+    def insert_measurement(self, row: MeasurementRow) -> int:
+        """Insert a measurement synchronously (script / decorator path)."""
+        with self._lock:
+            rowid = self._insert_measurement_unlocked(row)
+            self._maybe_commit()
+            return rowid
+
+    def enqueue_measurement(self, row: MeasurementRow) -> None:
+        """Queue a measurement from any thread (e.g. GNSS listener).
+
+        Non-blocking. Durability is ensured by :meth:`drain` / :meth:`flush` /
+        :meth:`close`. When the write queue is not running (test helpers),
+        inserts synchronously under the lock.
+        """
+        if self._readonly:
+            raise RuntimeError("Database is read-only")
+        if self._write_queue is None or not self._write_queue.started:
+            self.insert_measurement(row)
+            return
+
+        def apply() -> None:
+            self._insert_measurement_unlocked(row)
+
+        self._write_queue.put(WriteJob(apply=apply))
 
     def insert_command(self, row: CommandRow) -> int:
         ts = row.timestamp or _utc_now()
@@ -380,84 +447,114 @@ class DatabaseManager:
     def get_measurement(
         self, domain: str, command: str, key: str, row_index: int = 0,
     ) -> MeasurementRow | None:
-        conn = self._require_conn()
-        cur = conn.execute(
-            """
-            SELECT domain, command, key, row_index, value_json, units,
-                   artifact_path, status, timestamp, id
-            FROM measurements WHERE domain=? AND command=? AND key=? AND row_index=?
-            ORDER BY id DESC LIMIT 1
-            """,
-            (domain, command, key, row_index),
-        )
-        item = cur.fetchone()
-        if item is None:
-            return None
-        return _measurement_from_lookup(item)
+        with self._lock:
+            conn = self._require_conn()
+            cur = conn.execute(
+                """
+                SELECT domain, command, key, row_index, value_json, units,
+                       artifact_path, status, timestamp, id
+                FROM measurements WHERE domain=? AND command=? AND key=? AND row_index=?
+                ORDER BY id DESC LIMIT 1
+                """,
+                (domain, command, key, row_index),
+            )
+            item = cur.fetchone()
+            if item is None:
+                return None
+            return _measurement_from_lookup(item)
 
     def list_measurements(self, domain: str, command: str, key: str) -> list[MeasurementRow]:
-        conn = self._require_conn()
-        cur = conn.execute(
-            """
-            SELECT domain, command, key, row_index, value_json, units,
-                   artifact_path, status, timestamp, id
-            FROM measurements WHERE domain=? AND command=? AND key=? ORDER BY id ASC
-            """,
-            (domain, command, key),
-        )
-        return [_measurement_from_lookup(item) for item in cur.fetchall()]
+        with self._lock:
+            conn = self._require_conn()
+            cur = conn.execute(
+                """
+                SELECT domain, command, key, row_index, value_json, units,
+                       artifact_path, status, timestamp, id
+                FROM measurements WHERE domain=? AND command=? AND key=? ORDER BY id ASC
+                """,
+                (domain, command, key),
+            )
+            return [_measurement_from_lookup(item) for item in cur.fetchall()]
 
     def fetch_all_measurements(self) -> list[MeasurementRecord]:
-        conn = self._require_conn()
-        cur = conn.execute(
-            """
-            SELECT id, domain, command, key, row_index, value_json, units,
-                   artifact_path, status, timestamp
-            FROM measurements ORDER BY id ASC
-            """,
-        )
-        return [_measurement_record(item) for item in cur.fetchall()]
+        with self._lock:
+            conn = self._require_conn()
+            cur = conn.execute(
+                """
+                SELECT id, domain, command, key, row_index, value_json, units,
+                       artifact_path, status, timestamp
+                FROM measurements ORDER BY id ASC
+                """,
+            )
+            return [_measurement_record(item) for item in cur.fetchall()]
 
     def fetch_all_verifications(self) -> list[VerificationRecord]:
-        conn = self._require_conn()
-        cur = conn.execute(
-            """
-            SELECT id, domain, command, key, expected_json, actual_json, tolerance_json,
-                   compare_op, status, optional, message, step_name, timestamp
-            FROM verifications ORDER BY id ASC
-            """,
-        )
-        return [_verification_record(item) for item in cur.fetchall()]
+        with self._lock:
+            conn = self._require_conn()
+            cur = conn.execute(
+                """
+                SELECT id, domain, command, key, expected_json, actual_json, tolerance_json,
+                       compare_op, status, optional, message, step_name, timestamp
+                FROM verifications ORDER BY id ASC
+                """,
+            )
+            return [_verification_record(item) for item in cur.fetchall()]
 
     def fetch_all_commands(self) -> list[CommandRecord]:
-        conn = self._require_conn()
-        cur = conn.execute(
-            """
-            SELECT id, domain, command, key, result_json, status, optional, message,
-                   cause, timestamp
-            FROM commands ORDER BY id ASC
-            """,
-        )
-        return [_command_record(item) for item in cur.fetchall()]
+        with self._lock:
+            conn = self._require_conn()
+            cur = conn.execute(
+                """
+                SELECT id, domain, command, key, result_json, status, optional, message,
+                       cause, timestamp
+                FROM commands ORDER BY id ASC
+                """,
+            )
+            return [_command_record(item) for item in cur.fetchall()]
+
+    def resolve_artifact_path(self, stored: str | None) -> Path | None:
+        """Resolve a stored artifact path against this database's run directory.
+
+        Relative paths are joined to the directory that contains
+        ``execution.sqlite``. When the row was imported, ``imported_from`` is
+        the next place to look. Legacy absolute paths that no longer exist
+        (because the run folder was renamed ``-pass`` / ``-fail``) are rebased
+        onto that directory when a matching suffix is present.
+        """
+        if not stored:
+            return None
+        from colosseum.database.artifact_paths import resolve_stored_artifact
+
+        run_dir = self._db_path.parent if self._db_path is not None else Path.cwd()
+        origin: Path | None = None
+        if self.is_initialized():
+            for item in self.fetch_run_metadata():
+                if item.key == "imported_from" and item.value:
+                    origin = Path(str(item.value))
+                    break
+        return resolve_stored_artifact(stored, run_dir=run_dir, import_origin=origin)
 
     def measurement_keys(self) -> set[str]:
-        conn = self._require_conn()
-        cur = conn.execute("SELECT DISTINCT key FROM measurements")
-        return {str(row[0]) for row in cur.fetchall()}
+        with self._lock:
+            conn = self._require_conn()
+            cur = conn.execute("SELECT DISTINCT key FROM measurements")
+            return {str(row[0]) for row in cur.fetchall()}
 
     def fetch_run_metadata(self) -> list[RunMetadataRecord]:
-        conn = self._require_conn()
-        cur = conn.execute("SELECT key, value FROM run_metadata ORDER BY key ASC")
-        return [RunMetadataRecord(key=item[0], value=item[1]) for item in cur.fetchall()]
+        with self._lock:
+            conn = self._require_conn()
+            cur = conn.execute("SELECT key, value FROM run_metadata ORDER BY key ASC")
+            return [RunMetadataRecord(key=item[0], value=item[1]) for item in cur.fetchall()]
 
     def fetch_table_rows(self, name: str) -> list[dict[str, object]]:
         query = _TABLE_SELECT_SQL.get(name)
         if query is None:
             raise ValueError(f"Invalid table name: {name}")
-        conn = self._require_conn()
-        cur = conn.execute(query)
-        columns = [desc[0] for desc in cur.description]
-        return [dict(zip(columns, row)) for row in cur.fetchall()]
+        with self._lock:
+            conn = self._require_conn()
+            cur = conn.execute(query)
+            columns = [desc[0] for desc in cur.description]
+            return [dict(zip(columns, row)) for row in cur.fetchall()]
 
     def count_rows(
         self, table: str, where: str = "", params: tuple[object, ...] = (),
@@ -474,12 +571,13 @@ class DatabaseManager:
             query = _TABLE_COUNT_SQL.get(table)
         if query is None:
             raise ValueError(f"Invalid table name: {table}")
-        conn = self._require_conn()
-        cur = conn.execute(query, params)
-        row = cur.fetchone()
-        if row is None:
-            return 0
-        return int(row[0])
+        with self._lock:
+            conn = self._require_conn()
+            cur = conn.execute(query, params)
+            row = cur.fetchone()
+            if row is None:
+                return 0
+            return int(row[0])
 
 
 def initialize_database_if_needed(ctx: RuntimeContext) -> None:

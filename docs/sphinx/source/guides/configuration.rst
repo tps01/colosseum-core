@@ -47,8 +47,11 @@ Several rows::
 
 The dotted path is the table header. The ID field must be an integer and unique
 within that section. Missing IDs, non-integer IDs, and duplicate IDs fail the
-load. Missing required keys fail when a plugin loads that row. Unknown keys
-produce warnings and are ignored at runtime.
+load. Missing required keys fail when a plugin requests that row through
+``require_item``. Plugin-row keys outside the registered spec are currently
+preserved and passed through without a core warning; plugins may consume
+extension data or validate it themselves. Do not rely on core to detect a
+misspelled plugin key. Metadata and report tables have separate validation.
 
 Load configuration before calling plugin APIs::
 

@@ -92,6 +92,8 @@ def build_sphinx_html(*, site_source: Path, html_dir: Path, repo_root: Path) -> 
                 "sphinx",
                 "-b",
                 "html",
+                "-W",
+                "--keep-going",
                 str(site_source),
                 str(html_dir),
             ],

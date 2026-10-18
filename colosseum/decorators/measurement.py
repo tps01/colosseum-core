@@ -73,13 +73,22 @@ def measurement(
                 )
             try:
                 value = func(*args, **kwargs)
+                # Persist a JSON-safe form for bytes while returning the original value.
+                stored: Any = value
+                if isinstance(value, (bytes, bytearray)):
+                    raw = bytes(value)
+                    stored = {
+                        "encoding": "hex",
+                        "data": raw.hex(),
+                        "nbytes": len(raw),
+                    }
                 ctx.db.insert_measurement(
                     MeasurementRow(
                         domain=domain,
                         command=command,
                         key=key,
                         row_index=row_index,
-                        value=value,
+                        value=stored,
                         status="PASS",
                     ),
                 )
@@ -90,7 +99,7 @@ def measurement(
                     command=command,
                     key=key,
                     status="PASS",
-                    detail=f"row_index={row_index} value={short_repr(value)}",
+                    detail=f"row_index={row_index} value={short_repr(stored)}",
                 )
                 return value
             except Exception as exc:

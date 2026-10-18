@@ -13,13 +13,17 @@ provides:
 - command, measurement, and verification decorators
 - TOML configuration and plugin registration
 - test and test suite runners
-- SQLite databse, logs, summaries, and artifacts
+- SQLite database, logs, summaries, and artifacts
 - GUI
 
 ## Install
 
+Download the wheel from [GitHub Releases](https://github.com/tps01/colosseum-core/releases)
+and install it in the same environment as core. Replace `<version>` with
+the downloaded filename. For development, use `python -m pip install -e .`.
+
 ```sh
-pip install colosseum-core
+python -m pip install "./colosseum_core-<version>-py3-none-any.whl"
 ```
 
 ## Develop
