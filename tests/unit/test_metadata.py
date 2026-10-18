@@ -55,11 +55,19 @@ def test_merge_precedence_config_then_yaml(tmp_path: Path, io_bench) -> None:
 
 def test_wats_export_enabled_with_artifacts(unit_runtime_context, tmp_path: Path) -> None:
     unit_runtime_context.output_dir = tmp_path
+    unit_runtime_context.enabled_reports = frozenset({"wats"})
     assert wats_export_enabled(unit_runtime_context) is True
+
+
+def test_wats_export_disabled_without_report_flag(unit_runtime_context, tmp_path: Path) -> None:
+    unit_runtime_context.output_dir = tmp_path
+    unit_runtime_context.enabled_reports = frozenset()
+    assert wats_export_enabled(unit_runtime_context) is False
 
 
 def test_wats_export_disabled_without_output_dir(unit_runtime_context) -> None:
     unit_runtime_context.output_dir = None
+    unit_runtime_context.enabled_reports = frozenset({"wats"})
     assert wats_export_enabled(unit_runtime_context) is False
 
 

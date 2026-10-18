@@ -128,7 +128,7 @@ def assert_run_artifacts(
     run_dir: Path,
     *,
     expect_pass: bool,
-    expect_wats: bool = True,
+    expect_wats: bool = False,
 ) -> None:
     suffix = "-pass" if expect_pass else "-fail"
     assert run_dir.name.endswith(suffix), f"expected {suffix} suffix on {run_dir.name}"
@@ -157,12 +157,15 @@ def assert_suite_container(container: Path, *, expect_pass: bool) -> None:
     assert "test_slots" in summary
 
 
-def assert_test_slot_full_artifacts(slot_dir: Path) -> None:
+def assert_test_slot_full_artifacts(slot_dir: Path, *, expect_wats: bool = False) -> None:
     assert (slot_dir / "debug.log").is_file()
     assert (slot_dir / "execution.sqlite").is_file()
     assert (slot_dir / "summary.txt").is_file()
     assert (slot_dir / "summary.json").is_file()
-    find_wats_json(slot_dir)
+    if expect_wats:
+        find_wats_json(slot_dir)
+    else:
+        assert list(slot_dir.glob("wats_*.json")) == []
 
 
 def assert_supporting_slot_artifacts(slot_dir: Path) -> None:

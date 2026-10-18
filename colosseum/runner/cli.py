@@ -68,6 +68,21 @@ def _add_shared_run_options(parser: argparse.ArgumentParser) -> None:
         help="Metadata YAML (test_metadata block)",
     )
     parser.add_argument(
+        "--parameters",
+        dest="parameters_path",
+        metavar="PATH",
+        type=Path,
+        help="Parameters TOML (limits and per-key kwargs) for this run or suite",
+    )
+    parser.add_argument(
+        "--report",
+        dest="reports",
+        action="append",
+        default=None,
+        metavar="NAME",
+        help="Enable a report listener (wats, junit); repeatable. Replaces [colosseum.reports]",
+    )
+    parser.add_argument(
         "-d",
         "--debug",
         action="store_true",
@@ -230,6 +245,8 @@ def _shared_run_options(
     if getattr(args, "output_dir", None) is not None:
         outputs_root = Path(args.output_dir).resolve()
         outputs_root.mkdir(parents=True, exist_ok=True)
+    report_cli = getattr(args, "reports", None)
+    parameters_raw = getattr(args, "parameters_path", None)
     return RunOptions(
         input_dir=Path(args.input_dir).resolve() if getattr(args, "input_dir", None) else None,
         outputs_root=outputs_root,
@@ -237,6 +254,8 @@ def _shared_run_options(
         previous_output_dir=previous_output_dir,
         plugin_commands=list(getattr(args, "plugin_commands", []) or []),
         show_faults=bool(getattr(args, "show_faults", False)),
+        parameters_path=Path(parameters_raw).resolve() if parameters_raw is not None else None,
+        report_cli=list(report_cli) if report_cli is not None else None,
     )
 
 
@@ -277,6 +296,29 @@ def _run_single_test(
     ctx.active_execution_mode = options.execution_mode
     _load_run_config(config_path, metadata_path)
     ensure_runtime_ready(ctx)
+    from colosseum.config.parameters import (
+        ParametersError,
+        attach_parameters,
+        resolve_parameters_path,
+    )
+    from colosseum.results.reports import apply_enabled_reports
+
+    apply_enabled_reports(ctx)
+    try:
+        attach_parameters(
+            ctx,
+            resolve_parameters_path(
+                script_path=test_path,
+                cli_path=options.parameters_path,
+            ),
+            required=options.parameters_path is not None,
+        )
+    except ParametersError as exc:
+        ctx.result_aggregator.mark_suite_error(str(exc))
+        if ctx.logger is not None:
+            ctx.logger.error("Parameters load failed: %s", exc)
+        endex()
+        return
     _import_previous_evidence(ctx, options)
     try:
         if options.plugin_commands:

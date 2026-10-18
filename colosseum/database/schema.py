@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS commands (
   status TEXT NOT NULL,
   optional INTEGER NOT NULL DEFAULT 0,
   message TEXT,
+  cause TEXT NOT NULL DEFAULT '',
   timestamp TEXT NOT NULL
 );
 

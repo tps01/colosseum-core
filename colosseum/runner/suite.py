@@ -35,6 +35,7 @@ class SuiteTestEntry:
     path: Path
     repeat_count: int = 1
     repeat_for: timedelta | None = None
+    parameters: Path | None = None
 
 
 @dataclass
@@ -87,6 +88,15 @@ def _as_path_list(value: object, field: str, base_dir: Path) -> list[Path]:
     return paths
 
 
+def _parse_parameters_field(item: dict[str, object], base_dir: Path, *, index: int) -> Path | None:
+    raw = item.get("parameters")
+    if raw is None:
+        return None
+    if not isinstance(raw, str) or not raw.strip():
+        raise SuiteError(f"Suite tests[{index}] parameters must be a non-empty string path")
+    return (base_dir / raw).resolve()
+
+
 def _parse_test_entry(item: object, base_dir: Path, *, index: int) -> SuiteTestEntry:
     if isinstance(item, str):
         return SuiteTestEntry(path=(base_dir / item).resolve())
@@ -96,6 +106,7 @@ def _parse_test_entry(item: object, base_dir: Path, *, index: int) -> SuiteTestE
     if not path or not isinstance(path, str):
         raise SuiteError(f"Suite tests[{index}] table requires string field `path`")
     resolved = (base_dir / path).resolve()
+    parameters = _parse_parameters_field(item, base_dir, index=index)
     repeat_count = item.get("repeat_count")
     repeat_for = item.get("repeat_for")
     if repeat_count is not None and repeat_for is not None:
@@ -105,12 +116,16 @@ def _parse_test_entry(item: object, base_dir: Path, *, index: int) -> SuiteTestE
             raise SuiteError(f"Suite tests[{index}] repeat_count must be an integer")
         if repeat_count < 1:
             raise SuiteError(f"Suite tests[{index}] repeat_count must be >= 1")
-        return SuiteTestEntry(path=resolved, repeat_count=repeat_count)
+        return SuiteTestEntry(path=resolved, repeat_count=repeat_count, parameters=parameters)
     if repeat_for is not None:
         if not isinstance(repeat_for, str):
             raise SuiteError(f"Suite tests[{index}] repeat_for must be a string")
-        return SuiteTestEntry(path=resolved, repeat_for=parse_repeat_duration(repeat_for))
-    return SuiteTestEntry(path=resolved)
+        return SuiteTestEntry(
+            path=resolved,
+            repeat_for=parse_repeat_duration(repeat_for),
+            parameters=parameters,
+        )
+    return SuiteTestEntry(path=resolved, parameters=parameters)
 
 
 def _parse_tests(value: object, base_dir: Path) -> list[SuiteTestEntry]:
@@ -210,6 +225,35 @@ def _run_script_slot(
     ctx.slot_script_path = script
     ctx.slot_test_index = test_index
     ctx.slot_repeat_index = repeat_index
+
+    from colosseum.config.parameters import (
+        ParametersError,
+        attach_parameters,
+        resolve_parameters_path,
+    )
+
+    entry_parameters = entry.parameters if entry is not None else None
+    resolved_parameters = resolve_parameters_path(
+        script_path=script if phase == "test" else None,
+        cli_path=ctx.run_options.parameters_path,
+        entry_path=entry_parameters if phase == "test" else None,
+    )
+    try:
+        attach_parameters(
+            ctx,
+            resolved_parameters,
+            required=ctx.run_options.parameters_path is not None
+            or (phase == "test" and entry_parameters is not None),
+        )
+    except ParametersError as exc:
+        ctx.result_aggregator.mark_suite_error(str(exc))
+        if ctx.logger is not None:
+            ctx.logger.error("Parameters load failed: %s", exc)
+        if not ctx.slot_finalized:
+            finalize_script_slot(
+                ctx, script_path=script, test_index=test_index, repeat_index=repeat_index,
+            )
+        return bool(suite.fail_fast and phase != "teardown")
 
     if test_index is not None and repeat_index is not None and entry is not None:
         repeat_meta = {"test_index": str(test_index), "test_repeat_index": str(repeat_index)}
@@ -370,6 +414,9 @@ def run_suite(
         load_metadata(metadata_path)
         ctx.session.metadata_pinned = True
 
+    from colosseum.results.reports import apply_enabled_reports
+
+    apply_enabled_reports(ctx)
     ensure_suite_runtime_ready(ctx, suite.name)
     runner = _ScriptRunner(run_script, ScriptRunError)
     if ctx.logger is not None:

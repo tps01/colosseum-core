@@ -1,0 +1,3 @@
+[rx_level]
+expected_val = 0.0
+tolerance = 0.5

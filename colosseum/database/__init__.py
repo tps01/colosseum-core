@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .manager import (
+    CommandRecord,
     CommandRow,
     DatabaseManager,
     MeasurementRecord,
@@ -18,6 +19,7 @@ from .manager import (
 
 __all__ = [
     "DatabaseManager",
+    "CommandRecord",
     "CommandRow",
     "MeasurementRow",
     "VerificationRow",

@@ -1,16 +1,21 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 from colosseum.decorators._common import stamp_evidence_domain
 from colosseum.logging import get_logger
 
 if TYPE_CHECKING:
     import types
+    from pathlib import Path
 
     from colosseum.config.sections import ConfigSectionSpec
+    from colosseum.context import RuntimeContext
+    from colosseum.results.finalize import FinalizeRunResult
 
 _logger = get_logger("colosseum.plugins")
+
+ListenerCallback = Callable[["Path", "FinalizeRunResult", "RuntimeContext"], Any]
 
 
 class PluginRegistrationError(RuntimeError):
@@ -22,6 +27,7 @@ class PluginRegistry:
         self._sections: dict[str, ConfigSectionSpec] = {}
         self._namespaces: dict[str, types.ModuleType] = {}
         self._shutdown_hooks: list[Callable[[], None]] = []
+        self._listeners: dict[str, ListenerCallback] = {}
         self._loaded = False
 
     def register_config_section(self, spec: ConfigSectionSpec) -> None:
@@ -40,6 +46,33 @@ class PluginRegistry:
 
     def register_shutdown(self, hook: Callable[[], None]) -> None:
         self._shutdown_hooks.append(hook)
+
+    def register_listener(self, name: str, callback: ListenerCallback) -> None:
+        if name in self._listeners:
+            raise PluginRegistrationError(f"Report listener `{name}` is already registered.")
+        self._listeners[name] = callback
+        _logger.debug("Registered report listener `%s`", name)
+
+    def listener_names(self) -> list[str]:
+        return list(self._listeners)
+
+    def run_listeners(
+        self,
+        enabled: frozenset[str],
+        output_dir: Path,
+        result: FinalizeRunResult,
+        ctx: RuntimeContext,
+    ) -> None:
+        for name in sorted(enabled):
+            callback = self._listeners.get(name)
+            if callback is None:
+                continue
+            try:
+                callback(output_dir, result, ctx)
+            except Exception:
+                _logger.exception("Report listener `%s` failed", name)
+                if ctx.logger is not None:
+                    ctx.logger.exception("Report listener `%s` failed", name)
 
     def config_section_specs(self) -> list[ConfigSectionSpec]:
         return list(self._sections.values())
@@ -70,3 +103,29 @@ class PluginRegistry:
     @loaded.setter
     def loaded(self, value: bool) -> None:
         self._loaded = value
+
+
+def register_builtin_listeners(registry: PluginRegistry) -> None:
+    """Register core WATS and JUnit listeners (opt-in via reports config/CLI)."""
+
+    def _wats(output_dir: Path, result: FinalizeRunResult, ctx: RuntimeContext) -> None:
+        from colosseum.summary.wats import write_wats_report
+
+        write_wats_report(
+            output_dir,
+            ctx,
+            ctx.result_aggregator,
+            result.verifications,
+            result.measurements,
+            commands=result.commands,
+        )
+
+    def _junit(output_dir: Path, result: FinalizeRunResult, ctx: RuntimeContext) -> None:
+        from colosseum.summary.junit import write_junit_report
+
+        write_junit_report(output_dir, ctx, result)
+
+    if "wats" not in registry.listener_names():
+        registry.register_listener("wats", _wats)
+    if "junit" not in registry.listener_names():
+        registry.register_listener("junit", _junit)

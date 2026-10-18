@@ -3,9 +3,11 @@ Colosseum
 
 A Python test automation framework for hardware and software testing.
 
-This site is the **documentation hub** for Colosseum core. First-party plugins
-publish their own GitHub Pages sites (linked below). The copy-out testware
-library is not documented here yet.
+This site is the **documentation hub** for Colosseum core. Install from GitHub
+Release wheels (Colosseum is not on PyPI). First-party plugins publish their own
+GitHub Pages sites (linked below). Copy-out test stubs live in the
+`colosseum-library <https://github.com/tps01/colosseum-library>`__ catalog; see
+:doc:`guides/testware_library`.
 
 .. toctree::
    :maxdepth: 2
@@ -19,6 +21,8 @@ library is not documented here yet.
    guides/running_suites
    guides/measurements_verifications
    guides/output_artifacts
+   guides/first_party_plugins
+   guides/testware_library
    guides/exit_codes
    guides/platform_notes
 
