@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from inspect import Parameter, signature
 from typing import TYPE_CHECKING, Any
 
 from colosseum.context import RuntimeContext, get_context
@@ -99,3 +100,31 @@ def should_skip_measurement(ctx: RuntimeContext) -> bool:
 
 def should_skip_verification(ctx: RuntimeContext) -> bool:
     return _should_skip(ctx, "verification")
+
+
+def publish_optional_parameter(wrapper: Callable[..., Any], func: Callable[..., Any]) -> None:
+    """Expose keyword-only ``optional: bool = False`` on a decorator wrapper.
+
+    ``inspect.signature`` stops unwrapping when ``__signature__`` is set, so
+    ``help()`` and Sphinx list the keyword even when the wrapped function omits it.
+    Functions that already declare ``optional`` keep their own signature.
+    """
+    original = signature(func)
+    if "optional" in original.parameters:
+        return
+    optional_param = Parameter(
+        "optional",
+        kind=Parameter.KEYWORD_ONLY,
+        default=False,
+        annotation=bool,
+    )
+    parameters: list[Parameter] = []
+    inserted = False
+    for param in original.parameters.values():
+        if not inserted and param.kind is Parameter.VAR_KEYWORD:
+            parameters.append(optional_param)
+            inserted = True
+        parameters.append(param)
+    if not inserted:
+        parameters.append(optional_param)
+    wrapper.__signature__ = original.replace(parameters=parameters)  # type: ignore[attr-defined]

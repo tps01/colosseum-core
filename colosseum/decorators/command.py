@@ -11,7 +11,13 @@ from colosseum.config.parameters import ParametersError, apply_parameters_to_kwa
 from colosseum.database import CommandRow
 from colosseum.exceptions import ProceduralFault
 
-from ._common import ensure_runtime_context, resolve_command, resolve_domain, should_skip_command
+from ._common import (
+    ensure_runtime_context,
+    publish_optional_parameter,
+    resolve_command,
+    resolve_domain,
+    should_skip_command,
+)
 from ._kernel import log_evidence, log_evidence_error, record_error_event, short_repr
 from ._typing import ParamSpec
 
@@ -180,6 +186,7 @@ def command(_func: Callable[..., Any] | None = None) -> object:
                 raise
 
         setattr(wrapper, COLOSSEUM_DECORATOR, "command")
+        publish_optional_parameter(wrapper, func)
         return wrapper
 
     if _func is None:
