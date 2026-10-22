@@ -131,7 +131,8 @@ def _resolve_load_path(path: str | Path, *, label: str) -> Path:
     import sys
 
     supplied = Path(path)
-    candidates = [supplied.resolve()]
+    # Python 3.9 on Windows may leave missing relative paths unresolved.
+    candidates = [(Path.cwd() / supplied).resolve()]
     if not supplied.is_absolute():
         try:
             ctx = get_context()
