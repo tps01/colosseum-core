@@ -50,6 +50,7 @@ class RuntimeContext:
     slot_affects_suite_result: bool = False
     suite_finalized: bool = False
     slot_script_path: Path | None = None
+    active_script_path: Path | None = None
     slot_test_index: int | None = None
     slot_repeat_index: int | None = None
     metadata_yaml: dict[str, Any] = field(default_factory=dict)

@@ -49,10 +49,12 @@ def test_run_script_restores_sys_path_and_keeps_sibling(
     before = list(sys.path)
     run_script(first)
     assert list(sys.path) == before
+    assert unit_runtime_context.active_script_path is None
     assert "shared_helper" in sys.modules
     first_mod = sys.modules["shared_helper"]
     run_script(second)
     assert list(sys.path) == before
+    assert unit_runtime_context.active_script_path is None
     assert sys.modules["shared_helper"] is first_mod
 
 
@@ -91,6 +93,7 @@ def test_run_script_restores_sys_path_on_main_raise(
     with pytest.raises(ScriptRunError):
         run_script(script)
     assert list(sys.path) == before
+    assert unit_runtime_context.active_script_path is None
 
 
 def test_run_script_restores_sys_path_on_sys_exit(
@@ -109,6 +112,7 @@ def test_run_script_restores_sys_path_on_sys_exit(
     with pytest.raises(ScriptRunError):
         run_script(script)
     assert list(sys.path) == before
+    assert unit_runtime_context.active_script_path is None
 
 
 def test_run_script_prefers_script_dir_when_already_later_on_path(
@@ -134,3 +138,4 @@ def test_run_script_prefers_script_dir_when_already_later_on_path(
     before = list(sys.path)
     run_script(script)
     assert list(sys.path) == before
+    assert unit_runtime_context.active_script_path is None

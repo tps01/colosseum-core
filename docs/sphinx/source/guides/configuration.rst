@@ -68,6 +68,23 @@ Calling ``load_config`` again (unpinned, or with ``force=True``) replaces the
 whole store. Sections present only in the previous file are dropped unless the
 new TOML includes them.
 
+Relative file paths
+-------------------
+
+Script calls to ``load_config`` and ``load_metadata`` look in the working
+directory first, then relative to the executing test/setup/teardown script.
+For example, ``load_config("../config.toml")`` can load the file above the test
+script when it is absent at the working-directory-relative location. The same
+rule applies to ``load_config(..., metadata_path="metadata.yaml")`` and direct
+``python script.py`` runs. If both locations exist, the working-directory file
+wins. Use an absolute path (for example one built from ``__file__``) to select
+one file explicitly. A parse error in the selected file is reported immediately.
+Missing-file errors list the attempted paths.
+
+CLI ``-g`` / ``-m`` paths remain relative to the working directory. Pinned script
+loads are ignored before checking any paths; ``force=True`` enables resolution
+and replacement. Paths stored *inside* config files keep their existing semantics.
+
 Reading rows
 ------------
 
