@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
+from inspect import signature
 
+import pytest
 from colosseum.decorators import CommandResult, command
 from colosseum.decorators.command import COLOSSEUM_DECORATOR
 from colosseum.results.aggregation import ResultAggregator
@@ -65,6 +66,13 @@ def test_logical_fail_recorded(ctx) -> None:
 
 def test_decorator_metadata() -> None:
     assert getattr(_passing, COLOSSEUM_DECORATOR) == "command"
+
+
+def test_optional_keyword_is_on_the_signature() -> None:
+    param = signature(_failing).parameters["optional"]
+    assert param.default is False
+    assert param.kind.name == "KEYWORD_ONLY"
+    assert list(signature(_logical_fail).parameters).count("optional") == 1
 
 
 def test_aggregator_exit_code_with_command_error(ctx) -> None:

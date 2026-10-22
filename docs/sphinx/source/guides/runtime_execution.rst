@@ -171,7 +171,10 @@ Three decorator kinds, same pattern:
        from the API module path. ``key=`` is the operator-facing
        :term:`evidence key` that verifications look up. Duplicate keys are an
        error unless ``multi_row=True``. The return value is JSON-serialized.
-       Exceptions become ``status=ERROR`` and re-raise.
+       Exceptions become ``status=ERROR`` with a null value and re-raise unless
+       ``optional=True``, which returns ``None`` and continues the script. An
+       optional measurement error does not itself change the exit code. A
+       required verification of that missing value still fails the run.
    * - ``@verification``
      - Pass/fail against a prior measurement (usually the same ``key=``). The
        plugin body typically looks up the measurement and returns
