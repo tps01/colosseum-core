@@ -71,6 +71,7 @@ def load_metadata(path: str | Path, *, force: bool = False) -> dict[str, Any]:
 
     When the CLI/suite already loaded ``-m``, subsequent calls without
     ``force=True`` are no-ops (warn once). Pass ``force=True`` to replace.
+    Relative paths try the working directory, then the active script's directory.
     """
     from colosseum.logging import get_logger
 
@@ -88,9 +89,12 @@ def load_metadata(path: str | Path, *, force: bool = False) -> dict[str, Any]:
                 get_logger("colosseum.config").warning(message, path)
         return ctx.metadata_yaml
 
-    parsed = load_metadata_yaml(path)
+    from .loader import _resolve_load_path
+
+    metadata_path = _resolve_load_path(path, label="Metadata")
+    parsed = load_metadata_yaml(metadata_path)
     ctx.metadata_yaml = parsed
-    ctx.metadata_path = str(Path(path).resolve())
+    ctx.metadata_path = str(metadata_path)
     if ctx.logger is not None:
         ctx.logger.info("Loaded WATS metadata from %s (%d keys)", ctx.metadata_path, len(parsed))
     if ctx.db.is_initialized():
