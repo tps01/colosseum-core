@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from functools import wraps
+from inspect import signature
 from typing import TYPE_CHECKING, Any, TypeVar, overload
 
 from colosseum.database import MeasurementRow
 
 from ._common import (
     ensure_runtime_context,
+    publish_optional_parameter,
     resolve_command,
     resolve_domain,
     should_skip_measurement,
@@ -44,12 +46,14 @@ def measurement(
     def decorate(func: Callable[..., Any]) -> Callable[..., Any]:
         domain = resolve_domain(func)
         command = resolve_command(func)
+        accepts_optional = "optional" in signature(func).parameters
 
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
             ctx = ensure_runtime_context()
             if should_skip_measurement(ctx):
                 return None
+            optional = bool(kwargs.get("optional", False))
             key = kwargs.get("key")
             if not key:
                 raise MeasurementKeyError(f"`{command}` requires `key=`")
@@ -71,8 +75,11 @@ def measurement(
                     f"Duplicate measurement key for ({domain}, {command}, {key}, "
                     f"row_index={row_index})",
                 )
+            call_kwargs = dict(kwargs)
+            if not accepts_optional:
+                call_kwargs.pop("optional", None)
             try:
-                value = func(*args, **kwargs)
+                value = func(*args, **call_kwargs)
                 # Persist a JSON-safe form for bytes while returning the original value.
                 stored: Any = value
                 if isinstance(value, (bytes, bytearray)):
@@ -99,6 +106,7 @@ def measurement(
                     command=command,
                     key=key,
                     status="PASS",
+                    optional=optional,
                     detail=f"row_index={row_index} value={short_repr(stored)}",
                 )
                 return value
@@ -117,9 +125,12 @@ def measurement(
                         status="ERROR",
                     ),
                 )
+                if optional:
+                    return None
                 raise
 
         setattr(wrapper, COLOSSEUM_DECORATOR, "measurement")
+        publish_optional_parameter(wrapper, func)
         return wrapper
 
     if _func is None:

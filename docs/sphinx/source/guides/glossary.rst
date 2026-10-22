@@ -61,8 +61,11 @@ Terms used in the runtime and in the user guides. See
       ``col.<namespace>.*`` (for example ``col.template``).
 
    optional
-      ``optional=True`` on a command or verification. FAIL/ERROR is recorded
-      but does not change the aggregate exit code.
+      ``optional=True`` on a command, measurement, or verification. Command and
+      verification FAIL/ERROR is recorded but does not change the aggregate
+      exit code. An optional measurement ERROR is recorded with a null value
+      and does not abort the script or change the exit code by itself. A
+      required verification of that missing value still fails the run.
 
    parameters file
       Optional TOML whose tables are evidence keys and values are kwargs for

@@ -48,6 +48,14 @@ Measurements
 ``@measurement`` records a returned value under a required ``key``. Keys are unique for
 the same domain, command, and row index. Use ``multi_row=True`` for indexed series.
 
+A raised exception is stored as ``status=ERROR`` with a null value, then re-raised.
+``optional=True`` records that ERROR row and returns ``None`` so later steps still run.
+The measurement error does not itself change the exit code. A later required
+verification that needs the missing value fails, and the script can still record
+other measurements. ``verify_measurement_exists`` treats the ERROR row as present.
+Missing ``key=`` and duplicate keys still raise. ``optional=`` is stripped when the
+wrapped function does not declare it.
+
 Verifications
 -------------
 
