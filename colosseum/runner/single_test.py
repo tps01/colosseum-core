@@ -27,14 +27,18 @@ def _system_exit_code(exc: SystemExit) -> int:
 
 @contextmanager
 def _script_import_path(script: Path) -> Iterator[None]:
-    """Put the script directory first on ``sys.path`` for this script only.
+    """Set the active script and put its directory first on ``sys.path``.
 
     Matches ``python script.py``: the script directory is ``sys.path[0]`` while
     ``runpy`` loads the file and ``main()`` runs. ``sys.path`` is restored
-    afterward. Sibling modules stay in ``sys.modules`` for the process so suite
-    slots share helpers. Names that collide with an already-imported module or
-    with stdlib/plugin names resolve the same way as a direct Python launch.
+    afterward, along with the previous active script. Sibling modules stay in
+    ``sys.modules`` for the process so suite slots share helpers. Names that
+    collide with an already-imported module or with stdlib/plugin names resolve
+    the same way as a direct Python launch.
     """
+    ctx = get_context()
+    previous_script = ctx.active_script_path
+    ctx.active_script_path = script
     directory = str(script.parent)
     saved = list(sys.path)
     if not sys.path or sys.path[0] != directory:
@@ -43,6 +47,7 @@ def _script_import_path(script: Path) -> Iterator[None]:
         yield
     finally:
         sys.path[:] = saved
+        ctx.active_script_path = previous_script
 
 
 def run_script(path: Path) -> None:

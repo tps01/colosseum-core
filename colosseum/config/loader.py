@@ -121,6 +121,40 @@ def default_test_name() -> str:
     return "run"
 
 
+def _resolve_load_path(path: str | Path, *, label: str) -> Path:
+    """Resolve a file from the working directory, then the executing script.
+
+    :param path: Absolute or relative file path.
+    :param label: File kind used in a missing-file error.
+    :returns: The first existing candidate, as an absolute path.
+    """
+    import sys
+
+    supplied = Path(path)
+    # Python 3.9 on Windows may leave missing relative paths unresolved.
+    candidates = [(Path.cwd() / supplied).resolve()]
+    if not supplied.is_absolute():
+        try:
+            ctx = get_context()
+        except RuntimeError:
+            ctx = None
+        script = ctx.active_script_path if ctx is not None else None
+        if script is None and (ctx is None or ctx.auto_finalize):
+            # Direct Python launch; CLI loads happen before an active script.
+            main_file = getattr(sys.modules.get("__main__"), "__file__", None)
+            if main_file and not str(main_file).startswith("<"):
+                script = Path(main_file).resolve()
+        if script is not None:
+            candidate = (script.parent / supplied).resolve()
+            if candidate not in candidates:
+                candidates.append(candidate)
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    attempted = ", ".join(str(candidate) for candidate in candidates)
+    raise ConfigError(f"{label} file not found: {path} (tried: {attempted})")
+
+
 def _load_toml(config_path: Path) -> dict[str, Any]:
     try:
         return read_relaxed_toml(config_path)
@@ -179,6 +213,9 @@ def load_config(
     ``force=True`` are no-ops (warn once) so operators' ``-g`` wins over
     hardcoded script paths. Pass ``force=True`` for intentional reloads
     (for example GUI placeholder → generated TOML).
+
+    Relative paths (including ``metadata_path``) try the working directory,
+    then the active script's directory. Absolute paths select one file.
     """
     try:
         ctx = get_context()
@@ -202,10 +239,10 @@ def load_config(
             )
         return ctx.config
 
-    config_path = Path(path).resolve()
-    if not config_path.exists():
-        raise ConfigError(f"Config file not found: {config_path}")
+    config_path = _resolve_load_path(path, label="Config")
     raw = _load_toml(config_path)
+    if metadata_path is not None and (ctx is None or not ctx.session.metadata_pinned or force):
+        metadata_path = _resolve_load_path(metadata_path, label="Metadata")
 
     if ctx is None:
         ctx = init_context(
@@ -217,8 +254,6 @@ def load_config(
         )
     else:
         apply_no_artifacts(ctx, no_artifacts=no_artifacts)
-        if metadata_path is not None:
-            ctx.metadata_path = str(Path(metadata_path).resolve())
 
     store = apply_raw_config(ctx, raw, source_label=str(config_path))
     if metadata_path is not None:
