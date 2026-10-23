@@ -34,7 +34,7 @@ script returns (you do not need ``col.endex()`` under the CLI).
 
 Plugins declare the TOML tables they own. A tiny shared-only smoke config can be
 empty of instrument rows; equipment benches need section rows such as
-``[[equipment.psu]]``. Example placeholder::
+``[equipment.psu]``. Example placeholder::
 
    # config.toml — add plugin sections as required by your script
    [colosseum.reports]

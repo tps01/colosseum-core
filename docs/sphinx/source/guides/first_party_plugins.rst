@@ -19,7 +19,7 @@ with ``driver = "sim"`` where possible.
      - Typical config
    * - `colosseum-equipment <https://tps01.github.io/colosseum-equipment/>`__
      - ``col.equipment.*``, ``col.io.*``
-     - ``[[equipment.psu]]``, ``[equipment.dmm]``, ``[io.dio]``, …
+     - ``[equipment.psu]``, ``[equipment.dmm]``, ``[io.dio]``, …
    * - `colosseum-shared <https://tps01.github.io/colosseum-shared/>`__
      - ``col.shared.*``
      - none (pairs with other plugins' TOML)
@@ -43,16 +43,31 @@ Getting started (per plugin)
 
 * Equipment —
   `Getting started <https://tps01.github.io/colosseum-equipment/guides/getting_started.html>`__
+  ·
+  `Config reference <https://tps01.github.io/colosseum-equipment/config_reference.html>`__
+  (instrument rows:
+  `config_instruments <https://tps01.github.io/colosseum-equipment/config_instruments.html>`__,
+  I/O rows:
+  `config_io <https://tps01.github.io/colosseum-equipment/config_io.html>`__)
 * Shared —
   `Getting started <https://tps01.github.io/colosseum-shared/guides/getting_started.html>`__
+  ·
+  `Config reference <https://tps01.github.io/colosseum-shared/config_reference.html>`__
 * Host —
   `Getting started <https://tps01.github.io/colosseum-host/guides/getting_started.html>`__
+  ·
+  `Config reference <https://tps01.github.io/colosseum-host/config_reference.html>`__
 * Messaging —
   `Getting started <https://tps01.github.io/colosseum-messaging/guides/getting_started.html>`__
+  ·
+  `Config reference <https://tps01.github.io/colosseum-messaging/config_reference.html>`__
 * GUI —
   `Getting started <https://tps01.github.io/colosseum-gui/guides/getting_started.html>`__
+  ·
+  `Config reference <https://tps01.github.io/colosseum-gui/config_reference.html>`__
 
-(Links resolve after each plugin's Pages build includes the new guide.)
+(Links resolve after each plugin's Pages build includes the guide and the
+config reference.)
 
 Copy-out procedures
 -------------------
