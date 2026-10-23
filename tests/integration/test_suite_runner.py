@@ -52,6 +52,10 @@ def test_happy_suite_container_and_slot_outputs(fixtures_dir, core_config, isola
     summary = _container_summary(container)
     assert summary["overall_result"] == "PASS"
     assert len(summary["test_slots"]) == 1
+    summary_text = (container / "summary.txt").read_text(encoding="utf-8")
+    assert "Start time:" in summary_text
+    assert "Runtime:" in summary_text
+    assert "Test slots: 1 (1 pass, 0 fail)" in summary_text
 
 
 def test_setup_failure_does_not_skip_tests_without_fail_fast(
@@ -250,3 +254,55 @@ def test_no_artifacts_suite_procedure_skips_test_verifications(
     # verifications entirely so the suite stays green.
     assert exc.value.code == 0
     assert not (isolated_cwd / "outputs").exists()
+
+
+def _sequence(container) -> list[str]:
+    return (container / "sequence.txt").read_text(encoding="utf-8").splitlines()
+
+
+def test_cycle_count_repeats_test_sequence(fixtures_dir, core_config, isolated_cwd) -> None:
+    suite = fixtures_dir / "suites" / "cycle_sequence.toml"
+    _run_suite_expect_exit(suite, core_config, isolated_cwd, 0)
+    container = latest_suite_container(isolated_cwd)
+    assert _sequence(container) == [
+        "A", "between", "B", "between", "C", "between",
+        "A", "between", "B", "between", "C",
+    ]
+    summary = _container_summary(container)
+    assert {slot["cycle_index"] for slot in summary["test_slots"]} == {0, 1}
+    text = (container / "summary.txt").read_text(encoding="utf-8")
+    assert "cycle=0" in text
+    assert "cycle=1" in text
+
+
+def test_cycle_count_keeps_inner_repeats_together(
+    fixtures_dir, core_config, isolated_cwd,
+) -> None:
+    suite = fixtures_dir / "suites" / "cycle_nested_repeat.toml"
+    _run_suite_expect_exit(suite, core_config, isolated_cwd, 0)
+    container = latest_suite_container(isolated_cwd)
+    assert _sequence(container) == ["A", "A", "B", "A", "A", "B"]
+
+
+def test_cycle_for_runs_complete_cycles(fixtures_dir, core_config, isolated_cwd) -> None:
+    suite = fixtures_dir / "suites" / "cycle_for.toml"
+    _run_suite_expect_exit(suite, core_config, isolated_cwd, 0)
+    container = latest_suite_container(isolated_cwd)
+    counts = [
+        len(slot_dirs_matching(container, stem))
+        for stem in ("cycle_a", "cycle_b", "cycle_c")
+    ]
+    assert counts[0] >= 2
+    assert counts[0] == counts[1] == counts[2]
+
+
+def test_cycle_fail_fast_stops_rest_of_cycle_and_later_cycles(
+    fixtures_dir, core_config, isolated_cwd,
+) -> None:
+    suite = fixtures_dir / "suites" / "cycle_fail_fast.toml"
+    _run_suite_expect_exit(suite, core_config, isolated_cwd, 1)
+    container = latest_suite_container(isolated_cwd)
+    assert len(slot_dirs_matching(container, "cycle_a")) == 1
+    assert len(slot_dirs_matching(container, "crash_test")) == 1
+    assert slot_dirs_matching(container, "cycle_c") == []
+    assert _slot_with_stem(container, "teardown_ok")

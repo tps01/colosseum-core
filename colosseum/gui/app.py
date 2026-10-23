@@ -18,10 +18,11 @@ from ._browser import (
     format_summary_text,
     load_run_browser_snapshot,
     load_run_snapshot,
+    suite_run_dirs,
 )
-from ._evidence import links_for_row, preview_text, unassociated_files
+from ._evidence import links_for_row
 from ._icon import apply_window_icon, init_windows_taskbar, wrap_icon_photo
-from ._plots import explicit_xy, limit_view, reduce_xy
+from ._plots import explicit_xy, limit_fraction, limit_view, reduce_xy
 from ._results import detail_text, filter_rows, load_run_evidence, page_size, units_for
 from .run_worker import RunFinished, RunKind, RunRequest, RunWorker
 
@@ -90,8 +91,13 @@ def ensure_display_available() -> None:
         raise SystemExit(1) from exc
 
 
-def _browse_file(title: str, filetypes: list[tuple[str, str]]) -> str:
-    return filedialog.askopenfilename(title=title, filetypes=filetypes) or ""
+def _browse_file(title: str, filetypes: list[tuple[str, str]], initialdir: Path) -> str:
+    selected = filedialog.askopenfilename(
+        title=title,
+        filetypes=filetypes,
+        initialdir=str(initialdir),
+    )
+    return selected or ""
 
 
 def _place_limit_label(
@@ -138,6 +144,7 @@ class ColosseumApp:
         self._browser_generation = 0
         self._detail_generation = 0
         self._expanded_output_dirs: set[Path] = set()
+        self._expanded_suites: set[Path] = set()
         self._selected_run_dir: Path | None = None
         self._evidence_rows: list[Any] = []
         self._evidence_error: str | None = None
@@ -146,7 +153,7 @@ class ColosseumApp:
         self._selected_result: Any = None
         self._result_page = 0
         self._failures_only = True
-        self._preview_image: Any = None
+        self._plot_pixels: dict[int, tuple[int, int]] = {}
         self._slot_buttons: list[Any] = []
         self._results_notice: str | None = None
         self._build_layout()
@@ -170,14 +177,15 @@ class ColosseumApp:
             ("Suite (.toml)", self._suite_path, [("TOML", "*.toml")]),
             ("Config", self._config_path, [("TOML", "*.toml"), ("All", "*.*")]),
             ("Parameters", self._parameters_path, [("TOML", "*.toml"), ("All", "*.*")]),
-            ("Metadata", self._metadata_path, [("YAML", "*.yaml;*.yml"), ("All", "*.*")]),
+            # Separate globs. One "*.yaml;*.yml" pattern makes the Windows dialog ignore pwd.
+            ("Metadata", self._metadata_path, [("YAML", "*.yaml"), ("YML", "*.yml"), ("All", "*.*")]),
         )
         for i, (label, var, fts) in enumerate(rows):
             ctk.CTkLabel(form, text=label).grid(row=i, column=0, padx=4, pady=2, sticky="w")
             ctk.CTkEntry(form, textvariable=var).grid(row=i, column=1, padx=4, pady=2, sticky="ew")
             ctk.CTkButton(
                 form, text="Browse", width=80,
-                command=lambda ft=fts, v=var: v.set(_browse_file("Select file", ft)),
+                command=lambda ft=fts, v=var: v.set(_browse_file("Select file", ft, self._cwd)),
             ).grid(row=i, column=2, padx=4)
         actions = ctk.CTkFrame(form, fg_color="transparent")
         actions.grid(row=len(rows), column=0, columnspan=3, sticky="ew", pady=(6, 0))
@@ -203,7 +211,6 @@ class ColosseumApp:
         self._tabs.add("Log")
         self._tabs.add("Summary")
         self._tabs.add("Results")
-        self._tabs.add("Evidence")
         log_tab = self._tabs.tab("Log")
         log_tab.grid_rowconfigure(0, weight=1)
         log_tab.grid_columnconfigure(0, weight=1)
@@ -228,7 +235,7 @@ class ColosseumApp:
                 border_width=0,
                 command=self._toggle_log_wrap,
             )
-        self._log_wrap_btn.place(relx=1.0, rely=0.0, x=-30, y=6, anchor="ne")
+        self._log_wrap_btn.place(relx=1.0, rely=0.0, x=-4, y=4, anchor="ne")
         self._log_wrap_btn.lift()
         summary_tab = self._tabs.tab("Summary")
         summary_tab.grid_rowconfigure(0, weight=0)
@@ -240,7 +247,6 @@ class ColosseumApp:
         self._summary_text = ctk.CTkTextbox(summary_tab, state="disabled")
         self._summary_text.grid(row=1, column=0, sticky="nsew", padx=2, pady=2)
         self._build_results_tab()
-        self._build_evidence_tab()
 
         runs_panel = ctk.CTkFrame(body, width=280)
         runs_panel.grid_rowconfigure(1, weight=1)
@@ -283,6 +289,8 @@ class ColosseumApp:
         tab.grid_columnconfigure(0, weight=1)
         tab.grid_rowconfigure(1, weight=1)
         tab.grid_rowconfigure(2, weight=0)
+        tab.grid_rowconfigure(3, weight=0)
+        tab.grid_rowconfigure(4, weight=0)
         filters = ctk.CTkFrame(tab, fg_color="transparent")
         filters.grid(row=0, column=0, sticky="ew", pady=(2, 2))
         ctk.CTkButton(filters, text="Failures", width=70, command=self._show_failures).pack(side="left", padx=2)
@@ -295,35 +303,17 @@ class ColosseumApp:
         self._result_list = ctk.CTkScrollableFrame(tab)
         self._result_list.grid(row=1, column=0, sticky="nsew", padx=2, pady=2)
         self._result_buttons: list[Any] = []
-        self._result_detail = ctk.CTkTextbox(tab, height=140, state="disabled")
-        self._result_detail.grid(row=2, column=0, sticky="nsew", padx=2, pady=2)
-        self._result_detail.grid_remove()
-
-    def _build_evidence_tab(self) -> None:
-        ctk = self._ctk
-        tab = self._tabs.tab("Evidence")
-        tab.grid_columnconfigure(0, weight=1)
-        tab.grid_rowconfigure(0, weight=0)
-        tab.grid_rowconfigure(1, weight=0)
-        tab.grid_rowconfigure(2, weight=0)
-        tab.grid_rowconfigure(3, weight=1)
-        self._evidence_message = ctk.CTkLabel(
-            tab, text="Select a run to see its evidence.", anchor="w", justify="left", wraplength=480,
-        )
-        self._evidence_message.grid(row=0, column=0, sticky="nw", padx=8, pady=8)
-        self._evidence_list = ctk.CTkFrame(tab, fg_color="transparent")
-        self._evidence_list.grid(row=0, column=0, sticky="ew", padx=2, pady=2)
-        self._evidence_list.grid_remove()
-        self._evidence_links: list[Any] = []
         self._limit_canvas = tk.Canvas(tab, height=92, highlightthickness=0, bg="#1e1e1e")
-        self._limit_canvas.grid(row=1, column=0, sticky="ew", padx=2, pady=2)
+        self._limit_canvas.grid(row=2, column=0, sticky="ew", padx=2, pady=2)
         self._limit_canvas.grid_remove()
         self._xy_canvas = tk.Canvas(tab, height=160, highlightthickness=0, bg="#1e1e1e")
-        self._xy_canvas.grid(row=2, column=0, sticky="nsew", padx=2, pady=2)
+        self._xy_canvas.grid(row=3, column=0, sticky="nsew", padx=2, pady=2)
         self._xy_canvas.grid_remove()
-        self._preview_text = ctk.CTkTextbox(tab, state="disabled")
-        self._preview_text.grid(row=3, column=0, sticky="nsew", padx=2, pady=2)
-        self._preview_text.grid_remove()
+        self._limit_canvas.bind("<Configure>", self._on_plot_configure)
+        self._xy_canvas.bind("<Configure>", self._on_plot_configure)
+        self._result_detail = ctk.CTkTextbox(tab, height=140, state="disabled")
+        self._result_detail.grid(row=4, column=0, sticky="ew", padx=2, pady=2)
+        self._result_detail.grid_remove()
 
     def _config_value(self) -> str | None:
         v = self._config_path.get().strip()
@@ -406,10 +396,12 @@ class ColosseumApp:
 
     def _expand_all_output_dirs(self) -> None:
         self._expanded_output_dirs = set(self._browser_snapshot.output_dirs)
+        self._expanded_suites = suite_run_dirs(self._browser_snapshot.rows)
         self._render_run_list()
 
     def _collapse_all_output_dirs(self) -> None:
         self._expanded_output_dirs.clear()
+        self._expanded_suites.clear()
         self._render_run_list()
 
     def _toggle_outputs_dir(self, outputs_dir: Path) -> None:
@@ -418,6 +410,14 @@ class ColosseumApp:
         else:
             self._expanded_output_dirs.add(outputs_dir)
         self._render_run_list()
+
+    def _toggle_suite(self, run_dir: Path) -> None:
+        if run_dir in self._expanded_suites:
+            self._expanded_suites.remove(run_dir)
+        else:
+            self._expanded_suites.add(run_dir)
+        self._render_run_list()
+        self._select_run(run_dir)
 
     def _render_run_list(self) -> None:
         for w in self._run_widgets.values():
@@ -442,27 +442,70 @@ class ColosseumApp:
                 hdr.pack(fill="x", pady=(3, 1))
                 if exp:
                     for row in by_dir[outputs_dir]:
-                        active.add(("run", row.entry.path))
-                        self._add_run_button(row, indent=True)
+                        self._add_run_button(row, level=1, active=active)
         else:
             for row in rows:
-                active.add(("run", row.entry.path))
-                self._add_run_button(row, indent=False)
+                self._add_run_button(row, level=0, active=active)
         for key, w in list(self._run_widgets.items()):
             if key not in active:
                 w.destroy()
                 del self._run_widgets[key]
 
-    def _add_run_button(self, row: RunBrowserRow, *, indent: bool) -> None:
+    def _add_run_button(
+        self,
+        row: RunBrowserRow,
+        *,
+        level: int,
+        active: set[tuple[str, Path]],
+    ) -> None:
         run_dir = row.entry.path
+        if row.children:
+            key = ("suite", run_dir)
+            active.add(key)
+            expanded = run_dir in self._expanded_suites
+            header = self._run_widgets.get(key) or self._suite_header(run_dir)
+            self._run_widgets[key] = header
+            mark = "[-]" if expanded else "[+]"
+            header._mark.configure(text=mark, text_color=("gray10", "white"))
+            header._name.configure(
+                text=self._run_list_label(row),
+                text_color=self._status_button_color(row.status),
+            )
+            header.pack(fill="x", padx=(18 * level, 0), pady=1)
+            if expanded:
+                for child in row.children:
+                    self._add_run_button(child, level=level + 1, active=active)
+            return
         key = ("run", run_dir)
+        active.add(key)
         btn = self._run_widgets.get(key) or self._ctk.CTkButton(
             self._run_list, anchor="w", fg_color="transparent", hover_color=("gray85", "gray25"),
             command=lambda rd=run_dir: self._select_run(rd),
         )
         self._run_widgets[key] = btn
         btn.configure(text=self._run_list_label(row), text_color=self._status_button_color(row.status))
-        btn.pack(fill="x", padx=(18, 0) if indent else 0, pady=1)
+        btn.pack(fill="x", padx=(18 * level, 0), pady=1)
+
+    def _suite_header(self, run_dir: Path) -> Any:  # noqa: ANN401
+        """Expand marker stays white. The suite name keeps the result color."""
+        ctk = self._ctk
+        frame = ctk.CTkFrame(self._run_list, fg_color="transparent")
+        mark = ctk.CTkButton(
+            frame, text="[+]", width=36, anchor="w",
+            fg_color="transparent", text_color=("gray10", "white"),
+            hover_color=("gray85", "gray25"),
+            command=lambda rd=run_dir: self._toggle_suite(rd),
+        )
+        name = ctk.CTkButton(
+            frame, text="", anchor="w", fg_color="transparent",
+            hover_color=("gray85", "gray25"),
+            command=lambda rd=run_dir: self._toggle_suite(rd),
+        )
+        mark.pack(side="left")
+        name.pack(side="left", fill="x", expand=True)
+        frame._mark = mark
+        frame._name = name
+        return frame
 
     def _select_run(self, run_dir: Path) -> None:
         self._selected_run_dir = run_dir
@@ -477,7 +520,6 @@ class ColosseumApp:
         self._set_text(self._summary_text, f"Loading summary for {run_dir.name}...")
         self._clear_slot_buttons()
         self._hide_result_detail()
-        self._clear_evidence_view(f"Loading results for {run_dir.name}...")
         self._render_result_rows()
         threading.Thread(
             target=lambda: self._ui_events.put(("run", gen, load_run_snapshot(run_dir))), daemon=True,
@@ -530,6 +572,9 @@ class ColosseumApp:
             repeat = slot.get("repeat_index")
             if repeat is not None:
                 label += f" repeat={repeat}"
+            cycle = slot.get("cycle_index")
+            if cycle is not None:
+                label += f" cycle={cycle}"
             folder = Path(str(slot.get("output_directory") or ""))
             button = self._ctk.CTkButton(
                 self._slot_list, text=label, anchor="w", fg_color="transparent",
@@ -600,7 +645,6 @@ class ColosseumApp:
             self._show_result(self._selected_result)
         else:
             self._hide_result_detail()
-            self._clear_evidence_view(self._results_empty_message())
 
     def _results_empty_message(self) -> str:
         if self._results_notice:
@@ -656,13 +700,65 @@ class ColosseumApp:
         self._selected_result = row
         units = units_for(row, self._evidence_rows)
         self._set_text(self._result_detail, detail_text(row, units=units))
-        self._tabs.tab("Results").grid_rowconfigure(2, weight=1)
         self._result_detail.grid()
-        self._render_evidence(row, units)
+        has_limit = limit_view(
+            compare_op=row.compare_op,
+            expected_raw=row.expected_raw,
+            tolerance_raw=row.tolerance_raw,
+            actual_raw=row.actual_raw,
+            units=units,
+        ) is not None
+        has_xy = self._series_for_row(row) is not None
+        self._tabs.tab("Results").grid_rowconfigure(3, weight=1 if has_xy else 0)
+        self._show_plot_canvas(self._limit_canvas, visible=has_limit)
+        self._show_plot_canvas(self._xy_canvas, visible=has_xy)
+        self._root.update_idletasks()
+        self._paint_result_plots(row, units)
 
     def _hide_result_detail(self) -> None:
-        self._tabs.tab("Results").grid_rowconfigure(2, weight=0)
+        self._tabs.tab("Results").grid_rowconfigure(3, weight=0)
         self._result_detail.grid_remove()
+        self._show_plot_canvas(self._limit_canvas, visible=False)
+        self._show_plot_canvas(self._xy_canvas, visible=False)
+
+    def _show_plot_canvas(self, canvas: tk.Canvas, *, visible: bool) -> None:
+        if visible:
+            canvas.grid()
+            return
+        canvas.delete("all")
+        canvas.grid_remove()
+        self._plot_pixels.pop(id(canvas), None)
+
+    def _on_plot_configure(self, event: Any) -> None:  # noqa: ANN401
+        widget = event.widget
+        if widget is not self._limit_canvas and widget is not self._xy_canvas:
+            return
+        size = (int(event.width), int(event.height))
+        if size[0] < 80 or size == self._plot_pixels.get(id(widget)):
+            return
+        row = self._selected_result
+        if row is None or not widget.winfo_manager():
+            return
+        self._plot_pixels[id(widget)] = size
+        units = units_for(row, self._evidence_rows)
+        if widget is self._limit_canvas:
+            self._draw_limit(row, units)
+        else:
+            self._draw_xy(row)
+
+    def _paint_result_plots(self, row: Any, units: str) -> None:  # noqa: ANN401
+        if str(self._limit_canvas.winfo_manager()):
+            self._draw_limit(row, units)
+            self._plot_pixels[id(self._limit_canvas)] = (
+                self._limit_canvas.winfo_width(),
+                self._limit_canvas.winfo_height(),
+            )
+        if str(self._xy_canvas.winfo_manager()):
+            self._draw_xy(row)
+            self._plot_pixels[id(self._xy_canvas)] = (
+                self._xy_canvas.winfo_width(),
+                self._xy_canvas.winfo_height(),
+            )
 
     def _copy_result(self) -> None:
         row = self._selected_result
@@ -673,113 +769,23 @@ class ColosseumApp:
         self._root.clipboard_append(text)
         self._status.set("Copied result")
 
-    def _clear_evidence_view(self, message: str) -> None:
-        for widget in self._evidence_links:
-            widget.destroy()
-        self._evidence_links = []
-        self._limit_canvas.delete("all")
-        self._xy_canvas.delete("all")
-        self._set_text(self._preview_text, "")
-        self._show_evidence_panes(links=False, limit=False, xy=False, preview=False, message=message)
-
-    def _show_evidence_panes(
-        self,
-        *,
-        links: bool,
-        limit: bool,
-        xy: bool,
-        preview: bool,
-        message: str,
-    ) -> None:
-        tab = self._tabs.tab("Evidence")
-        tab.grid_rowconfigure(2, weight=1 if xy and not preview else 0)
-        tab.grid_rowconfigure(3, weight=1 if preview else 0)
-        if links:
-            self._evidence_message.grid_remove()
-            self._evidence_list.grid()
-        else:
-            self._evidence_list.grid_remove()
-        if limit:
-            self._limit_canvas.grid()
-        else:
-            self._limit_canvas.grid_remove()
-        if xy:
-            self._xy_canvas.grid()
-        else:
-            self._xy_canvas.grid_remove()
-        if preview:
-            self._evidence_message.grid_remove()
-            self._preview_text.grid()
-        else:
-            self._preview_text.grid_remove()
-        if message and not (links or limit or xy or preview):
-            self._evidence_message.configure(text=message)
-            self._evidence_message.grid()
-        elif not links:
-            self._evidence_message.grid_remove()
-
-    def _render_evidence(self, row: Any, units: str) -> None:  # noqa: ANN401
-        for widget in self._evidence_links:
-            widget.destroy()
-        self._evidence_links = []
-        run_dir = self._selected_run_dir
-        if run_dir is None:
-            self._clear_evidence_view("Select a run to see its evidence.")
-            return
+    def _series_for_row(self, row: Any) -> Any:  # noqa: ANN401
+        series = explicit_xy(row.actual_raw)
+        if series is not None or self._selected_run_dir is None:
+            return series
         linked = links_for_row(
-            row, self._evidence_rows, run_dir=run_dir, import_origin=self._import_origin,
+            row, self._evidence_rows, run_dir=self._selected_run_dir, import_origin=self._import_origin,
         )
-        extras = unassociated_files(run_dir, linked)
-        has_limit = self._draw_limit(row, units)
-        has_xy = self._draw_xy(row)
-        files = linked + extras
-        for link in files:
-            prefix = "associated" if link.associated else "unassociated"
-            state = link.path.name if link.exists else f"missing: {link.stored}"
-            button = self._ctk.CTkButton(
-                self._evidence_list, text=f"{prefix}: {state}", anchor="w",
-                fg_color="transparent", hover_color=("gray85", "gray25"),
-                command=lambda item=link: self._preview_link(item),
-            )
-            button.pack(fill="x", pady=1)
-            self._evidence_links.append(button)
-        self._show_evidence_panes(
-            links=bool(files),
-            limit=has_limit,
-            xy=has_xy,
-            preview=bool(files),
-            message="No evidence files, limit, or series for this result.",
-        )
-        if linked:
-            self._preview_link(linked[0])
-        elif extras:
-            self._preview_link(extras[0])
-
-    def _preview_link(self, link: Any) -> None:  # noqa: ANN401
-        if not link.exists:
-            self._set_text(self._preview_text, f"Missing file: {link.stored}")
-            return
-        text = preview_text(link.path)
-        if text is not None:
-            self._set_text(self._preview_text, text)
-            return
-        suffix = link.path.suffix.lower()
-        if suffix in {".png", ".gif", ".ppm", ".pgm"}:
+        for link in linked:
+            if not link.exists or link.path.suffix.lower() != ".json":
+                continue
             try:
-                self._preview_image = tk.PhotoImage(file=str(link.path))
-            except tk.TclError as exc:
-                self._set_text(self._preview_text, f"Cannot preview {link.path.name}: {exc}")
-                return
-            self._set_text(self._preview_text, f"Image: {link.path.name}\n")
-            text_widget = getattr(self._preview_text, "_textbox", self._preview_text)
-            text_widget.configure(state="normal")
-            text_widget.image_create("end", image=self._preview_image)
-            text_widget.configure(state="disabled")
-            return
-        self._set_text(
-            self._preview_text,
-            f"Unsupported preview for {link.path.name}. Open the output folder to view it.",
-        )
+                series = explicit_xy(link.path.read_text(encoding="utf-8"))
+            except OSError:
+                series = None
+            if series is not None:
+                return series
+        return None
 
     def _draw_limit(self, row: Any, units: str) -> bool:  # noqa: ANN401
         canvas = self._limit_canvas
@@ -793,25 +799,15 @@ class ColosseumApp:
         )
         if view is None:
             return False
-        marks = [view.actual]
-        if view.low is not None:
-            marks.append(view.low)
-        if view.high is not None:
-            marks.append(view.high)
-        lowest = min(marks)
-        highest = max(marks)
-        span = highest - lowest
-        if span == 0:
-            span = abs(view.actual) or 1.0
-            lowest -= span
-            highest += span
-        pad = span * 0.22
-        left, right = lowest - pad, highest + pad
-        width = max(canvas.winfo_width(), 300)
+        width = canvas.winfo_width()
+        if width < 80:
+            return True
+        margin = 28
         line_y = 68
 
         def x_of(value: float) -> float:
-            return 28 + (value - left) / (right - left) * (width - 56)
+            fraction = limit_fraction(value, view.low, view.high)
+            return margin + fraction * (width - margin * 2)
 
         def caption(value: float) -> str:
             text = format(value, ".12g")
@@ -819,7 +815,7 @@ class ColosseumApp:
                 return f"{text} {view.units}"
             return text
 
-        canvas.create_line(x_of(left), line_y, x_of(right), line_y, fill="#8b949e", width=2)
+        canvas.create_line(margin, line_y, width - margin, line_y, fill="#8b949e", width=2)
         label_y = line_y - 16
         occupied: list[tuple[float, float]] = []
         drawn_limits: set[float] = set()
@@ -831,7 +827,9 @@ class ColosseumApp:
             canvas.create_line(x, line_y - 12, x, line_y + 12, fill="#3fb950", width=2)
             _place_limit_label(canvas, x, label_y, caption(limit), width, occupied)
         actual_x = x_of(view.actual)
-        canvas.create_oval(actual_x - 5, line_y - 5, actual_x + 5, line_y + 5, fill="#f0f6fc", outline="#f0f6fc")
+        canvas.create_oval(
+            actual_x - 5, line_y - 5, actual_x + 5, line_y + 5, fill="#f0f6fc", outline="#f0f6fc",
+        )
         same_as_limit = any(
             limit is not None and limit == view.actual for limit in (view.low, view.high)
         )
@@ -842,21 +840,13 @@ class ColosseumApp:
     def _draw_xy(self, row: Any) -> bool:  # noqa: ANN401
         canvas = self._xy_canvas
         canvas.delete("all")
-        series = explicit_xy(row.actual_raw)
-        if series is None and self._selected_run_dir is not None:
-            linked = links_for_row(
-                row, self._evidence_rows, run_dir=self._selected_run_dir, import_origin=self._import_origin,
-            )
-            for link in linked:
-                if link.exists and link.path.suffix.lower() == ".json":
-                    try:
-                        series = explicit_xy(link.path.read_text(encoding="utf-8"))
-                    except OSError:
-                        series = None
-                    if series is not None:
-                        break
+        series = self._series_for_row(row)
         if series is None:
             return False
+        width = canvas.winfo_width()
+        height = canvas.winfo_height()
+        if width < 80 or height < 40:
+            return True
         view = limit_view(
             compare_op=row.compare_op,
             expected_raw=row.expected_raw,
@@ -878,8 +868,6 @@ class ColosseumApp:
             max_x += 1
         if max_y == min_y:
             max_y += 1
-        width = max(canvas.winfo_width(), 300)
-        height = max(canvas.winfo_height(), 120)
 
         def map_x(value: float) -> float:
             return 36 + (value - min_x) / (max_x - min_x) * (width - 48)

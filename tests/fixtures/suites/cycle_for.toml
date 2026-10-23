@@ -1,0 +1,7 @@
+name = "cycle_for"
+cycle_for = "1s"
+tests = [
+  "../scripts/cycle_a.py",
+  "../scripts/cycle_b.py",
+  "../scripts/cycle_c.py",
+]

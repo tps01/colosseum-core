@@ -61,6 +61,48 @@ def limit_view(
     )
 
 
+def limit_window(low: float | None, high: float | None) -> tuple[float, float]:
+    """Numeric ends of the number line. The measured value does not change the zoom.
+
+    A two-sided band fills the middle 60%. A minimum stays at 25% and a maximum
+    at 75%. Equal limits stay centered in a window 40% as wide as their magnitude.
+    """
+    if low is not None and high is not None and low != high:
+        if low > high:
+            low, high = high, low
+        pad = (high - low) / 3
+        return low - pad, high + pad
+    anchor = low if low is not None else high
+    if anchor is None:
+        return -1.0, 1.0
+    span = _magnitude_span(anchor)
+    if low is not None and high is not None:
+        return anchor - span / 2, anchor + span / 2
+    if low is not None:
+        return anchor - span * 0.25, anchor + span * 0.75
+    return anchor - span * 0.75, anchor + span * 0.25
+
+
+def limit_fraction(value: float, low: float | None, high: float | None) -> float:
+    """Position from 0 to 1. Values outside the stable window pin to the ends."""
+    left, right = limit_window(low, high)
+    if right == left:
+        return 0.5
+    fraction = (value - left) / (right - left)
+    if fraction < 0.0:
+        return 0.0
+    if fraction > 1.0:
+        return 1.0
+    return fraction
+
+
+def _magnitude_span(anchor: float) -> float:
+    magnitude = abs(anchor)
+    if magnitude == 0:
+        return 1.0
+    return magnitude * 0.4
+
+
 def explicit_xy(value: object) -> XySeries | None:
     """XY data only when x, y, and both units are declared. A bare array is not a trace."""
     parsed = value

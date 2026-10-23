@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 from colosseum.database.schema import SCHEMA_SQL
 from colosseum.gui._evidence import links_for_row, unassociated_files
-from colosseum.gui._plots import explicit_xy, limit_view, reduce_xy
+from colosseum.gui._plots import explicit_xy, limit_fraction, limit_view, reduce_xy
 from colosseum.gui._results import EvidenceRow, filter_rows, load_run_evidence
 
 
@@ -138,6 +138,19 @@ def test_limit_view_rejects_non_numeric_and_keeps_one_sided_bounds() -> None:
     assert limit_view(
         compare_op="EQ", expected_raw='"up"', tolerance_raw="", actual_raw='"down"', units="",
     ) is None
+
+
+def test_limit_window_uses_one_zoom_for_the_same_limits() -> None:
+    assert abs(limit_fraction(8, 8, 12) - 0.2) < 1e-9
+    assert abs(limit_fraction(12, 8, 12) - 0.8) < 1e-9
+    assert limit_fraction(100, 8, 12) == 1.0
+    assert limit_fraction(-50, 8, 12) == 0.0
+    assert abs(limit_fraction(10, 10, 10) - 0.5) < 1e-9
+    assert limit_fraction(1000, 10, 10) == 1.0
+    assert abs(limit_fraction(11, 10, 10) - 0.75) < 1e-9
+    assert abs(limit_fraction(8, 8, None) - 0.25) < 1e-9
+    assert abs(limit_fraction(12, None, 12) - 0.75) < 1e-9
+    assert limit_fraction(0, 0, 0) == 0.5
 
 
 def test_explicit_xy_requires_declared_axes_and_keeps_spikes() -> None:

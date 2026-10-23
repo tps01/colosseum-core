@@ -23,6 +23,8 @@ def test_load_happy_suite(fixtures_dir) -> None:
     assert suite.between_tests == []
     assert suite.setup[0].name == "setup_ok.py"
     assert suite.fail_fast is False
+    assert suite.cycle_count == 1
+    assert suite.cycle_for is None
 
 
 def test_missing_name_raises(tmp_path) -> None:
@@ -173,4 +175,37 @@ def test_invalid_repeat_for_duration(tmp_path, fixtures_dir) -> None:
 )
 def test_parse_repeat_duration(value: str, expected_seconds: int) -> None:
     assert parse_repeat_duration(value).total_seconds() == expected_seconds
+
+
+def test_cycle_count_and_cycle_for_rejected(tmp_path, fixtures_dir) -> None:
+    script = fixtures_dir / "scripts" / "pass_test.py"
+    path = tmp_path / "both_cycle.toml"
+    path.write_text(
+        f'name = "x"\ncycle_count = 2\ncycle_for = "1s"\ntests = ["{script.as_posix()}"]\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(SuiteError, match="cannot set both cycle_count and cycle_for"):
+        load_suite_toml(path)
+
+
+def test_cycle_count_zero_rejected(tmp_path, fixtures_dir) -> None:
+    script = fixtures_dir / "scripts" / "pass_test.py"
+    path = tmp_path / "zero_cycle.toml"
+    path.write_text(
+        f'name = "x"\ncycle_count = 0\ntests = ["{script.as_posix()}"]\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(SuiteError, match=r"cycle_count` must be >= 1"):
+        load_suite_toml(path)
+
+
+def test_invalid_cycle_for_duration(tmp_path, fixtures_dir) -> None:
+    script = fixtures_dir / "scripts" / "pass_test.py"
+    path = tmp_path / "bad_cycle.toml"
+    path.write_text(
+        f'name = "x"\ncycle_for = "bad"\ntests = ["{script.as_posix()}"]\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(SuiteError, match="Invalid cycle_for duration"):
+        load_suite_toml(path)
 

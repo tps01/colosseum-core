@@ -108,12 +108,15 @@ class SuiteSlotResult:
     output_dir: Path
     test_index: int | None = None
     repeat_index: int | None = None
+    cycle_index: int | None = None
     affects_suite_result: bool = False
     overall: str | None = None
     exit_code: int | None = None
 
 
 def ensure_suite_runtime_ready(ctx: RuntimeContext, suite_name: str) -> None:
+    if ctx.suite_started_at is None:
+        ctx.suite_started_at = datetime.now(timezone.utc)
     if ctx.suite_output_dir is not None:
         return
     console_level = logging.DEBUG if ctx.debug_logging else logging.INFO
@@ -192,6 +195,7 @@ def finalize_script_slot(
     script_path: Path,
     test_index: int | None = None,
     repeat_index: int | None = None,
+    cycle_index: int | None = None,
 ) -> SuiteSlotResult:
     from colosseum.results.finalize import finalize_run
     from colosseum.results.finalize_policy import policy_for_suite_slot
@@ -207,6 +211,7 @@ def finalize_script_slot(
         output_dir=final_dir,
         test_index=test_index,
         repeat_index=repeat_index,
+        cycle_index=cycle_index,
         affects_suite_result=affects,
         overall=result_data.overall if affects else None,
         exit_code=result_data.exit_code,
