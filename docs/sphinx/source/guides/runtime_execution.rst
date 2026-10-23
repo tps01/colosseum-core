@@ -326,7 +326,8 @@ Suite variant
 ``main()``, with a container around :term:`slot` folders.
 
 1. Parse suite TOML: ``name``, ``setup[]``, ``tests[]`` (optional
-   ``repeat_count`` / ``repeat_for``), ``between_tests[]``, ``teardown[]``,
+   ``repeat_count`` / ``repeat_for``), optional ``cycle_count`` / ``cycle_for``
+   (repeat the whole test list), ``between_tests[]``, ``teardown[]``,
    ``fail_fast``. Suites that still set ``rip_cord`` raise at load time.
 2. Allocate a :term:`suite container` directory; console logging only at this
    level.

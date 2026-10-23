@@ -1,0 +1,6 @@
+name = "cycle_nested_repeat"
+cycle_count = 2
+tests = [
+  { path = "../scripts/cycle_a.py", repeat_count = 2 },
+  "../scripts/cycle_b.py",
+]

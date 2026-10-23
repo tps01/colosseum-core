@@ -368,3 +368,24 @@ def test_suite_rejects_verify_only_mode(
     assert not (isolated_cwd / "outputs").exists()
     combined = (proc.stderr or "") + (proc.stdout or "")
     assert "verify_only" in combined.lower() or "invalid choice" in combined.lower()
+
+
+@pytest.mark.requirement("E2E-SUITE-12")
+def test_cycle_count_repeats_test_sequence(
+    core_config, fixtures_dir, isolated_cwd, subprocess_env,
+) -> None:
+    """cycle_count repeats A, B, C and runs between_tests across the boundary."""
+    proc = run_suite_cli(
+        _suite(fixtures_dir, "cycle_sequence.toml"),
+        core_config,
+        isolated_cwd,
+        subprocess_env,
+    )
+    assert proc.returncode == 0, proc.stderr
+    container = latest_suite_container(isolated_cwd)
+    sequence = (container / "sequence.txt").read_text(encoding="utf-8").splitlines()
+    assert sequence == [
+        "A", "between", "B", "between", "C", "between",
+        "A", "between", "B", "between", "C",
+    ]
+    assert len(slot_dirs_matching(container, "cycle_between")) == 5

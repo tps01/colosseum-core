@@ -18,9 +18,21 @@ Each entry in ``tests`` is either a path string (one run) or an inline table wit
   Use suffixes ``s``, ``m``, ``h``, or ``d`` (for example ``30s``, ``90m``, ``24h``).
   ``repeat_count`` and ``repeat_for`` are mutually exclusive.
 
+Optional suite fields repeat the whole ``tests`` list as one cycle (A, B, C, A, B, C):
+
+* ``cycle_count = N``: run that many full passes (``N >= 1``). Omitted means one pass.
+* ``cycle_for = "24h"``: keep starting another full pass until the duration elapses.
+  The pass that has already started always finishes, including any per-test repeats.
+  ``cycle_count`` and ``cycle_for`` are mutually exclusive and use the same duration
+  suffixes as ``repeat_for``.
+
+A per-test ``repeat_count`` or ``repeat_for`` still applies inside each pass. A
+``cycle_for`` deadline does not cut short a pass or a test entry's own ``repeat_for``.
+
 Optional ``between_tests`` scripts run **between** test executions, including between
-repeat iterations of the same test, but not before the first test or after the final
-iteration (teardown follows immediately).
+repeat iterations of the same test and between the last test of one cycle and the
+first test of the next, but not before the first test or after the final iteration
+(teardown follows immediately).
 
 Run a suite with::
 
@@ -141,6 +153,12 @@ Suite pass/fail is determined from **test script slots**, plus session-level
 (or a teardown failure under fail_fast). With ``fail_fast = false``, setup,
 ``between_tests``, and teardown outcomes are recorded in their slot folders but do
 not change the suite result.
+
+The container summary records the suite start time and wall-clock runtime.
+Pass/fail counts and percentages cover executed test slots only; setup,
+``between_tests``, and teardown stay in the slot list and do not enter those
+percentages. When the same test case runs more than once, required verification
+failures from those repeats are ranked by count, and the summary keeps the top 10.
 
 During a suite run, ``col.endex()`` finalizes the **current script slot** and returns
 control to the runner (it does not exit the process). The runner finalizes each slot

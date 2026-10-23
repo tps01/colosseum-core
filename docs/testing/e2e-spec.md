@@ -377,6 +377,20 @@ files.
 
 **Test:** `test_suite_cli.py::test_suite_procedure_mode_skips_verifications`
 
+### E2E-SUITE-12
+
+**Behavior:** `cycle_count` repeats the full test list, and `between_tests` runs
+between those executions, including across the cycle boundary.
+
+**Acceptance criteria:**
+
+- Sequence file is A, between, B, between, C, between, A, between, B, between, C.
+- No between slot before the first test or after the last.
+
+**Fixtures:** `suites/cycle_sequence.toml`
+
+**Test:** `test_suite_cli.py::test_cycle_count_repeats_test_sequence`
+
 ## Configuration errors
 
 ### E2E-CFG-01

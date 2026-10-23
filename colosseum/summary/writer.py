@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -58,9 +58,119 @@ def _slot_dict(slot: SuiteSlotResult) -> dict[str, object]:
         "output_directory": str(slot.output_dir),
         "test_index": slot.test_index,
         "repeat_index": slot.repeat_index,
+        "cycle_index": slot.cycle_index,
         "overall_result": slot.overall,
         "exit_code": slot.exit_code,
     }
+
+
+def _text(value: object) -> str:
+    return value if isinstance(value, str) else ""
+
+
+def _test_slot_counts(slots: list[SuiteSlotResult]) -> dict[str, int | float]:
+    total = len(slots)
+    passed = sum(1 for slot in slots if slot.overall == "PASS")
+    failed = total - passed
+    counts: dict[str, int | float] = {"total": total, "pass": passed, "fail": failed}
+    if total > 0:
+        counts["pass_percent"] = round(100.0 * passed / total, 1)
+        counts["fail_percent"] = round(100.0 * failed / total, 1)
+    return counts
+
+
+def _slot_count_lines(counts: dict[str, int | float]) -> list[str]:
+    total = int(counts["total"])
+    lines = [
+        f"Test slots: {total} ({int(counts['pass'])} pass, {int(counts['fail'])} fail)",
+    ]
+    if total > 0:
+        lines.append(f"Pass: {counts['pass_percent']:.1f}%")
+        lines.append(f"Fail: {counts['fail_percent']:.1f}%")
+    return lines
+
+
+def _failed_verification_rows(slot: SuiteSlotResult) -> list[dict[str, object]]:
+    summary_path = slot.output_dir / "summary.json"
+    if not summary_path.is_file():
+        return []
+    try:
+        payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return []
+    if not isinstance(payload, dict):
+        return []
+    rows = payload.get("failed_required_verifications")
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def _slot_failure_identities(slot: SuiteSlotResult) -> set[tuple[str, str, str]]:
+    found: set[tuple[str, str, str]] = set()
+    for row in _failed_verification_rows(slot):
+        found.add((
+            _text(row.get("domain")),
+            _text(row.get("command")),
+            _text(row.get("key")),
+        ))
+    return found
+
+
+def _repeated_test_indexes(slots: list[SuiteSlotResult]) -> set[int]:
+    counts: dict[int, int] = {}
+    for slot in slots:
+        if slot.test_index is None:
+            continue
+        counts[slot.test_index] = counts.get(slot.test_index, 0) + 1
+    return {index for index, count in counts.items() if count > 1}
+
+
+def _failure_rank_key(
+    item: tuple[tuple[int, str, str, str, str], int],
+) -> tuple[int, str, str, str, str, int]:
+    identity, count = item
+    test_index, script, domain, command, key = identity
+    return (-count, script, domain, command, key, test_index)
+
+
+def _common_failed_verifications(
+    slots: list[SuiteSlotResult],
+) -> list[dict[str, int | str]]:
+    repeated = _repeated_test_indexes(slots)
+    totals: dict[tuple[int, str, str, str, str], int] = {}
+    for slot in slots:
+        test_index = slot.test_index
+        if not isinstance(test_index, int) or test_index not in repeated:
+            continue
+        script = slot.script_path.name
+        for domain, command, key in _slot_failure_identities(slot):
+            identity = (test_index, script, domain, command, key)
+            totals[identity] = totals.get(identity, 0) + 1
+    ranked = sorted(totals.items(), key=_failure_rank_key)
+    return [
+        {
+            "count": count,
+            "test_index": test_index,
+            "script": script,
+            "domain": domain,
+            "command": command,
+            "key": key,
+        }
+        for (test_index, script, domain, command, key), count in ranked[:10]
+    ]
+
+
+def _common_failure_lines(rows: list[dict[str, int | str]]) -> list[str]:
+    if not rows:
+        return []
+    lines = ["", "Most common failed verifications:"]
+    for row in rows:
+        lines.append(
+            f"  - {row['count']}x test={row['test_index']} {row['script']} "
+            f"{row['domain']}.{row['command']} key={row['key']}",
+        )
+    return lines
 
 
 class SummaryWriter:
@@ -180,6 +290,12 @@ class SuiteSummaryWriter:
         overall: str,
     ) -> Path:
         summary_path = container_dir / "summary.txt"
+        ended_at = datetime.now(timezone.utc)
+        started = ctx.suite_started_at
+        started_utc = started.astimezone(timezone.utc) if started is not None else None
+        test_slots = cast("list[SuiteSlotResult]", ctx.suite_test_results)
+        slot_counts = _test_slot_counts(test_slots)
+        common_failures = _common_failed_verifications(test_slots)
         lines = [
             "Colosseum Suite Summary",
             "=======================",
@@ -187,22 +303,30 @@ class SuiteSummaryWriter:
             f"Suite: {ctx.suite_name or ctx.test_case_name}",
             f"Config file: {ctx.config_path or 'N/A'}",
             f"Output directory: {container_dir}",
-            f"End time: {datetime.now(timezone.utc).isoformat()}",
+            f"End time: {ended_at.isoformat()}",
+        ]
+        if started_utc is not None:
+            lines.append(f"Start time: {started_utc.isoformat()}")
+            lines.append(f"Runtime: {ended_at - started_utc}")
+        lines.extend(_slot_count_lines(slot_counts))
+        lines.extend([
             f"Overall result: {overall}",
             f"Exit code: {exit_code}",
             f"Suite failed: {'yes' if ctx.session.suite_failed else 'no'}",
             f"Fail-fast stopped: {'yes' if ctx.session.fail_fast_stopped else 'no'}",
             "",
             "Test slots (determine suite pass/fail):",
-        ]
-        if not ctx.suite_test_results:
+        ])
+        if not test_slots:
             lines.append("  (none)")
-        for slot in ctx.suite_test_results:
+        for slot in test_slots:
             repeat = f" repeat={slot.repeat_index}" if slot.repeat_index is not None else ""
+            cycle = f" cycle={slot.cycle_index}" if slot.cycle_index is not None else ""
             lines.append(
-                f"  - [{slot.overall}] test={slot.test_index}{repeat} "
+                f"  - [{slot.overall}] test={slot.test_index}{repeat}{cycle} "
                 f"{slot.script_path.name} -> {slot.output_dir.name}",
             )
+        lines.extend(_common_failure_lines(common_failures))
         lines.extend(["", "All script slots:"])
         if not ctx.suite_slot_results:
             lines.append("  (none)")
@@ -212,12 +336,12 @@ class SuiteSummaryWriter:
                 f"  - {slot.phase}: {slot.script_path.name} ({result}) -> {slot.output_dir.name}",
             )
         summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        payload = {
+        payload: dict[str, object] = {
             "colosseum_version": ctx.framework_version,
             "suite": ctx.suite_name,
             "config_path": str(ctx.config_path) if ctx.config_path else None,
             "output_directory": str(container_dir),
-            "end_time_utc": datetime.now(timezone.utc).isoformat(),
+            "end_time_utc": ended_at.isoformat(),
             "overall_result": overall,
             "exit_code": exit_code,
             "suite_failed": ctx.session.suite_failed,
@@ -225,9 +349,14 @@ class SuiteSummaryWriter:
             "fail_fast_stopped": ctx.session.fail_fast_stopped,
             "fail_fast_stop_reason": ctx.session.fail_fast_stop_reason,
             "fail_fast_stop_script": ctx.session.fail_fast_stop_script,
-            "test_slots": [_slot_dict(slot) for slot in ctx.suite_test_results],
+            "test_slots": [_slot_dict(slot) for slot in test_slots],
             "all_slots": [_slot_dict(slot) for slot in ctx.suite_slot_results],
+            "test_slot_counts": slot_counts,
+            "common_failed_verifications": common_failures,
         }
+        if started_utc is not None:
+            payload["start_time_utc"] = started_utc.isoformat()
+            payload["duration_seconds"] = (ended_at - started_utc).total_seconds()
         (container_dir / "summary.json").write_text(
             json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8",
         )

@@ -1,0 +1,9 @@
+name = "cycle_fail_fast"
+cycle_count = 2
+fail_fast = true
+tests = [
+  "../scripts/cycle_a.py",
+  "../scripts/crash_test.py",
+  "../scripts/cycle_c.py",
+]
+teardown = ["../scripts/teardown_ok.py"]
