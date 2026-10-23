@@ -9,8 +9,9 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass
+from typing import Optional
 
-Point = tuple[float | None, float | None]
+Point = tuple[Optional[float], Optional[float]]
 
 
 @dataclass(frozen=True)

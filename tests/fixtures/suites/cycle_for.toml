@@ -1,5 +1,5 @@
 name = "cycle_for"
-cycle_for = "1s"
+cycle_for = "8s"
 tests = [
   "../scripts/cycle_a.py",
   "../scripts/cycle_b.py",

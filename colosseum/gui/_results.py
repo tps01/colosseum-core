@@ -274,7 +274,8 @@ def _fetch_table(
     selected = [name for name in wanted if name in present_columns]
     if "id" not in selected:
         raise sqlite3.OperationalError(f"{table} has no id column")
-    sql = f"SELECT {', '.join(selected)} FROM {table} ORDER BY id ASC"
+    # Callers pass fixed table names; selected columns come from that table's pragma.
+    sql = f"SELECT {', '.join(selected)} FROM {table} ORDER BY id ASC"  # nosec B608
     return list(connection.execute(sql))
 
 
