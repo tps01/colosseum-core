@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from colosseum.gui._browser import (
+    display_status,
     format_summary_text,
     load_run_browser_snapshot,
     load_run_snapshot,
 )
+from colosseum.gui.app import _STATUS_BUTTON_COLORS, _normalize_status
 
 
 def test_load_run_browser_snapshot_reads_statuses(isolated_cwd) -> None:
@@ -95,3 +97,57 @@ def test_format_summary_text_includes_failed_verifications() -> None:
     assert "Overall: FAIL" in text
     assert "Failed required verifications:" in text
     assert "core.verify key=voltage" in text
+    assert "Verifications (required): 1 (FAIL 1)" in text
+
+
+def test_display_status_marks_crashes_and_incomplete_runs() -> None:
+    assert display_status(None) == "incomplete"
+    assert display_status({"overall_result": "FAIL"}) == "FAIL"
+    crashed = {"overall_result": "FAIL", "suite_error": "test script failed"}
+    assert display_status(crashed) == "ERROR"
+    suite_crash = {
+        "overall_result": "FAIL",
+        "suite_fail_reason": "test_failure:a.py:script_error",
+    }
+    assert display_status(suite_crash) == "ERROR"
+    assert display_status({}) == "incomplete"
+
+
+def test_format_summary_text_includes_command_and_slot_context() -> None:
+    text = format_summary_text(
+        {
+            "overall_result": "FAIL",
+            "exit_code": 1,
+            "suite_error": "test script failed",
+            "command_counts": {"required": {"ERROR": 1}, "optional": {}},
+            "failed_required_outcomes": [
+                {
+                    "kind": "command",
+                    "domain": "core",
+                    "command": "arm",
+                    "key": "dev",
+                    "status": "ERROR",
+                    "message": "boom",
+                },
+            ],
+            "all_slots": [
+                {
+                    "phase": "test",
+                    "overall_result": "FAIL",
+                    "script": "pass_rail.py",
+                    "repeat_index": 1,
+                },
+            ],
+        },
+    )
+    assert "Suite error: test script failed" in text
+    assert "Commands (required outcomes): 1 (ERROR 1)" in text
+    assert "Failed required commands:" in text
+    assert "test [FAIL] repeat=1 pass_rail.py" in text
+
+
+def test_error_and_incomplete_use_purple() -> None:
+    purple = _STATUS_BUTTON_COLORS["NO TEST"]
+    assert _STATUS_BUTTON_COLORS[_normalize_status("ERROR")] == purple
+    assert _STATUS_BUTTON_COLORS[_normalize_status("incomplete")] == purple
+    assert _STATUS_BUTTON_COLORS[_normalize_status("FAIL")] != purple
