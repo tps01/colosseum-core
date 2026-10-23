@@ -18,8 +18,11 @@ def test_build_argv_includes_metadata_flag(tmp_path: Path) -> None:
             config_path="config.toml",
             metadata_path="meta.yaml",
             debug=True,
-        )
+            parameters_path="limits.toml",
+        ),
     )
     assert "--metadata" in argv
     meta_index = argv.index("--metadata")
     assert argv[meta_index + 1] == "meta.yaml"
+    param_index = argv.index("--parameters")
+    assert argv[param_index + 1] == "limits.toml"

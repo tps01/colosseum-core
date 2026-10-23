@@ -53,9 +53,11 @@ class RuntimeContext:
     active_script_path: Path | None = None
     slot_test_index: int | None = None
     slot_repeat_index: int | None = None
+    slot_cycle_index: int | None = None
     metadata_yaml: dict[str, Any] = field(default_factory=dict)
     metadata_path: str | None = None
     started_at: datetime | None = None
+    suite_started_at: datetime | None = None
     run_options: RunOptions = field(default_factory=RunOptions)
     active_execution_mode: ExecutionMode = "full"
     session: RunSession = field(default_factory=RunSession)

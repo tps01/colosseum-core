@@ -30,6 +30,16 @@ installed.
   plugin.
 - Update relevant docs and tests with behavior changes.
 
+One config row uses `[dotted.path]`. Use `[[dotted.path]]` only when the sample
+shows multiple rows of that same section. Do not use array-of-tables syntax as
+the default for a single instrument, profile, or service.
+
+When a test fails, reproduce the bug before fixing it. Understand why it is
+failing before addressing it. Do not adjust tests purely to obtain passing
+results. Write the least code that works, and spend the effort to reach that;
+it is more effective in the long run. When possible, substantiate claims with
+evidence such as plots, tracebacks, or links.
+
 ### Footprint (required)
 
 Follow the workspace **Minimizing footprint** section in the top-level

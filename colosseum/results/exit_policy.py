@@ -121,6 +121,7 @@ def endex() -> None:
             script_path=ctx.slot_script_path,
             test_index=ctx.slot_test_index,
             repeat_index=ctx.slot_repeat_index,
+            cycle_index=ctx.slot_cycle_index,
         )
         return
 

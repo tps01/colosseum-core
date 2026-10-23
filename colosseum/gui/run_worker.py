@@ -26,6 +26,7 @@ class RunRequest:
     config_path: str | None
     metadata_path: str | None
     debug: bool
+    parameters_path: str | None = None
 
 
 @dataclass
@@ -85,6 +86,8 @@ class RunWorker:
             argv.extend(["--config", request.config_path])
         if request.metadata_path:
             argv.extend(["--metadata", request.metadata_path])
+        if request.parameters_path:
+            argv.extend(["--parameters", request.parameters_path])
         if request.debug:
             argv.append("--debug")
         return argv
