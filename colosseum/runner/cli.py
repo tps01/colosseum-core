@@ -14,13 +14,14 @@ from colosseum.runner.command_invoke import (
     command_logical_name,
     invoke_plugin_commands,
 )
+from colosseum.runner.provenance import record_single_provenance
 from colosseum.runner.run_options import (
     RunOptions,
     RunOptionsError,
     resolve_execution_mode,
     resolve_input_path,
 )
-from colosseum.runner.runtime import ensure_runtime_ready
+from colosseum.runner.runtime import OutputNotWritableError, ensure_runtime_ready
 
 from .single_test import ScriptRunError, run_script
 from .suite import SuiteError, run_suite
@@ -244,7 +245,6 @@ def _shared_run_options(
     outputs_root = None
     if getattr(args, "output_dir", None) is not None:
         outputs_root = Path(args.output_dir).resolve()
-        outputs_root.mkdir(parents=True, exist_ok=True)
     report_cli = getattr(args, "reports", None)
     parameters_raw = getattr(args, "parameters_path", None)
     return RunOptions(
@@ -304,21 +304,24 @@ def _run_single_test(
     from colosseum.results.reports import apply_enabled_reports
 
     apply_enabled_reports(ctx)
+    resolved_parameters = resolve_parameters_path(
+        script_path=test_path,
+        cli_path=options.parameters_path,
+    )
     try:
         attach_parameters(
             ctx,
-            resolve_parameters_path(
-                script_path=test_path,
-                cli_path=options.parameters_path,
-            ),
+            resolved_parameters,
             required=options.parameters_path is not None,
         )
     except ParametersError as exc:
+        record_single_provenance(ctx, test_path, resolved_parameters)
         ctx.result_aggregator.mark_suite_error(str(exc))
         if ctx.logger is not None:
             ctx.logger.error("Parameters load failed: %s", exc)
         endex()
         return
+    record_single_provenance(ctx, test_path, resolved_parameters)
     _import_previous_evidence(ctx, options)
     try:
         if options.plugin_commands:
@@ -380,7 +383,7 @@ def run_cli(argv: list[str] | None = None) -> int:
                 no_artifacts=bool(getattr(args, "no_artifacts", False)),
                 run_options=run_options,
             )
-        except ConfigError as exc:
+        except (ConfigError, OutputNotWritableError) as exc:
             _exit_with_message(str(exc))
         return 0
 
@@ -402,7 +405,7 @@ def run_cli(argv: list[str] | None = None) -> int:
                 no_artifacts=bool(getattr(args, "no_artifacts", False)),
                 run_options=run_options,
             )
-        except (ConfigError, SuiteError) as exc:
+        except (ConfigError, SuiteError, OutputNotWritableError) as exc:
             _exit_with_message(str(exc))
         return 0
 

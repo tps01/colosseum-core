@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import logging
 import re
+import uuid
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,6 +23,29 @@ _NO_ARTIFACTS_OUTPUT_ERROR = (
     "Output directory is unavailable in no-artifacts mode; "
     "disable no_artifacts or use persisted output for file artifacts."
 )
+
+
+class OutputNotWritableError(RuntimeError):
+    """The outputs root cannot accept a run directory."""
+
+
+def ensure_outputs_writable(outputs_root: Path) -> None:
+    """Create the outputs root if needed and refuse the run when it is not writable.
+
+    ``os.access`` is not reliable on Windows, so this writes a temporary file and
+    deletes it. Failure raises :class:`OutputNotWritableError` before a timestamped
+    run folder exists.
+    """
+    try:
+        outputs_root.mkdir(parents=True, exist_ok=True)
+        probe = outputs_root / f".colosseum-write-{uuid.uuid4().hex}"
+        probe.write_bytes(b"")
+    except OSError as exc:
+        raise OutputNotWritableError(
+            f"Output directory is not writable: {outputs_root}: {exc}",
+        ) from exc
+    with suppress(OSError):
+        probe.unlink(missing_ok=True)
 
 
 def sanitize_logical_name(logical_name: str) -> str:
@@ -76,7 +101,9 @@ def ensure_runtime_ready(ctx: RuntimeContext, logical_name: str | None = None) -
         ctx.logger.debug("Runtime ready (no-artifacts mode)")
         initialize_database_if_needed(ctx)
     else:
-        output_dir = allocate_run_directory(resolve_outputs_root(ctx.run_options), logical_name)
+        outputs_root = resolve_outputs_root(ctx.run_options)
+        ensure_outputs_writable(outputs_root)
+        output_dir = allocate_run_directory(outputs_root, logical_name)
         output_dir.mkdir(parents=True, exist_ok=True)
         ctx.output_dir = output_dir
         ctx.logger = ctx.session.start_logging(
@@ -126,7 +153,9 @@ def ensure_suite_runtime_ready(ctx: RuntimeContext, suite_name: str) -> None:
             ctx, console=True, console_level=console_level, file=False,
         )
         return
-    container = allocate_run_directory(resolve_outputs_root(ctx.run_options), suite_name)
+    outputs_root = resolve_outputs_root(ctx.run_options)
+    ensure_outputs_writable(outputs_root)
+    container = allocate_run_directory(outputs_root, suite_name)
     container.mkdir(parents=True, exist_ok=True)
     ctx.suite_output_dir = container
     ctx.logger = ctx.session.start_logging(

@@ -19,6 +19,7 @@ _TABLE_SELECT_SQL = {
     "verifications": "SELECT * FROM verifications",
     "events": "SELECT * FROM events",
     "commands": "SELECT * FROM commands",
+    "provenance": "SELECT * FROM provenance",
 }
 _TABLE_COUNT_SQL = {
     "run_metadata": "SELECT COUNT(*) FROM run_metadata",
@@ -26,6 +27,7 @@ _TABLE_COUNT_SQL = {
     "verifications": "SELECT COUNT(*) FROM verifications",
     "events": "SELECT COUNT(*) FROM events",
     "commands": "SELECT COUNT(*) FROM commands",
+    "provenance": "SELECT COUNT(*) FROM provenance",
 }
 _TABLE_COUNT_KEY_SQL = {
     "run_metadata": "SELECT COUNT(*) FROM run_metadata WHERE key = ?",
@@ -98,7 +100,14 @@ MeasurementRecord = MeasurementRow
 VerificationRecord = VerificationRow
 
 _ALLOWED_TABLES = frozenset(
-    {"measurements", "verifications", "commands", "events", "run_metadata"},
+    {
+        "measurements",
+        "verifications",
+        "commands",
+        "events",
+        "run_metadata",
+        "provenance",
+    },
 )
 
 
@@ -442,6 +451,13 @@ class DatabaseManager:
         self._execute_insert(
             "INSERT OR REPLACE INTO run_metadata(key, value) VALUES (?, ?)",
             (key, value),
+        )
+
+    def insert_provenance(self, section: str, payload: object) -> None:
+        """Store one provenance section. A later write of the same section replaces it."""
+        self._execute_insert(
+            "INSERT OR REPLACE INTO provenance(section, payload_json) VALUES (?, ?)",
+            (section, json.dumps(payload, sort_keys=True)),
         )
 
     def get_measurement(

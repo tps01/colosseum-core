@@ -99,6 +99,42 @@ def read_summary_json(run_dir: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+_PLATFORM_FIELDS = frozenset(
+    {
+        "system",
+        "release",
+        "version",
+        "machine",
+        "python_version",
+        "python_implementation",
+        "executable",
+    },
+)
+
+
+def assert_provenance_artifact(run_dir: Path) -> dict[str, Any]:
+    """Provenance is in summary.json, debug.log, and the provenance table."""
+    summary = read_summary_json(run_dir)
+    provenance = summary["provenance"]
+    assert set(provenance["platform"]) == _PLATFORM_FIELDS
+    packages = provenance["packages"]
+    assert isinstance(packages["versions"], dict) and packages["versions"]
+    assert isinstance(packages["plugins"], list)
+    assert isinstance(packages["installs"], list) and packages["installs"]
+    assert isinstance(provenance["repositories"], list)
+    assert isinstance(provenance["inputs"], list)
+    log_text = (run_dir / "debug.log").read_text(encoding="utf-8")
+    for section in ("platform", "packages", "inputs", "repositories"):
+        assert f"Provenance: {section}=" in log_text
+    assert "Provenance:" not in (run_dir / "summary.txt").read_text(encoding="utf-8")
+    sections = [
+        row[0]
+        for row in query_db(run_dir, "SELECT section FROM provenance ORDER BY section")
+    ]
+    assert sections == ["inputs", "packages", "platform", "repositories"]
+    return provenance
+
+
 def find_wats_json(run_dir: Path) -> Path:
     matches = sorted(run_dir.glob("wats_*.json"))
     assert matches, f"no wats_*.json in {run_dir}"

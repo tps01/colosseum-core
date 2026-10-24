@@ -329,8 +329,9 @@ Suite variant
    ``repeat_count`` / ``repeat_for``), optional ``cycle_count`` / ``cycle_for``
    (repeat the whole test list), ``between_tests[]``, ``teardown[]``,
    ``fail_fast``. Suites that still set ``rip_cord`` raise at load time.
-2. Allocate a :term:`suite container` directory; console logging only at this
-   level.
+2. Allocate a :term:`suite container` directory. Write provenance once to the
+   container ``debug.log`` and ``execution.sqlite``. Console logging at this
+   level does not include that snapshot.
 3. For each script, ``begin_script_slot``: new aggregator, new SQLite, nested
    folder under the container.
 4. Run ``main()``. ``endex()`` inside a suite **does not exit the process** -

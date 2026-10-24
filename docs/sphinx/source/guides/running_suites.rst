@@ -133,7 +133,9 @@ Each suite run creates a **container** directory under ``outputs/``::
 
    outputs/2026-08-24_180000_boot_soak-pass/
      summary.txt          # roll-up across test slots
-     summary.json
+     summary.json         # includes provenance once
+     debug.log            # provenance block once; not a slot log
+     execution.sqlite     # provenance table only
      2026-08-24_180000_prepare/          # setup slot (no -pass/-fail suffix)
      2026-08-24_180001_boot_verify-pass/ # test slot (full artifacts + result suffix)
      2026-08-24_180030_sleep_30s/        # between_tests slot
