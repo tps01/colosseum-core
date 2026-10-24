@@ -59,4 +59,9 @@ CREATE TABLE IF NOT EXISTS commands (
 
 CREATE INDEX IF NOT EXISTS idx_commands_lookup
   ON commands(domain, command, key);
+
+CREATE TABLE IF NOT EXISTS provenance (
+  section TEXT PRIMARY KEY,
+  payload_json TEXT NOT NULL
+);
 """

@@ -68,6 +68,8 @@ class RuntimeContext:
     next_measurement_key: int = 0
     next_verification_key: int = 0
     auto_key_warned: bool = False
+    # Platform, installed distributions, and input hashes for this run or suite.
+    provenance: dict[str, object] | None = None
 
 
 def get_context() -> RuntimeContext:

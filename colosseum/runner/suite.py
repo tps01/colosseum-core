@@ -7,6 +7,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any, Callable
 
 from colosseum.config.toml_relaxed import read_relaxed_toml
+from colosseum.runner.provenance import record_suite_provenance
 from colosseum.runner.runtime import (
     begin_script_slot,
     ensure_suite_runtime_ready,
@@ -483,6 +484,14 @@ def run_suite(
 
     apply_enabled_reports(ctx)
     ensure_suite_runtime_ready(ctx, suite.name)
+    record_suite_provenance(
+        ctx,
+        suite_path=suite_path,
+        setup=suite.setup,
+        tests=[(entry.path, entry.parameters) for entry in suite.tests],
+        between_tests=suite.between_tests,
+        teardown=suite.teardown,
+    )
     runner = _ScriptRunner(run_script, ScriptRunError)
     if ctx.logger is not None:
         ctx.logger.debug(
