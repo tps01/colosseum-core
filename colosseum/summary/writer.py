@@ -241,7 +241,7 @@ class SummaryWriter:
         ]
         summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-        payload = {
+        payload: dict[str, object] = {
             "colosseum_version": ctx.framework_version,
             "test_case": ctx.test_case_name,
             "suite": ctx.suite_name,
@@ -286,6 +286,8 @@ class SummaryWriter:
             "suite_error": aggregator.suite_error,
             "teardown_failed": aggregator.teardown_failed,
         }
+        if ctx.session.kind != "suite" and ctx.provenance is not None:
+            payload["provenance"] = ctx.provenance
         (output_dir / "summary.json").write_text(
             json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8",
         )
@@ -366,6 +368,8 @@ class SuiteSummaryWriter:
             "test_slot_counts": slot_counts,
             "common_failed_verifications": common_failures,
         }
+        if ctx.provenance is not None:
+            payload["provenance"] = ctx.provenance
         if started_utc is not None:
             payload["start_time_utc"] = started_utc.isoformat()
             payload["duration_seconds"] = (ended_at - started_utc).total_seconds()

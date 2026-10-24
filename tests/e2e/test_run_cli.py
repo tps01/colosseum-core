@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import pytest
 
 from tests.support.e2e_specifications import (
+    assert_provenance_artifact,
     assert_run_artifacts,
     assert_wats_identity_fields,
     find_wats_json,
@@ -35,8 +37,14 @@ def test_pass_run_writes_full_artifacts(core_config, isolated_cwd, subprocess_en
     assert proc.returncode == 0, proc.stderr
     assert "Colosseum version:" in proc.stdout
     assert "Overall result: PASS" in proc.stdout
+    assert "Provenance:" not in proc.stdout
     run_dir = latest_output_dir(isolated_cwd)
     assert_run_artifacts(run_dir, expect_pass=True)
+    provenance = assert_provenance_artifact(run_dir)
+    digest = hashlib.md5(OPTIONAL_FAIL.read_bytes(), usedforsecurity=False).hexdigest()
+    script_rows = [row for row in provenance["inputs"] if row["role"] == "script"]
+    assert script_rows and script_rows[0]["md5"] == digest
+    assert "colosseum-core" in provenance["packages"]["versions"]
 
 
 @pytest.mark.requirement("E2E-RUN-02")

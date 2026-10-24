@@ -10,16 +10,21 @@ for directory naming and :doc:`writing_test_scripts` for a full example run.
    * - File
      - Description
    * - ``debug.log``
-     - Run header and execution log. Lines use ``%(name)s`` (for example
-       ``[colosseum.template]``). Plugin code must call
+     - Run header, execution log, and a provenance block (platform, installed
+       packages, and MD5 hashes of the input files). Lines use ``%(name)s``
+       (for example ``[colosseum.template]``). Plugin code must call
        ``colosseum.logging.get_logger`` with ``colosseum.<namespace>`` so
-       DEBUG records reach this file (see :doc:`plugins`).
+       DEBUG records reach this file (see :doc:`plugins`). The provenance
+       block is appended to this file only; it is not printed on the console.
    * - ``execution.sqlite``
-     - Measurements, verifications, events, and metadata
+     - Measurements, verifications, events, metadata, and a ``provenance``
+       table (``platform``, ``packages``, and ``inputs`` sections)
    * - ``summary.txt``
-     - End-of-run human summary (written by ``col.endex()``)
+     - End-of-run human summary (written by ``col.endex()``). Provenance is
+       not copied here.
    * - ``summary.json``
-     - End-of-run machine-readable summary (same data as ``summary.txt``)
+     - End-of-run machine-readable summary, including a ``provenance`` object
+       with the same platform, package, and input data as ``debug.log``
    * - ``wats_<datetime>_<script>.json``
      - Optional WATS WSJF JSON report. Written only when the ``wats`` report
        listener is enabled (see below).
@@ -30,6 +35,36 @@ for directory naming and :doc:`writing_test_scripts` for a full example run.
 Every run with artifacts still writes ``debug.log``, ``execution.sqlite``,
 ``summary.txt``, and ``summary.json``. Opt-in report listeners never replace
 those defaults.
+
+Provenance
+----------
+
+Before the script runs, Colosseum records the host and the files that define
+the run. A suite does this once, on the container, and does not repeat it for
+each slot.
+
+``summary.json`` stores the snapshot under ``provenance``:
+
+- ``platform`` — ``system``, ``release``, ``version``, ``machine``,
+  ``python_version``, ``python_implementation``, and ``executable`` (the
+  Python binary that ran the test).
+- ``packages.versions`` — every distribution name in that interpreter, mapped
+  to the version ``importlib.metadata.version`` resolves. ``packages.installs``
+  lists every copy, including leftovers, with ``version``, ``location``,
+  ``selected``, and, for an editable install, ``editable.path`` plus git
+  ``commit`` and ``dirty`` when that checkout is a repository.
+  ``packages.plugins`` lists selected distributions that expose a
+  ``colosseum.plugins`` entry point.
+- ``inputs`` — ``role``, ``path``, and ``md5`` for each existing input file
+  (script, config, metadata, parameters, and, for a suite, the suite file and
+  its setup, test, between, and teardown scripts).
+- ``repositories`` — git ``path``, ``commit``, and ``dirty`` for input files
+  and editable checkouts that live in a work tree. One entry per repository.
+
+``debug.log`` appends one ``Provenance:`` line per section. The ``provenance``
+table stores the same three sections as JSON. ``--no-artifacts`` skips the log
+file and the writable-directory check; a single run still stores the snapshot
+in the in-memory database.
 
 JSON and JUnit reports (opt-in)
 -------------------------------
@@ -125,10 +160,14 @@ Error outcomes (summary)
      - unchanged
      - ``summary.*`` + ``debug.log`` only; no ``wats_*.json`` / ``junit.xml``
 
-The output directory is created on first log or database write. By default, timestamped
+The output directory is created on first log or database write, after a check
+that the outputs root is writable. If that check fails, the run exits 1 and
+does not start the script or create a timestamped folder. By default, timestamped
 run folders are created under ``outputs/`` relative to the process working directory.
 Use ``-o/--output-dir`` on the CLI to choose a different output root (see
-:doc:`running_tests`). Suite runs use the suite ``name`` as the directory stem. Completed
+:doc:`running_tests`). Suite runs use the suite ``name`` as the directory stem and
+record provenance once on the container (``debug.log``, ``execution.sqlite``, and
+``summary.json``). Slot folders do not repeat that snapshot. Completed
 output directories are renamed with the final result, for example
 ``outputs/<timestamp>_<name>-pass/`` or ``outputs/<timestamp>_<name>-fail/``. Disable
 persisted output with ``--no-artifacts``, ``load_config(..., no_artifacts=True)``, or

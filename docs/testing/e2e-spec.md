@@ -26,6 +26,10 @@ for faster feedback; this document is the user-facing CLI specification.
   `summary.txt`, `summary.json`, and `wats_<datetime>_<script>.json`.
 - `run_metadata` records `overall_status=PASS` and `exit_code=0`.
 - Stdout includes `Colosseum version:` and `Overall result: PASS`.
+- `summary.json` `provenance` has `platform`, `packages` (selected versions,
+  every install, and plugins), `inputs` (the script MD5), and `repositories`.
+  `debug.log` contains `Provenance:` and stdout does not. The `provenance`
+  table has sections `platform`, `packages`, `inputs`, and `repositories`.
 
 **Fixtures:** `tests/fixtures/scripts/optional_fail_test.py`,
 `tests/fixtures/core.toml`
@@ -234,6 +238,10 @@ passes.
 - Container directory ends with `-pass`.
 - Container `summary.txt` reports overall PASS.
 - Test slot has `execution.sqlite`.
+- Container `summary.json` `provenance` (`platform`, `packages`, `inputs`,
+  `repositories`), `debug.log`, and `provenance` rows are written once. Stdout
+  and slot `debug.log` / `summary.json` / `provenance` rows do not repeat that
+  snapshot.
 
 **Fixtures:** `suites/happy.toml`
 

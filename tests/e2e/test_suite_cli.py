@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from tests.support.e2e_specifications import (
+    assert_provenance_artifact,
     assert_suite_container,
     assert_supporting_slot_artifacts,
     assert_test_slot_full_artifacts,
@@ -26,6 +29,16 @@ def _slot(container, stem: str):
     matches = slot_dirs_matching(container, stem)
     assert matches, f"no slot matching {stem!r}"
     return matches[-1]
+
+
+def _assert_slot_has_no_provenance(slot_dir) -> None:
+    log_text = (slot_dir / "debug.log").read_text(encoding="utf-8")
+    assert "Provenance:" not in log_text
+    assert query_db(slot_dir, "SELECT COUNT(*) FROM provenance") == [(0,)]
+    summary_path = slot_dir / "summary.json"
+    if summary_path.is_file():
+        payload = json.loads(summary_path.read_text(encoding="utf-8"))
+        assert "provenance" not in payload
 
 
 def test_missing_suite_file_prints_stderr(core_config, isolated_cwd, subprocess_env) -> None:
@@ -62,7 +75,12 @@ def test_happy_suite_container_passes(
     container = latest_suite_container(isolated_cwd)
     assert_suite_container(container, expect_pass=True)
     assert "Overall result: PASS" in (container / "summary.txt").read_text(encoding="utf-8")
-    assert (_slot(container, "pass_test") / "execution.sqlite").is_file()
+    assert "Provenance:" not in proc.stdout
+    assert_provenance_artifact(container)
+    test_slot = _slot(container, "pass_test")
+    assert (test_slot / "execution.sqlite").is_file()
+    for stem in ("setup_ok", "pass_test", "teardown_ok"):
+        _assert_slot_has_no_provenance(_slot(container, stem))
 
 
 @pytest.mark.requirement("E2E-SUITE-02")

@@ -112,8 +112,9 @@ Terms used in the runtime and in the user guides. See
       teardown). Each slot has its own SQLite file and nested output folder.
 
    suite container
-      Timestamped directory that holds slot folders plus the suite roll-up
-      ``summary.txt`` / ``summary.json``. Renamed ``-pass`` or ``-fail``
+      Timestamped directory that holds slot folders, the suite roll-up
+      ``summary.txt`` / ``summary.json``, and one provenance snapshot in
+      ``debug.log`` and ``execution.sqlite``. Renamed ``-pass`` or ``-fail``
       after finalize.
 
    verification
