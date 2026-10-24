@@ -41,7 +41,7 @@ def write_junit_report(
     for row in result.verifications:
         case = ET.Element("testcase")
         case.set("classname", f"{row.domain}.{row.command}")
-        case.set("name", row.key)
+        case.set("name", row.description or row.key)
         props = ET.SubElement(case, "properties")
         if abort_cause:
             _add_property(props, "cause", abort_cause)

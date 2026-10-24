@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import wraps
+from inspect import signature
 from typing import TYPE_CHECKING, Any, TypeVar, overload
 
 from colosseum.config.parameters import ParametersError, apply_parameters_to_kwargs
@@ -11,6 +12,8 @@ from colosseum.database import VerificationRow
 
 from ._common import (
     ensure_runtime_context,
+    publish_description_parameter,
+    resolve_auto_key,
     resolve_command,
     resolve_domain,
     should_skip_verification,
@@ -83,6 +86,13 @@ def _verification_fields(kwargs: dict[str, Any]) -> tuple[Any, str | None, float
     return None, None, None
 
 
+def _clean_description(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
 def _coerce_verification_result(raw_result: object, *, optional: bool) -> VerificationResult:
     if isinstance(raw_result, VerificationResult):
         return raw_result
@@ -107,23 +117,28 @@ def verification(_func: Callable[..., Any] | None = None) -> object:
     def decorate(func: Callable[..., Any]) -> Callable[..., Any]:
         domain = resolve_domain(func)
         command = resolve_command(func)
+        parameters = signature(func).parameters
+        accepts_description = "description" in parameters
+        accepts_key = "key" in parameters
 
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
             ctx = ensure_runtime_context()
             if should_skip_verification(ctx):
                 return None
-            key = kwargs.get("key")
+            key, injected = resolve_auto_key(ctx, kwargs, family="verification")
             optional = bool(kwargs.get("optional", False))
-            step_name = kwargs.get("step_name")
-            if step_name is not None:
-                step_name = str(step_name).strip() or None
             if not key:
+                description = _clean_description(kwargs.get("description"))
                 result = VerificationResult(
                     status="ERROR", message=f"`{command}` requires `key=`", optional=optional,
                 )
                 ctx.result_aggregator.record_verification(
-                    result, key="", command=command, domain=domain,
+                    result,
+                    key="",
+                    command=command,
+                    domain=domain,
+                    description=description or "",
                 )
                 ctx.db.insert_verification(
                     VerificationRow(
@@ -133,37 +148,7 @@ def verification(_func: Callable[..., Any] | None = None) -> object:
                         status=result.status,
                         optional=result.optional,
                         message=result.message,
-                        step_name=step_name,
-                    ),
-                )
-                return result
-
-            call_kwargs = dict(kwargs)
-            try:
-                call_kwargs = apply_parameters_to_kwargs(
-                    call_kwargs,
-                    key=str(key),
-                    parameters=ctx.parameters_map,
-                )
-            except ParametersError as exc:
-                result = VerificationResult(status="ERROR", message=str(exc), optional=optional)
-                ctx.result_aggregator.record_verification(
-                    result, key=str(key), command=command, domain=domain,
-                )
-                expected, compare_op, tolerance = _verification_fields(call_kwargs)
-                ctx.db.insert_verification(
-                    VerificationRow(
-                        domain=domain,
-                        command=command,
-                        key=key,
-                        expected=expected,
-                        actual=None,
-                        tolerance=tolerance,
-                        compare_op=compare_op,
-                        status=result.status,
-                        optional=result.optional,
-                        message=result.message,
-                        step_name=step_name,
+                        description=description,
                     ),
                 )
                 log_evidence(
@@ -171,12 +156,71 @@ def verification(_func: Callable[..., Any] | None = None) -> object:
                     kind="verification",
                     domain=domain,
                     command=command,
-                    key=str(key),
+                    key="",
                     status=result.status,
                     optional=result.optional,
                     detail=f"message={result.message!r}",
+                    call_args=args,
+                    kwargs=kwargs,
                 )
                 return result
+
+            call_kwargs = dict(kwargs)
+            if not injected:
+                try:
+                    call_kwargs = apply_parameters_to_kwargs(
+                        call_kwargs,
+                        key=str(key),
+                        parameters=ctx.parameters_map,
+                    )
+                except ParametersError as exc:
+                    description = _clean_description(kwargs.get("description"))
+                    result = VerificationResult(
+                        status="ERROR", message=str(exc), optional=optional,
+                    )
+                    ctx.result_aggregator.record_verification(
+                        result,
+                        key=str(key),
+                        command=command,
+                        domain=domain,
+                        description=description or "",
+                    )
+                    expected, compare_op, tolerance = _verification_fields(call_kwargs)
+                    ctx.db.insert_verification(
+                        VerificationRow(
+                            domain=domain,
+                            command=command,
+                            key=key,
+                            expected=expected,
+                            actual=None,
+                            tolerance=tolerance,
+                            compare_op=compare_op,
+                            status=result.status,
+                            optional=result.optional,
+                            message=result.message,
+                            description=description,
+                        ),
+                    )
+                    log_evidence(
+                        ctx,
+                        kind="verification",
+                        domain=domain,
+                        command=command,
+                        key=str(key),
+                        status=result.status,
+                        optional=result.optional,
+                        detail=f"message={result.message!r}",
+                        call_args=args,
+                        kwargs=kwargs,
+                    )
+                    return result
+
+            description = _clean_description(call_kwargs.get("description"))
+            logged_kwargs = dict(call_kwargs)
+            if not accepts_description:
+                call_kwargs.pop("description", None)
+            if injected and not accepts_key:
+                call_kwargs.pop("key", None)
 
             try:
                 result = _coerce_verification_result(
@@ -184,11 +228,21 @@ def verification(_func: Callable[..., Any] | None = None) -> object:
                 )
             except Exception as exc:  # noqa: BLE001
                 log_evidence_error(
-                    ctx, kind="verification", domain=domain, command=command, key=str(key),
+                    ctx,
+                    kind="verification",
+                    domain=domain,
+                    command=command,
+                    key=str(key),
+                    call_args=args,
+                    kwargs=logged_kwargs,
                 )
                 result = VerificationResult(status="ERROR", message=str(exc), optional=optional)
             ctx.result_aggregator.record_verification(
-                result, key=str(key), command=command, domain=domain,
+                result,
+                key=str(key),
+                command=command,
+                domain=domain,
+                description=description or "",
             )
             expected, compare_op, tolerance = _verification_fields(call_kwargs)
             ctx.db.insert_verification(
@@ -203,7 +257,7 @@ def verification(_func: Callable[..., Any] | None = None) -> object:
                     status=result.status,
                     optional=result.optional,
                     message=result.message,
-                    step_name=step_name,
+                    description=description,
                 ),
             )
             log_evidence(
@@ -218,10 +272,13 @@ def verification(_func: Callable[..., Any] | None = None) -> object:
                     f"expected={call_kwargs.get('expected_val')!r} "
                     f"message={result.message!r}"
                 ),
+                call_args=args,
+                kwargs=logged_kwargs,
             )
             return result
 
         setattr(wrapper, COLOSSEUM_DECORATOR, "verification")
+        publish_description_parameter(wrapper, func)
         return wrapper
 
     if _func is None:

@@ -39,8 +39,12 @@ that key are filled from the file; call values win.
 A :term:`ProceduralFault` (for example an equipment session that never opens, or
 an unreadable parameters file) records ``cause=procedural`` on the command row.
 Other exceptions record ``cause=unit``. Both still produce ``ERROR``. The
-``debug.log`` ERROR line includes the cause and a redacted kwargs repr
-(``password``, ``passwd``, ``token``, ``secret``, ``api_key``).
+command ERROR line in ``debug.log`` includes that cause.
+
+``debug.log`` records every command, measurement, and verification call with the
+arguments that were used, including values filled from a parameters file. Call
+values win. ``password``, ``passwd``, ``token``, ``secret``, and ``api_key`` are
+redacted.
 
 Measurements
 ------------
@@ -53,8 +57,9 @@ A raised exception is stored as ``status=ERROR`` with a null value, then re-rais
 The measurement error does not itself change the exit code. A later required
 verification that needs the missing value fails, and the script can still record
 other measurements. ``verify_measurement_exists`` treats the ERROR row as present.
-Missing ``key=`` and duplicate keys still raise. ``optional=`` is stripped when the
-wrapped function does not declare it.
+Duplicate keys still raise. A missing ``key=`` raises unless the procedure called
+:term:`auto_key`. ``optional=`` is stripped when the wrapped function does not
+declare it.
 
 Verifications
 -------------
@@ -75,6 +80,38 @@ the domain under which the measurement was recorded (the API module's
 Unlike commands, verification exceptions become ``VerificationResult(status="ERROR")``
 and do not abort the script. Optional verifications may fail without failing the
 aggregate result.
+
+``description=`` is optional on every verification, even when the wrapped function
+does not declare it. When set, it is the WATS step name, the label beside
+``[verification]`` in ``summary.txt``, and the JUnit testcase name. When it is
+omitted or blank, those names fall back to ``key``.
+
+Automatic keys
+--------------
+
+Call ``col.auto_key()`` near the top of ``main()`` when a procedure checks
+downloaded files or logs and does not need a meaningful evidence key. Under
+``colosseum run`` the runtime already exists, so it can be the first call. A
+direct ``python`` script calls it after ``col.config.load_config()``.
+
+After that call, a measurement or verification that omits ``key=`` (or passes
+a blank key) is stored under the next integer for that family. The first
+measurement without a key is ``"1"``, then ``"2"``, and so on. Verifications
+have their own counter, also starting at ``"1"``. An explicit ``key=`` is
+stored as given and does not consume a number. A second ``col.auto_key()`` in
+the same procedure does not restart the counters. The next suite slot starts
+with auto-keying off.
+
+The first time a key is filled in, Colosseum logs one warning:
+``Autokeying has taken place. Later verifications may fail due to not having
+the correct keys.`` Later numbered calls stay on the normal evidence line
+(``key=2``, and so on) without repeating the warning.
+
+Numbered verification keys are not looked up in a parameters file. Explicit
+keys still are. ``multi_row`` calls that omit ``key=`` each receive the next
+integer; pass ``key=`` when a series must share one key. Commands are
+unchanged. Without ``col.auto_key()``, a missing measurement key still raises
+and a missing verification key is still recorded as an ERROR.
 
 Domains
 -------

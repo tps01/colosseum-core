@@ -102,6 +102,71 @@ def should_skip_verification(ctx: RuntimeContext) -> bool:
     return _should_skip(ctx, "verification")
 
 
+def resolve_auto_key(
+    ctx: RuntimeContext,
+    kwargs: dict[str, Any],
+    *,
+    family: str,
+) -> tuple[Any, bool]:
+    """Return ``(key, injected)`` for a measurement or verification call.
+
+    An explicit key is returned unchanged. When ``key`` is omitted and
+    ``auto_key()`` is enabled, the next integer for ``family`` is written back
+    into ``kwargs`` as a decimal string. The first assignment in the procedure
+    logs one warning.
+    """
+    raw = kwargs.get("key")
+    if raw:
+        return raw, False
+    if not ctx.auto_key_enabled:
+        return None, False
+    if family == "measurement":
+        ctx.next_measurement_key += 1
+        assigned = ctx.next_measurement_key
+    else:
+        ctx.next_verification_key += 1
+        assigned = ctx.next_verification_key
+    key = str(assigned)
+    kwargs["key"] = key
+    if not ctx.auto_key_warned:
+        ctx.auto_key_warned = True
+        if ctx.logger is not None:
+            ctx.logger.warning(
+                "Autokeying has taken place. Later verifications may fail "
+                "due to not having the correct keys.",
+            )
+    return key, True
+
+
+def _publish_keyword_parameter(
+    wrapper: Callable[..., Any],
+    func: Callable[..., Any],
+    *,
+    name: str,
+    default: object,
+    annotation: object,
+) -> None:
+    original = signature(func)
+    if name in original.parameters:
+        return
+    parameter = Parameter(
+        name,
+        kind=Parameter.KEYWORD_ONLY,
+        default=default,
+        annotation=annotation,
+    )
+    parameters: list[Parameter] = []
+    inserted = False
+    for existing in original.parameters.values():
+        if not inserted and existing.kind is Parameter.VAR_KEYWORD:
+            parameters.append(parameter)
+            inserted = True
+        parameters.append(existing)
+    if not inserted:
+        parameters.append(parameter)
+    wrapper.__signature__ = original.replace(parameters=parameters)  # type: ignore[attr-defined]
+
+
 def publish_optional_parameter(wrapper: Callable[..., Any], func: Callable[..., Any]) -> None:
     """Expose keyword-only ``optional: bool = False`` on a decorator wrapper.
 
@@ -109,22 +174,12 @@ def publish_optional_parameter(wrapper: Callable[..., Any], func: Callable[..., 
     ``help()`` and Sphinx list the keyword even when the wrapped function omits it.
     Functions that already declare ``optional`` keep their own signature.
     """
-    original = signature(func)
-    if "optional" in original.parameters:
-        return
-    optional_param = Parameter(
-        "optional",
-        kind=Parameter.KEYWORD_ONLY,
-        default=False,
-        annotation=bool,
-    )
-    parameters: list[Parameter] = []
-    inserted = False
-    for param in original.parameters.values():
-        if not inserted and param.kind is Parameter.VAR_KEYWORD:
-            parameters.append(optional_param)
-            inserted = True
-        parameters.append(param)
-    if not inserted:
-        parameters.append(optional_param)
-    wrapper.__signature__ = original.replace(parameters=parameters)  # type: ignore[attr-defined]
+    _publish_keyword_parameter(wrapper, func, name="optional", default=False, annotation=bool)
+
+
+def publish_description_parameter(wrapper: Callable[..., Any], func: Callable[..., Any]) -> None:
+    """Expose keyword-only ``description: str = ""`` on a verification wrapper.
+
+    Functions that already declare ``description`` keep their own signature.
+    """
+    _publish_keyword_parameter(wrapper, func, name="description", default="", annotation=str)

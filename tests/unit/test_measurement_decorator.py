@@ -102,6 +102,33 @@ def test_optional_measurement_error_continues_and_verification_fails(ctx) -> Non
     assert later.value == 7
 
 
+def test_debug_log_lists_call_arguments(ctx) -> None:
+    from colosseum.logging.setup import setup_logging
+
+    setup_logging(ctx, console=False, file=True)
+    long_note = "n" * 200
+
+    @measurement
+    def read_probe(*, key: str, note: str) -> int:
+        return 1
+
+    read_probe(key="probe", note=long_note)
+    assert ctx.output_dir is not None
+    text = (ctx.output_dir / "debug.log").read_text(encoding="utf-8")
+    assert "'key': 'probe'" in text
+    assert "'note': '" + long_note + "'" in text
+
+    @measurement
+    def fail_probe(*, key: str, password: str) -> int:
+        raise RuntimeError("probe failed")
+
+    with pytest.raises(RuntimeError, match="probe failed"):
+        fail_probe(key="secret", password="super-secret")
+    text = (ctx.output_dir / "debug.log").read_text(encoding="utf-8")
+    assert "super-secret" not in text
+    assert "***" in text
+
+
 def test_missing_key_raises_when_optional(ctx) -> None:
     with pytest.raises(MeasurementKeyError, match="requires `key=`"):
         _boom(key="", optional=True)

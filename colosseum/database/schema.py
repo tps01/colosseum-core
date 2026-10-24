@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS verifications (
   status TEXT NOT NULL,
   optional INTEGER NOT NULL DEFAULT 0,
   message TEXT,
-  step_name TEXT,
+  description TEXT,
   timestamp TEXT NOT NULL
 );
 

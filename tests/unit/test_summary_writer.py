@@ -34,6 +34,36 @@ def test_summary_lists_failed_required(unit_runtime_context) -> None:
     assert payload["failed_required_verifications"][0]["key"] == "rail_a"
 
 
+def test_summary_prints_verification_description(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    out = ctx.output_dir
+    assert out is not None
+    ctx.result_aggregator.record_verification(
+        VerificationResult(status="FAIL", message="out of tolerance", optional=False),
+        key="rail_a",
+        command="verify_voltage",
+        domain="equipment",
+        description="Verify rail voltage",
+    )
+    ctx.result_aggregator.record_verification(
+        VerificationResult(status="FAIL", message="other", optional=False),
+        key="rail_b",
+        command="verify_voltage",
+        domain="equipment",
+    )
+    SummaryWriter().write(out, ctx.result_aggregator, ctx)
+    text = (out / "summary.txt").read_text(encoding="utf-8")
+    assert (
+        "[verification] Verify rail voltage equipment.verify_voltage key=rail_a: "
+        "out of tolerance"
+    ) in text
+    assert "[verification] equipment.verify_voltage key=rail_b: other" in text
+    payload = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+    described, plain = payload["failed_required_verifications"]
+    assert described["description"] == "Verify rail voltage"
+    assert plain["description"] == ""
+
+
 def test_summary_json_splits_failed_commands_from_verifications(unit_runtime_context) -> None:
     import json
 

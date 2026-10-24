@@ -27,6 +27,14 @@ def redact_kwargs(kwargs: dict[str, Any]) -> dict[str, Any]:
     return redacted
 
 
+def call_args_text(args: tuple[Any, ...], kwargs: dict[str, Any]) -> str:
+    """Format a call's arguments without truncating values."""
+    redacted = redact_kwargs(kwargs)
+    if args:
+        return f"args={args!r} kwargs={redacted!r}"
+    return f"args={redacted!r}"
+
+
 def log_evidence(
     ctx: RuntimeContext,
     *,
@@ -37,11 +45,18 @@ def log_evidence(
     status: str,
     optional: bool = False,
     detail: str = "",
+    call_args: tuple[Any, ...] = (),
+    kwargs: dict[str, Any] | None = None,
 ) -> None:
     if ctx.logger is None:
         return
+    parts: list[str] = []
+    if kwargs is not None or call_args:
+        parts.append(call_args_text(call_args, kwargs or {}))
     if detail:
-        ctx.logger.debug("%s %s.%s key=%s %s", kind, domain, command, key, detail)
+        parts.append(detail)
+    if parts:
+        ctx.logger.debug("%s %s.%s key=%s %s", kind, domain, command, key, " ".join(parts))
     ctx.logger.info(
         "%s %s.%s key=%s status=%s optional=%s",
         kind,
@@ -61,13 +76,14 @@ def log_evidence_error(
     command: str,
     key: str,
     cause: str = "",
+    call_args: tuple[Any, ...] = (),
     kwargs: dict[str, Any] | None = None,
 ) -> None:
     if ctx.logger is None:
         return
     args_text = ""
-    if kwargs is not None:
-        args_text = f" args={short_repr(redact_kwargs(kwargs))}"
+    if kwargs is not None or call_args:
+        args_text = " " + call_args_text(call_args, kwargs or {})
     cause_text = f" cause={cause}" if cause else ""
     ctx.logger.exception(
         "%s %s.%s key=%s status=ERROR%s%s",

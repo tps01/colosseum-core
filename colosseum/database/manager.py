@@ -66,7 +66,7 @@ class VerificationRow:
     status: str = "PASS"
     optional: bool = False
     message: str | None = ""
-    step_name: str | None = None
+    description: str | None = None
     timestamp: str = ""
     id: int | None = None
 
@@ -189,7 +189,7 @@ def _verification_record(item: tuple[object, ...]) -> VerificationRecord:
         status=str(item[8]),
         optional=bool(item[9]),
         message=item[10],  # type: ignore[arg-type]
-        step_name=item[11],  # type: ignore[arg-type]
+        description=item[11],  # type: ignore[arg-type]
         timestamp=str(item[12]),
     )
 
@@ -413,7 +413,7 @@ class DatabaseManager:
             """
             INSERT INTO verifications
             (domain, command, key, expected_json, actual_json, tolerance_json, compare_op,
-             status, optional, message, step_name, timestamp)
+             status, optional, message, description, timestamp)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
@@ -427,7 +427,7 @@ class DatabaseManager:
                 row.status,
                 1 if row.optional else 0,
                 row.message,
-                row.step_name,
+                row.description,
                 ts,
             ),
         )
@@ -494,7 +494,7 @@ class DatabaseManager:
             cur = conn.execute(
                 """
                 SELECT id, domain, command, key, expected_json, actual_json, tolerance_json,
-                       compare_op, status, optional, message, step_name, timestamp
+                       compare_op, status, optional, message, description, timestamp
                 FROM verifications ORDER BY id ASC
                 """,
             )

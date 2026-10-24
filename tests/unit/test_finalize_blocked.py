@@ -156,6 +156,7 @@ def test_junit_blocked_failure_and_command_error(ctx, tmp_path: Path) -> None:
     root = ET.parse(path).getroot()
     cases = root.findall("testcase")
     assert len(cases) == 1
+    assert cases[0].get("name") == "rail"
     failure = cases[0].find("failure")
     assert failure is not None
     assert failure.get("type") == "BLOCKED"
@@ -184,6 +185,36 @@ def test_junit_blocked_failure_and_command_error(ctx, tmp_path: Path) -> None:
     cases2 = root2.findall("testcase")
     assert len(cases2) == 1
     assert cases2[0].find("error") is not None
+
+
+def test_junit_testcase_name_uses_description(ctx, tmp_path: Path) -> None:
+    result = FinalizeRunResult(
+        exit_code=1,
+        overall="FAIL",
+        measurement_count=0,
+        command_count=0,
+        verifications=[
+            VerificationRecord(
+                domain="core",
+                command="verify_rail",
+                key="rail",
+                description="Rail voltage",
+                status="FAIL",
+                message="low",
+            ),
+            VerificationRecord(
+                domain="core",
+                command="verify_temp",
+                key="temp",
+                status="PASS",
+            ),
+        ],
+        measurements=[],
+        commands=[],
+    )
+    path = write_junit_report(tmp_path, ctx, result)
+    names = [case.get("name") for case in ET.parse(path).getroot().findall("testcase")]
+    assert names == ["Rail voltage", "temp"]
 
 
 def test_raising_listener_leaves_exit_and_other_listener(ctx, tmp_path: Path) -> None:

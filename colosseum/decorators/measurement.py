@@ -11,6 +11,7 @@ from colosseum.database import MeasurementRow
 from ._common import (
     ensure_runtime_context,
     publish_optional_parameter,
+    resolve_auto_key,
     resolve_command,
     resolve_domain,
     should_skip_measurement,
@@ -46,7 +47,9 @@ def measurement(
     def decorate(func: Callable[..., Any]) -> Callable[..., Any]:
         domain = resolve_domain(func)
         command = resolve_command(func)
-        accepts_optional = "optional" in signature(func).parameters
+        parameters = signature(func).parameters
+        accepts_optional = "optional" in parameters
+        accepts_key = "key" in parameters
 
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
@@ -54,7 +57,7 @@ def measurement(
             if should_skip_measurement(ctx):
                 return None
             optional = bool(kwargs.get("optional", False))
-            key = kwargs.get("key")
+            key, injected = resolve_auto_key(ctx, kwargs, family="measurement")
             if not key:
                 raise MeasurementKeyError(f"`{command}` requires `key=`")
             row_index = int(kwargs.get("row_index", 0))
@@ -75,9 +78,12 @@ def measurement(
                     f"Duplicate measurement key for ({domain}, {command}, {key}, "
                     f"row_index={row_index})",
                 )
+            logged_kwargs = dict(kwargs)
             call_kwargs = dict(kwargs)
             if not accepts_optional:
                 call_kwargs.pop("optional", None)
+            if injected and not accepts_key:
+                call_kwargs.pop("key", None)
             try:
                 value = func(*args, **call_kwargs)
                 # Persist a JSON-safe form for bytes while returning the original value.
@@ -108,11 +114,19 @@ def measurement(
                     status="PASS",
                     optional=optional,
                     detail=f"row_index={row_index} value={short_repr(stored)}",
+                    call_args=args,
+                    kwargs=logged_kwargs,
                 )
                 return value
             except Exception as exc:
                 log_evidence_error(
-                    ctx, kind="measurement", domain=domain, command=command, key=key,
+                    ctx,
+                    kind="measurement",
+                    domain=domain,
+                    command=command,
+                    key=key,
+                    call_args=args,
+                    kwargs=logged_kwargs,
                 )
                 record_error_event(ctx, domain=domain, command=command, exc=exc)
                 ctx.db.insert_measurement(

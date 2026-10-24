@@ -83,6 +83,7 @@ def command(_func: Callable[..., Any] | None = None) -> object:
                         command=command_name,
                         key=key,
                         cause=cause,
+                        call_args=args,
                         kwargs=call_kwargs,
                     )
                     record_error_event(ctx, domain=domain, command=command_name, exc=exc)
@@ -111,6 +112,7 @@ def command(_func: Callable[..., Any] | None = None) -> object:
             else:
                 key = ""
 
+            logged_kwargs = dict(call_kwargs)
             if not accepts_optional:
                 call_kwargs.pop("optional", None)
             if not accepts_key:
@@ -147,6 +149,8 @@ def command(_func: Callable[..., Any] | None = None) -> object:
                     status=result.status,
                     optional=result.optional,
                     detail=detail,
+                    call_args=args,
+                    kwargs=logged_kwargs,
                 )
                 return value
             except Exception as exc:  # noqa: BLE001
@@ -159,7 +163,8 @@ def command(_func: Callable[..., Any] | None = None) -> object:
                     command=command_name,
                     key=key,
                     cause=cause,
-                    kwargs=call_kwargs,
+                    call_args=args,
+                    kwargs=logged_kwargs,
                 )
                 record_error_event(ctx, domain=domain, command=command_name, exc=exc)
                 ctx.db.insert_command(

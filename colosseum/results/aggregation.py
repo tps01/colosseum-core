@@ -19,6 +19,7 @@ class OutcomeRecord(TypedDict):
     command: str
     domain: str
     cause: str
+    description: str
 
 
 class OutcomeCounts(TypedDict):
@@ -42,6 +43,7 @@ class ResultAggregator:
         domain: str = "",
         kind: str,
         cause: str = "",
+        description: str = "",
     ) -> None:
         self._records.append(
             {
@@ -53,6 +55,7 @@ class ResultAggregator:
                 "command": command,
                 "domain": domain,
                 "cause": cause,
+                "description": description,
             },
         )
 
@@ -63,6 +66,7 @@ class ResultAggregator:
         key: str = "",
         command: str = "",
         domain: str = "",
+        description: str = "",
     ) -> None:
         self._record_outcome(
             result,
@@ -70,6 +74,7 @@ class ResultAggregator:
             command=command,
             domain=domain,
             kind="verification",
+            description=description,
         )
 
     def record_command(
@@ -102,6 +107,7 @@ class ResultAggregator:
                 "command": "suite",
                 "domain": "runner",
                 "cause": "",
+                "description": "",
             },
         )
 
