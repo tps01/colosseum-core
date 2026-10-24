@@ -229,11 +229,50 @@ def test_maximum_exact_and_log_compare_ops_persisted(ctx) -> None:
     assert row["compare_op"] == "LOG"
 
 
-def test_step_name_persisted(ctx) -> None:
+def test_description_persisted_without_parameter(ctx) -> None:
     @verification()
-    def named(*, key: str, step_name: str = "") -> bool:
+    def named(*, key: str) -> bool:
         return True
 
-    named(key="rail", step_name="Verify rail voltage")
+    assert signature(named).parameters["description"].default == ""
+    named(key="rail", description="Verify rail voltage")
     row = ctx.db.fetch_table_rows("verifications")[-1]
-    assert row["step_name"] == "Verify rail voltage"
+    assert row["description"] == "Verify rail voltage"
+    assert row["status"] == "PASS"
+
+
+def test_blank_description_stores_null(ctx) -> None:
+    @verification()
+    def named(*, key: str) -> bool:
+        return True
+
+    named(key="rail", description="  ")
+    row = ctx.db.fetch_table_rows("verifications")[-1]
+    assert row["description"] is None
+
+
+def test_debug_log_lists_call_arguments(ctx) -> None:
+    from colosseum.logging.setup import setup_logging
+
+    setup_logging(ctx, console=False, file=True)
+    long_note = "n" * 200
+
+    @verification()
+    def named(*, key: str, note: str) -> bool:
+        return True
+
+    named(key="rail", note=long_note, description="Verify rail voltage")
+    assert ctx.output_dir is not None
+    text = (ctx.output_dir / "debug.log").read_text(encoding="utf-8")
+    assert "'key': 'rail'" in text
+    assert "'note': '" + long_note + "'" in text
+    assert "'description': 'Verify rail voltage'" in text
+
+    @verification()
+    def secret(*, key: str, password: str) -> bool:
+        raise RuntimeError("auth failed")
+
+    secret(key="auth", password="super-secret")
+    text = (ctx.output_dir / "debug.log").read_text(encoding="utf-8")
+    assert "super-secret" not in text
+    assert "***" in text

@@ -162,7 +162,7 @@ def _haystack(row: EvidenceRow) -> str:
 
 _VERIFICATION_COLUMNS = (
     "id", "domain", "command", "key", "expected_json", "actual_json", "tolerance_json",
-    "compare_op", "status", "optional", "message", "step_name",
+    "compare_op", "status", "optional", "message", "description",
 )
 _COMMAND_COLUMNS = (
     "id", "domain", "command", "key", "result_json", "status", "optional", "message", "cause",
@@ -191,7 +191,7 @@ def _read_rows(connection: sqlite3.Connection) -> list[EvidenceRow]:
                 record_id=int(item["id"]),
                 status=_cell(item, "status"),
                 optional=_flag(item, "optional"),
-                step=_cell(item, "step_name") or _cell(item, "key"),
+                step=_cell(item, "description") or _cell(item, "key"),
                 key=_cell(item, "key"),
                 actual=_display_json(actual),
                 comparison=comparison_label(op, expected, tolerance),

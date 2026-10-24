@@ -75,6 +75,33 @@ def test_optional_keyword_is_on_the_signature() -> None:
     assert list(signature(_logical_fail).parameters).count("optional") == 1
 
 
+def test_debug_log_lists_call_arguments(ctx) -> None:
+    from colosseum.logging.setup import setup_logging
+
+    setup_logging(ctx, console=False, file=True)
+    long_note = "n" * 200
+
+    @command
+    def arm(*, key: str = "", note: str = "") -> str:
+        return note
+
+    arm(key="rail", note=long_note)
+    assert ctx.output_dir is not None
+    text = (ctx.output_dir / "debug.log").read_text(encoding="utf-8")
+    assert "'key': 'rail'" in text
+    assert "'note': '" + long_note + "'" in text
+
+    @command
+    def login(*, key: str = "", password: str = "") -> None:
+        raise RuntimeError("auth failed")
+
+    with pytest.raises(RuntimeError, match="auth failed"):
+        login(key="auth", password="super-secret")
+    text = (ctx.output_dir / "debug.log").read_text(encoding="utf-8")
+    assert "super-secret" not in text
+    assert "***" in text
+
+
 def test_aggregator_exit_code_with_command_error(ctx) -> None:
     with pytest.raises(RuntimeError, match="bench action failed"):
         _failing()

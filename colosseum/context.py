@@ -64,6 +64,10 @@ class RuntimeContext:
     parameters_path: Path | None = None
     parameters_map: dict[str, dict[str, Any]] | None = None
     enabled_reports: frozenset[str] = field(default_factory=frozenset)
+    auto_key_enabled: bool = False
+    next_measurement_key: int = 0
+    next_verification_key: int = 0
+    auto_key_warned: bool = False
 
 
 def get_context() -> RuntimeContext:
@@ -72,6 +76,23 @@ def get_context() -> RuntimeContext:
             "Runtime is not initialized. Call col.config.load_config() or use `colosseum run`.",
         )
     return _ACTIVE_CONTEXT
+
+
+def auto_key() -> None:
+    """Number omitted measurement and verification keys for this procedure.
+
+    Call near the top of ``main()``. Under ``colosseum run`` the runtime already
+    exists. A direct script calls this after ``col.config.load_config()``. A
+    second call does not restart the counters.
+
+    The first omitted measurement key is ``"1"``, then ``"2"``, and so on.
+    Verifications use a separate counter. The first assignment logs a warning
+    that later verifications may fail if they expect a specific key.
+    """
+    ctx = get_context()
+    if ctx.auto_key_enabled:
+        return
+    ctx.auto_key_enabled = True
 
 
 def set_context(ctx: RuntimeContext) -> RuntimeContext:

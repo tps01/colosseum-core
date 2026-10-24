@@ -11,6 +11,12 @@ Terms used in the runtime and in the user guides. See
       and summaries. Optional report listeners (WATS, JUnit) may add files when
       enabled. Disabled with ``--no-artifacts``.
 
+   auto_key
+      ``col.auto_key()``. Opts the current procedure into numbering omitted
+      measurement and verification keys (``"1"``, ``"2"``, …) independently.
+      The first assignment logs a warning that later verifications may fail
+      if they expect a specific key.
+
    BLOCKED
       Verification status for an owed limit key that was never measured,
       usually after a required command aborted. Counts like ``FAIL`` for the
