@@ -59,7 +59,7 @@ def test_load_run_evidence_reads_sqlite_without_writing(tmp_path: Path) -> None:
     connection.executescript(SCHEMA_SQL)
     connection.execute(
         "INSERT INTO verifications (domain, command, key, expected_json, actual_json, "
-        "tolerance_json, compare_op, status, optional, message, step_name, timestamp) "
+        "tolerance_json, compare_op, status, optional, message, description, timestamp) "
         "VALUES ('core', 'verify_rail_v', 'rail_v', '3.3', '2.9', '0.0', 'GELE', 'FAIL', 0, "
         "'below', 'rail', 't')",
     )
@@ -74,7 +74,10 @@ def test_load_run_evidence_reads_sqlite_without_writing(tmp_path: Path) -> None:
     loaded = load_run_evidence(tmp_path)
     assert database.read_bytes() == before
     assert loaded.error is None
-    assert any(row.kind == "verification" and row.comparison == "3.3 ± 0" for row in loaded.rows)
+    assert any(
+        row.kind == "verification" and row.comparison == "3.3 ± 0" and row.step == "rail"
+        for row in loaded.rows
+    )
     assert any(row.kind == "command" and row.status == "ERROR" for row in loaded.rows)
 
 

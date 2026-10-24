@@ -3,6 +3,7 @@
 from importlib import metadata
 
 from . import config, database
+from .context import auto_key
 from .decorators import (
     CommandResult,
     VerificationResult,
@@ -37,5 +38,6 @@ __all__ = [
     "CommandResult",
     "VerificationResult",
     "ProceduralFault",
+    "auto_key",
     "endex",
 ]

@@ -298,7 +298,7 @@ def _verification_step(
     base: dict[str, Any] = {
         "id": step_id,
         "group": "M",
-        "name": row.step_name or row.key,
+        "name": row.description or row.key,
         "status": _wats_status(row.status),
         "tsGuid": row.key,
         "totTime": tot_time,

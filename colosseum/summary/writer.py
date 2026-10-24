@@ -24,20 +24,31 @@ def _count_by_kind(
     return counts
 
 
+def _description_prefix(row: OutcomeRecord) -> str:
+    if row.get("kind") != "verification":
+        return ""
+    text = row.get("description") or ""
+    if not isinstance(text, str):
+        text = str(text)
+    text = text.strip()
+    return f"{text} " if text else ""
+
+
 def _outcome_lines(rows: list[OutcomeRecord], *, header: str) -> list[str]:
     if not rows:
         return []
     lines = ["", header]
     for row in rows:
+        label = _description_prefix(row)
         if header.startswith("Failed"):
-            label = row.get("key") or row.get("command") or "?"
+            key = row.get("key") or row.get("command") or "?"
             lines.append(
-                f"  - [{row.get('kind', 'outcome')}] {row.get('domain', '')}."
-                f"{row.get('command', '')} key={label}: {row.get('message', '')}",
+                f"  - [{row.get('kind', 'outcome')}] {label}{row.get('domain', '')}."
+                f"{row.get('command', '')} key={key}: {row.get('message', '')}",
             )
         else:
             lines.append(
-                f"  - [{row.get('kind')}] {row.get('domain')}.{row.get('command')} "
+                f"  - [{row.get('kind')}] {label}{row.get('domain')}.{row.get('command')} "
                 f"key={row.get('key')}: {row['status']}",
             )
     return lines
@@ -267,6 +278,7 @@ class SummaryWriter:
                     "key": row.get("key", ""),
                     "status": row.get("status", ""),
                     "message": row.get("message", ""),
+                    "description": row.get("description", ""),
                 }
                 for row in failed_required
                 if row.get("kind") == "verification"
