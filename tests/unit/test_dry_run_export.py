@@ -194,9 +194,9 @@ def test_dry_run_fills_parameters_then_checks_the_signature(unit_runtime_context
     assert ping() is None
     assert ping(message="hi", extra=1) is None
     assert ping(message="ok") is None
-    assert _statuses(ctx) == ["DRY", "DRY", "DRY", "DRY", "ERROR", "ERROR", "ERROR", "DRY"]
+    assert _statuses(ctx) == ["DRY", "DRY", "DRY", "DRY", "DRY", "ERROR", "ERROR", "DRY"]
     messages = [row["message"] for row in ctx.result_aggregator._records]  # noqa: SLF001
-    assert "no section for key='other'" in messages[4]
+    assert "no section" not in messages[4]
     assert "message" in messages[5]
     assert "unexpected keyword" in messages[6]
 

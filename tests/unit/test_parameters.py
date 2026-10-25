@@ -84,8 +84,10 @@ def test_apply_fill_file_wins_and_unknown_key(tmp_path: Path) -> None:
     assert filled["tolerance"] == 0.1
     assert filled["note"] == "call"
     assert apply_parameters_to_kwargs({"x": 1}, key="rail", parameters=None) == {"x": 1}
-    with pytest.raises(ParametersError, match="no section"):
-        apply_parameters_to_kwargs({}, key="missing", parameters=tables)
+    kwargs = {"key": "missing", "voltage": 1.8}
+    unchanged = apply_parameters_to_kwargs(kwargs, key="missing", parameters=tables)
+    assert unchanged == kwargs
+    assert unchanged is not kwargs
 
 
 def test_command_key_stripped_and_fill(unit_runtime_context, tmp_path: Path) -> None:
@@ -101,7 +103,7 @@ def test_command_key_stripped_and_fill(unit_runtime_context, tmp_path: Path) -> 
     assert set_rail(key="step", voltage=1.8) == 3.3
 
 
-def test_command_unknown_key_errors(unit_runtime_context, tmp_path: Path) -> None:
+def test_command_unknown_key_keeps_call_kwargs(unit_runtime_context, tmp_path: Path) -> None:
     path = tmp_path / "parameters.toml"
     path.write_text("[step]\nvoltage = 3.3\n", encoding="utf-8")
     attach_parameters(unit_runtime_context, path)
@@ -110,11 +112,10 @@ def test_command_unknown_key_errors(unit_runtime_context, tmp_path: Path) -> Non
     def set_rail(*, voltage: float = 0.0) -> float:
         return voltage
 
-    with pytest.raises(ParametersError, match="no section"):
-        set_rail(key="other")
+    assert set_rail(key="other", voltage=1.8) == 1.8
+    assert set_rail(key="default") == 0.0
     row = unit_runtime_context.db.fetch_table_rows("commands")[-1]
-    assert row["status"] == "ERROR"
-    assert row["cause"] == "procedural"
+    assert row["status"] == "PASS"
 
 
 def test_verification_fills_limits(unit_runtime_context, tmp_path: Path) -> None:
@@ -238,3 +239,16 @@ def test_procedural_fault_sets_cause(unit_runtime_context) -> None:
     assert row["status"] == "ERROR"
     assert row["cause"] == "procedural"
     assert unit_runtime_context.result_aggregator.has_required_procedural_command_error()
+
+
+def test_verification_unknown_key_keeps_key_and_limits(unit_runtime_context) -> None:
+    unit_runtime_context.parameters_map = {"other": {"expected_val": 9.0}}
+
+    @verification
+    def check(*, key: str, expected_val: float) -> VerificationResult:
+        return VerificationResult(status="PASS", message=key, actual=expected_val)
+
+    result = check(key="script-key", expected_val=1.8)
+    assert result.status == "PASS"
+    assert result.message == "script-key"
+    assert result.actual == 1.8

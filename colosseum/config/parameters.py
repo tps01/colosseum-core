@@ -123,13 +123,11 @@ def apply_parameters_to_kwargs(
 ) -> dict[str, Any]:
     """Merge the parameters table for ``key`` over the call.
 
-    When a parameters file is loaded, ``key`` must exist in the file. A field
-    present in that section overrides the call. A field only on the call is kept.
+    Keys absent from the parameters file keep the call kwargs unchanged. A field
+    present in a matching section overrides the call. Other call fields are kept.
     """
-    if parameters is None:
+    if parameters is None or key not in parameters:
         return dict(kwargs)
-    if key not in parameters:
-        raise ParametersError(f"Parameters file has no section for key={key!r}")
     merged = dict(kwargs)
     merged.update(parameters[key])
     return merged

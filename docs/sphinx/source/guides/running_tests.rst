@@ -82,8 +82,7 @@ Shared path and config flags for ``colosseum run`` and ``colosseum run-suite``:
   verification. The default policy logs arguments and does not call the function.
   Omitted measurement and verification keys fail the slot unless the script called
   ``col.auto_key()``. The walk checks duplicate measurements, ``multi_row`` row
-  indexes, verification keys that have no measurement yet, missing parameters-file
-  sections, and call signatures. It records each problem and continues, and a required error fails
+  indexes, verification keys that have no measurement yet, and call signatures. It records each problem and continues, and a required error fails
   the slot. ``debug.log``, ``summary.txt``, and ``summary.json`` are still written.
   ``run-suite --dry-run`` uses the same checks on every slot.
 - ``--parameters PATH`` - parameters TOML (limits and per-key kwargs) for this run

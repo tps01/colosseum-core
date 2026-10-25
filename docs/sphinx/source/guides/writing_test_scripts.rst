@@ -132,8 +132,8 @@ Resolution order (first hit wins):
    :alt: Parameters file resolution and BLOCKED owed limits
    :align: center
 
-When a file is loaded, an unknown ``key=`` fails at the call as a
-:term:`ProceduralFault`. A present but invalid file fails the slot before
+When a file is loaded, a ``key=`` without a matching section keeps the script
+call arguments unchanged. A present but invalid file fails the slot before
 ``main``. Sections that contain ``expected_val``, ``tolerance``, ``minimum``,
 ``maximum``, ``exact``, or ``expected`` are owed limits: if the run aborts
 before those keys are measured, finalize inserts ``BLOCKED`` verification rows.
