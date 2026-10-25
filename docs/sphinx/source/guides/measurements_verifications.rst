@@ -33,8 +33,8 @@ The runner still calls ``col.endex()`` to write the FAIL result. ``optional=True
 records the ERROR without failing the run or aborting the script.
 
 ``key=`` is stripped when the wrapped function does not declare it (the same way
-``optional=`` is stripped). When a parameters file is loaded, omitted kwargs for
-that key are filled from the file; call values win.
+``optional=`` is stripped). When a parameters file is loaded, kwargs for that
+key are filled from the file. A field in the file overrides the call.
 
 A :term:`ProceduralFault` (for example an equipment session that never opens, or
 an unreadable parameters file) records ``cause=procedural`` on the command row.
@@ -42,9 +42,9 @@ Other exceptions record ``cause=unit``. Both still produce ``ERROR``. The
 command ERROR line in ``debug.log`` includes that cause.
 
 ``debug.log`` records every command, measurement, and verification call with the
-arguments that were used, including values filled from a parameters file. Call
-values win. ``password``, ``passwd``, ``token``, ``secret``, and ``api_key`` are
-redacted.
+arguments that were used, including values filled from a parameters file. A
+field in the file overrides the call. ``password``, ``passwd``, ``token``,
+``secret``, and ``api_key`` are redacted.
 
 Measurements
 ------------

@@ -7,9 +7,15 @@ from functools import wraps
 from inspect import signature
 from typing import TYPE_CHECKING, Any, TypeVar, overload
 
-from colosseum.config.parameters import ParametersError, apply_parameters_to_kwargs
+from colosseum.config.parameters import (
+    ParametersError,
+    apply_parameters_to_kwargs,
+    coerce_bool,
+    coerce_optional_kwarg,
+)
 from colosseum.database import CommandRow
 from colosseum.exceptions import ProceduralFault
+from colosseum.units import coerce_units
 
 from ._common import (
     bind_dry_run_policy,
@@ -68,7 +74,6 @@ def command(_func: Callable[..., Any] | None = None, *, dry_run: object = "log")
             ctx = ensure_runtime_context()
             if should_skip_command(ctx):
                 return None
-            optional = bool(kwargs.get("optional", False))
             key_raw = kwargs.get("key")
             key = str(key_raw) if key_raw is not None and str(key_raw) != "" else ""
             if capture_parameter_export(
@@ -81,7 +86,7 @@ def command(_func: Callable[..., Any] | None = None, *, dry_run: object = "log")
                 domain=domain,
                 command=command_name,
                 key=key,
-                optional=optional,
+                optional=False,
                 policy=dry_run,
                 func=func,
                 call_args=args,
@@ -92,49 +97,56 @@ def command(_func: Callable[..., Any] | None = None, *, dry_run: object = "log")
             ):
                 return None
             call_kwargs = dict(kwargs)
-            if key:
-                try:
+            try:
+                if key:
                     call_kwargs = apply_parameters_to_kwargs(
                         call_kwargs,
                         key=key,
                         parameters=ctx.parameters_map,
                     )
-                except ParametersError as exc:
-                    cause = "procedural"
-                    result = CommandResult(status="ERROR", message=str(exc), optional=optional)
-                    log_evidence_error(
-                        ctx,
-                        kind="command",
+                optional = coerce_optional_kwarg(call_kwargs)
+            except ParametersError as exc:
+                optional = False
+                if "optional" in kwargs:
+                    try:
+                        optional = coerce_bool(kwargs["optional"])
+                    except ParametersError:
+                        optional = False
+                cause = "procedural"
+                result = CommandResult(status="ERROR", message=str(exc), optional=optional)
+                log_evidence_error(
+                    ctx,
+                    kind="command",
+                    domain=domain,
+                    command=command_name,
+                    key=key,
+                    cause=cause,
+                    call_args=args,
+                    kwargs=call_kwargs,
+                )
+                record_error_event(ctx, domain=domain, command=command_name, exc=exc)
+                ctx.db.insert_command(
+                    CommandRow(
                         domain=domain,
                         command=command_name,
                         key=key,
+                        result=None,
+                        status="ERROR",
+                        optional=optional,
+                        message=str(exc),
                         cause=cause,
-                        call_args=args,
-                        kwargs=call_kwargs,
-                    )
-                    record_error_event(ctx, domain=domain, command=command_name, exc=exc)
-                    ctx.db.insert_command(
-                        CommandRow(
-                            domain=domain,
-                            command=command_name,
-                            key=key,
-                            result=None,
-                            status="ERROR",
-                            optional=optional,
-                            message=str(exc),
-                            cause=cause,
-                        ),
-                    )
-                    ctx.result_aggregator.record_command(
-                        result,
-                        key=key,
-                        command=command_name,
-                        domain=domain,
-                        cause=cause,
-                    )
-                    if optional:
-                        return None
-                    raise
+                    ),
+                )
+                ctx.result_aggregator.record_command(
+                    result,
+                    key=key,
+                    command=command_name,
+                    domain=domain,
+                    cause=cause,
+                )
+                if optional:
+                    return None
+                raise
 
             logged_kwargs = dict(call_kwargs)
             if not accepts_optional:
@@ -157,6 +169,7 @@ def command(_func: Callable[..., Any] | None = None, *, dry_run: object = "log")
                 return value
 
             try:
+                call_kwargs = coerce_units(call_kwargs)
                 value = func(*args, **call_kwargs)
                 if isinstance(value, CommandResult):
                     result, stored = value, None

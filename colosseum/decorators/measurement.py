@@ -6,7 +6,9 @@ from functools import wraps
 from inspect import signature
 from typing import TYPE_CHECKING, Any, TypeVar, overload
 
+from colosseum.config.parameters import coerce_optional_kwarg
 from colosseum.database import MeasurementRow
+from colosseum.units import coerce_units
 
 from ._common import (
     bind_dry_run_policy,
@@ -64,7 +66,6 @@ def measurement(
             ctx = ensure_runtime_context()
             if should_skip_measurement(ctx):
                 return None
-            optional = bool(kwargs.get("optional", False))
             key, injected = resolve_auto_key(ctx, kwargs, family="measurement")
             key_text = "" if not key else str(key)
             if capture_parameter_export(
@@ -89,7 +90,7 @@ def measurement(
                 domain=domain,
                 command=command,
                 key=key_text,
-                optional=optional,
+                optional=False,
                 policy=dry_run,
                 func=func,
                 call_args=args,
@@ -118,8 +119,15 @@ def measurement(
                     f"Duplicate measurement key for ({domain}, {command}, {key}, "
                     f"row_index={row_index})",
                 )
-            logged_kwargs = dict(kwargs)
             call_kwargs = dict(kwargs)
+            if (
+                ctx.parameters_map is not None
+                and key_text in ctx.parameters_map
+                and "optional" in ctx.parameters_map[key_text]
+            ):
+                call_kwargs["optional"] = ctx.parameters_map[key_text]["optional"]
+            optional = coerce_optional_kwarg(call_kwargs)
+            logged_kwargs = dict(call_kwargs)
             if not accepts_optional:
                 call_kwargs.pop("optional", None)
             if injected and not accepts_key:
@@ -139,6 +147,7 @@ def measurement(
             if handled:
                 return value
             try:
+                call_kwargs = coerce_units(call_kwargs)
                 value = func(*args, **call_kwargs)
                 # Persist a JSON-safe form for bytes while returning the original value.
                 stored: Any = value
