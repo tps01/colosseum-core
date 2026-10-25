@@ -218,6 +218,19 @@ Execution modes gate the wrappers:
      - skipped
      - run (data requirements depend on the verifier)
 
+``--dry-run`` visits every command, measurement, and verification in call order,
+including each setup, between, test, and teardown slot of ``run-suite``. Omitted
+keys are an error unless the procedure called ``col.auto_key()``. On the default
+``"log"`` policy the walk also checks the same structure a real run enforces:
+a repeated measurement key, ``multi_row`` without ``row_index``, a verification
+whose evidence key has not been measured yet, a keyed call whose parameters-file
+section is missing, and a call that does not match the function signature after
+parameter values are filled in. Each problem is recorded and the walk continues.
+A required error still fails that slot. ``"call"`` runs the body, and a callable
+runs instead of the body. ``--export parameters`` uses the same walk to collect
+keys and keyword values into ``parameters.toml``, and does not call decorated
+bodies or write a scored summary.
+
 ``-u`` copies ``measurements`` and ``commands`` from the prior
 ``execution.sqlite`` and sets ``imported_from`` in metadata, then re-runs only
 verifications. This controls decorator execution; it does not make every

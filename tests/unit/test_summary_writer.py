@@ -267,6 +267,8 @@ def test_suite_summary_without_test_slots_omits_rates_and_timing(unit_runtime_co
     text = (container / "summary.txt").read_text(encoding="utf-8")
     payload = json.loads((container / "summary.json").read_text(encoding="utf-8"))
     assert "Test slots: 0 (0 pass, 0 fail)" in text
+    assert "Suite failed:" not in text
+    assert "Fail-fast stopped: no" in text
     assert "Pass:" not in text
     assert "Start time:" not in text
     assert "Runtime:" not in text
@@ -275,3 +277,25 @@ def test_suite_summary_without_test_slots_omits_rates_and_timing(unit_runtime_co
     assert "duration_seconds" not in payload
     assert payload["test_slot_counts"] == {"total": 0, "pass": 0, "fail": 0}
     assert payload["common_failed_verifications"] == []
+    assert payload["suite_failed"] is False
+
+
+def test_suite_summary_prints_fail_fast_reason(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    root = ctx.output_dir
+    assert root is not None
+    container = root / "container"
+    container.mkdir()
+    ctx.suite_test_results = []
+    ctx.session.mark_fail_fast_stopped(Path("sessions/boom.py"), "required_failure")
+
+    SuiteSummaryWriter().write(container, ctx, exit_code=1, overall="FAIL")
+
+    text = (container / "summary.txt").read_text(encoding="utf-8")
+    payload = json.loads((container / "summary.json").read_text(encoding="utf-8"))
+    assert "Overall result: FAIL" in text
+    assert "Suite failed:" not in text
+    assert "Fail-fast stopped: yes" in text
+    assert "Fail-fast reason: required_failure" in text
+    assert payload["suite_failed"] is True
+    assert payload["fail_fast_stop_reason"] == "required_failure"

@@ -68,6 +68,11 @@ class RuntimeContext:
     next_measurement_key: int = 0
     next_verification_key: int = 0
     auto_key_warned: bool = False
+    # Non-None while ``--export parameters`` is walking the script.
+    parameter_export: dict[str, dict[str, Any]] | None = None
+    export_errors: list[str] = field(default_factory=list)
+    # Measurements a dry-run log walk has already visited: domain, command, key, row_index.
+    dry_run_measurements: set[tuple[str, str, str, int]] = field(default_factory=set)
     # Platform, installed distributions, and input hashes for this run or suite.
     provenance: dict[str, object] | None = None
 

@@ -78,6 +78,14 @@ Shared path and config flags for ``colosseum run`` and ``colosseum run-suite``:
 - ``-m/--metadata PATH`` - metadata YAML (short form); likewise cwd-relative
 - ``-d/--debug`` - include DEBUG logs on stdout
 - ``--no-artifacts`` - in-memory SQLite and console logging only
+- ``--dry-run`` - walk each script and log every command, measurement, and
+  verification. The default policy logs arguments and does not call the function.
+  Omitted measurement and verification keys fail the slot unless the script called
+  ``col.auto_key()``. The walk checks duplicate measurements, ``multi_row`` row
+  indexes, verification keys that have no measurement yet, missing parameters-file
+  sections, and call signatures. It records each problem and continues, and a required error fails
+  the slot. ``debug.log``, ``summary.txt``, and ``summary.json`` are still written.
+  ``run-suite --dry-run`` uses the same checks on every slot.
 - ``--parameters PATH`` - parameters TOML (limits and per-key kwargs) for this run
 - ``--report NAME`` - enable a report listener (``wats``, ``junit``); repeatable.
   When any ``--report`` is present, that set replaces ``[colosseum.reports]``
@@ -90,6 +98,13 @@ Shared path and config flags for ``colosseum run`` and ``colosseum run-suite``:
 - ``-u/--use-previous-output PATH`` - import prior measurements/commands from a completed
   run directory and re-run verifications only (mutually exclusive with ``-p``)
 - ``--show-faults`` - opt-in ``faulthandler`` crash dumps for this run
+- ``--export parameters`` - walk the script, write ``parameters.toml`` in the run
+  folder from the keys and keyword values that were passed, and do not run decorated
+  functions or score the run. The folder is not renamed ``-pass`` or ``-fail``.
+
+``--dry-run`` and ``--export`` cannot be combined with each other, with
+``--mode`` / ``-p`` / ``-u``, or with ``--no-artifacts``. ``--export parameters``
+also requires a test file and cannot be combined with ``-c`` or ``--parameters``.
 
 Examples::
 
@@ -98,6 +113,9 @@ Examples::
    colosseum run scripts/my_test.py -p -g config/config.toml
    colosseum run scripts/my_test.py -u outputs/2026-01-01_120000_my_test-pass -g config/config.toml
    colosseum run scripts/my_test.py --parameters limits.toml --report wats --report junit -g config/config.toml
+   colosseum run scripts/my_test.py --dry-run -g config/config.toml
+   colosseum run-suite suite.toml --dry-run -g config/config.toml
+   colosseum run scripts/my_test.py --export parameters -g config/config.toml
 
 Standalone ``-c`` runs allocate a normal output directory and record command evidence
 without executing a test script. Combine ``-c`` with a script path to run plugin commands

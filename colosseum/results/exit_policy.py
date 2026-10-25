@@ -109,6 +109,11 @@ def endex() -> None:
     if ctx.finalized:
         raise SystemExit(ctx.final_exit_code if ctx.final_exit_code is not None else 1)
 
+    # The runner writes parameters.toml after main() returns. A script that
+    # calls endex() itself must not score this walk as a test run.
+    if ctx.parameter_export is not None:
+        return
+
     if ctx.session.kind == "suite" and not ctx.suite_finalized:
         from colosseum.runner.runtime import finalize_script_slot
 

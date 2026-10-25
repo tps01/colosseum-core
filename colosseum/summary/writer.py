@@ -34,6 +34,19 @@ def _description_prefix(row: OutcomeRecord) -> str:
     return f"{text} " if text else ""
 
 
+def _dry_run_lines(records: list[OutcomeRecord]) -> list[str]:
+    lines = ["", "Dry run calls:"]
+    if not records:
+        lines.append("  (none)")
+        return lines
+    for row in records:
+        lines.append(
+            f"  - [{row.get('kind', 'outcome')}] {row.get('domain', '')}."
+            f"{row.get('command', '')} key={row.get('key', '')}: {row.get('status', '')}",
+        )
+    return lines
+
+
 def _outcome_lines(rows: list[OutcomeRecord], *, header: str) -> list[str]:
     if not rows:
         return []
@@ -221,6 +234,7 @@ class SummaryWriter:
             f"End time: {datetime.now(timezone.utc).isoformat()}",
             f"Overall result: {'PASS' if aggregator.overall_pass() else 'FAIL'}",
             f"Exit code: {aggregator.exit_code()}",
+            *(["Dry run: yes"] if ctx.run_options.dry_run else []),
             "",
             f"Measurements: {measurement_count}",
             f"Commands: {command_count}",
@@ -236,6 +250,7 @@ class SummaryWriter:
             *_count_lines(
                 "Commands (optional outcomes)", "optional command", optional_commands,
             ),
+            *(_dry_run_lines(records) if ctx.run_options.dry_run else []),
             *_outcome_lines(failed_required, header="Failed required outcomes:"),
             *_outcome_lines(aggregator.optional_outcomes(), header="Optional outcomes:"),
         ]
@@ -288,6 +303,18 @@ class SummaryWriter:
         }
         if ctx.session.kind != "suite" and ctx.provenance is not None:
             payload["provenance"] = ctx.provenance
+        if ctx.run_options.dry_run:
+            payload["dry_run"] = True
+            payload["dry_run_calls"] = [
+                {
+                    "kind": row.get("kind", ""),
+                    "domain": row.get("domain", ""),
+                    "command": row.get("command", ""),
+                    "key": row.get("key", ""),
+                    "status": row.get("status", ""),
+                }
+                for row in records
+            ]
         (output_dir / "summary.json").write_text(
             json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8",
         )
@@ -326,8 +353,11 @@ class SuiteSummaryWriter:
         lines.extend([
             f"Overall result: {overall}",
             f"Exit code: {exit_code}",
-            f"Suite failed: {'yes' if ctx.session.suite_failed else 'no'}",
             f"Fail-fast stopped: {'yes' if ctx.session.fail_fast_stopped else 'no'}",
+        ])
+        if ctx.session.fail_fast_stop_reason:
+            lines.append(f"Fail-fast reason: {ctx.session.fail_fast_stop_reason}")
+        lines.extend([
             "",
             "Test slots (determine suite pass/fail):",
         ])

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import suppress
 from inspect import signature
 
 import pytest
@@ -71,6 +72,15 @@ def test_measurement_error_records_and_raises(ctx) -> None:
     assert row is not None
     assert row.status == "ERROR"
     assert row.value is None
+    assert ctx.result_aggregator.overall_pass() is False
+
+
+def test_caught_measurement_error_still_fails_the_slot(ctx) -> None:
+    with suppress(RuntimeError):
+        _boom(key="caught")
+    assert ctx.result_aggregator.overall_pass() is False
+    failed = ctx.result_aggregator.failed_required_outcomes()
+    assert any(row["kind"] == "measurement" and row["key"] == "caught" for row in failed)
 
 
 def test_optional_measurement_error_continues_and_verification_fails(ctx) -> None:

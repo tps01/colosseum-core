@@ -164,6 +164,14 @@ before those keys are measured, finalize inserts ``BLOCKED`` verification rows.
 See ``examples/parameters/`` in the core package. For ready-made bench procedures,
 copy a folder from :doc:`testware_library`.
 
+``colosseum run SCRIPT --export parameters`` walks ``main()`` and writes
+``parameters.toml`` in the run folder. Sections are the evidence keys. Values are
+the keyword arguments passed on ``@command``, ``@measurement``, and
+``@verification`` calls, except ``key``, ``optional``, ``description``, and
+``row_index``. Decorated functions are not called, and the folder is not renamed
+with a pass or fail suffix. Variables and ``col.auto_key()`` are evaluated
+because ``main()`` still runs.
+
 Metadata (optional)
 -------------------
 

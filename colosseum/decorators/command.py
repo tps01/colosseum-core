@@ -12,7 +12,11 @@ from colosseum.database import CommandRow
 from colosseum.exceptions import ProceduralFault
 
 from ._common import (
+    bind_dry_run_policy,
+    capture_parameter_export,
     ensure_runtime_context,
+    finish_dry_run_log,
+    invoke_dry_run_substitute,
     publish_optional_parameter,
     resolve_command,
     resolve_domain,
@@ -46,10 +50,12 @@ def command(func: Callable[P, R], /) -> Callable[P, R]: ...
 
 
 @overload
-def command(func: None = None, /) -> Callable[[Callable[P, R]], Callable[P, R]]: ...
+def command(
+    func: None = None, /, *, dry_run: object = "log",
+) -> Callable[[Callable[P, R]], Callable[P, R]]: ...
 
 
-def command(_func: Callable[..., Any] | None = None) -> object:
+def command(_func: Callable[..., Any] | None = None, *, dry_run: object = "log") -> object:
     def decorate(func: Callable[..., Any]) -> Callable[..., Any]:
         domain = resolve_domain(func)
         command_name = resolve_command(func)
@@ -64,9 +70,29 @@ def command(_func: Callable[..., Any] | None = None) -> object:
                 return None
             optional = bool(kwargs.get("optional", False))
             key_raw = kwargs.get("key")
+            key = str(key_raw) if key_raw is not None and str(key_raw) != "" else ""
+            if capture_parameter_export(
+                ctx, kind="command", command=command_name, key=key, kwargs=kwargs,
+            ):
+                return None
+            if finish_dry_run_log(
+                ctx,
+                kind="command",
+                domain=domain,
+                command=command_name,
+                key=key,
+                optional=optional,
+                policy=dry_run,
+                func=func,
+                call_args=args,
+                kwargs=kwargs,
+                apply_parameters=True,
+                pop_key=not accepts_key,
+                pop_optional=not accepts_optional,
+            ):
+                return None
             call_kwargs = dict(kwargs)
-            if key_raw is not None and str(key_raw) != "":
-                key = str(key_raw)
+            if key:
                 try:
                     call_kwargs = apply_parameters_to_kwargs(
                         call_kwargs,
@@ -109,14 +135,26 @@ def command(_func: Callable[..., Any] | None = None) -> object:
                     if optional:
                         return None
                     raise
-            else:
-                key = ""
 
             logged_kwargs = dict(call_kwargs)
             if not accepts_optional:
                 call_kwargs.pop("optional", None)
             if not accepts_key:
                 call_kwargs.pop("key", None)
+            handled, value = invoke_dry_run_substitute(
+                ctx,
+                kind="command",
+                domain=domain,
+                command=command_name,
+                key=key,
+                optional=optional,
+                policy=dry_run,
+                call_args=args,
+                call_kwargs=call_kwargs,
+                logged_kwargs=logged_kwargs,
+            )
+            if handled:
+                return value
 
             try:
                 value = func(*args, **call_kwargs)
@@ -191,6 +229,7 @@ def command(_func: Callable[..., Any] | None = None) -> object:
                 raise
 
         setattr(wrapper, COLOSSEUM_DECORATOR, "command")
+        bind_dry_run_policy(wrapper, dry_run)
         publish_optional_parameter(wrapper, func)
         return wrapper
 

@@ -11,7 +11,12 @@ from colosseum.config.parameters import ParametersError, apply_parameters_to_kwa
 from colosseum.database import VerificationRow
 
 from ._common import (
+    bind_dry_run_policy,
+    capture_parameter_export,
     ensure_runtime_context,
+    finish_dry_run_log,
+    finish_dry_run_missing_key,
+    invoke_dry_run_substitute,
     publish_description_parameter,
     resolve_auto_key,
     resolve_command,
@@ -110,10 +115,14 @@ def verification(func: Callable[P, R], /) -> Callable[P, R]: ...
 
 
 @overload
-def verification(func: None = None, /) -> Callable[[Callable[P, R]], Callable[P, R]]: ...
+def verification(
+    func: None = None, /, *, dry_run: object = "log",
+) -> Callable[[Callable[P, R]], Callable[P, R]]: ...
 
 
-def verification(_func: Callable[..., Any] | None = None) -> object:
+def verification(
+    _func: Callable[..., Any] | None = None, *, dry_run: object = "log",
+) -> object:
     def decorate(func: Callable[..., Any]) -> Callable[..., Any]:
         domain = resolve_domain(func)
         command = resolve_command(func)
@@ -128,6 +137,40 @@ def verification(_func: Callable[..., Any] | None = None) -> object:
                 return None
             key, injected = resolve_auto_key(ctx, kwargs, family="verification")
             optional = bool(kwargs.get("optional", False))
+            key_text = "" if not key else str(key)
+            if capture_parameter_export(
+                ctx, kind="verification", command=command, key=key_text, kwargs=kwargs,
+            ):
+                return None
+            if finish_dry_run_missing_key(
+                ctx,
+                kind="verification",
+                domain=domain,
+                command=command,
+                key=key_text,
+                call_args=args,
+                kwargs=kwargs,
+            ):
+                return None
+            if finish_dry_run_log(
+                ctx,
+                kind="verification",
+                domain=domain,
+                command=command,
+                key=key_text,
+                optional=optional,
+                policy=dry_run,
+                func=func,
+                call_args=args,
+                kwargs=kwargs,
+                description=_clean_description(kwargs.get("description")) or "",
+                injected=injected,
+                apply_parameters=not injected,
+                pop_key=injected and not accepts_key,
+                pop_description=not accepts_description,
+                require_prior_measurement=True,
+            ):
+                return None
             if not key:
                 description = _clean_description(kwargs.get("description"))
                 result = VerificationResult(
@@ -221,6 +264,21 @@ def verification(_func: Callable[..., Any] | None = None) -> object:
                 call_kwargs.pop("description", None)
             if injected and not accepts_key:
                 call_kwargs.pop("key", None)
+            handled, value = invoke_dry_run_substitute(
+                ctx,
+                kind="verification",
+                domain=domain,
+                command=command,
+                key=key_text,
+                optional=optional,
+                policy=dry_run,
+                call_args=args,
+                call_kwargs=call_kwargs,
+                logged_kwargs=logged_kwargs,
+                description=description or "",
+            )
+            if handled:
+                return value
 
             try:
                 result = _coerce_verification_result(
@@ -278,6 +336,7 @@ def verification(_func: Callable[..., Any] | None = None) -> object:
             return result
 
         setattr(wrapper, COLOSSEUM_DECORATOR, "verification")
+        bind_dry_run_policy(wrapper, dry_run)
         publish_description_parameter(wrapper, func)
         return wrapper
 

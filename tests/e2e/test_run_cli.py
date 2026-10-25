@@ -28,6 +28,7 @@ ACTIVE_DIR_PROBE = REPO / "tests" / "fixtures" / "scripts" / "active_dir_probe.p
 MEASURE_ONLY = REPO / "tests" / "fixtures" / "scripts" / "measure_only_test.py"
 VERIFY_ONLY = REPO / "tests" / "fixtures" / "scripts" / "verify_only_test.py"
 METADATA = REPO / "tests" / "fixtures" / "metadata_example.yaml"
+KEYED_VALUES = REPO / "tests" / "fixtures" / "scripts" / "keyed_values_test.py"
 
 
 @pytest.mark.requirement("E2E-RUN-01")
@@ -243,6 +244,58 @@ def test_use_previous_output_reruns_verifications(core_config, isolated_cwd, sub
     assert query_db(rerun_dir, "SELECT COUNT(*) FROM measurements")[0][0] >= 1
     assert query_db(rerun_dir, "SELECT status FROM verifications WHERE key=?", ("stored",))[0][0] == "PASS"
     assert run_metadata(rerun_dir).get("imported_from") == str(prior_dir)
+
+
+@pytest.mark.requirement("E2E-RUN-14")
+def test_dry_run_logs_calls_without_running_bodies(
+    core_config, isolated_cwd, subprocess_env,
+) -> None:
+    """--dry-run logs decorated calls and does not run a default log body."""
+    proc = run_cli(
+        KEYED_VALUES,
+        core_config,
+        isolated_cwd,
+        subprocess_env,
+        extra_args=["--dry-run"],
+    )
+    assert proc.returncode == 0, proc.stderr + proc.stdout
+    run_dir = latest_output_dir(isolated_cwd)
+    assert run_dir.name.endswith("-pass")
+    summary = (run_dir / "summary.txt").read_text(encoding="utf-8")
+    assert "Dry run: yes" in summary
+    assert "key=rx_level" in summary
+    debug = (run_dir / "debug.log").read_text(encoding="utf-8")
+    assert "status=DRY" in debug
+    assert "rx_level" in debug
+    assert query_db(run_dir, "SELECT COUNT(*) FROM measurements")[0][0] == 0
+
+
+@pytest.mark.requirement("E2E-RUN-15")
+def test_export_parameters_writes_file_without_scoring(
+    core_config, isolated_cwd, subprocess_env,
+) -> None:
+    """--export parameters writes parameters.toml and does not score the run."""
+    try:
+        import tomllib
+    except ModuleNotFoundError:  # pragma: no cover
+        import tomli as tomllib  # type: ignore[no-redef]
+
+    proc = run_cli(
+        KEYED_VALUES,
+        core_config,
+        isolated_cwd,
+        subprocess_env,
+        extra_args=["--export", "parameters"],
+    )
+    assert proc.returncode == 0, proc.stderr + proc.stdout
+    run_dir = latest_output_dir(isolated_cwd)
+    assert not run_dir.name.endswith("-pass")
+    assert not run_dir.name.endswith("-fail")
+    assert not (run_dir / "summary.txt").exists()
+    loaded = tomllib.loads((run_dir / "parameters.toml").read_text(encoding="utf-8"))
+    assert loaded["rx_level"]["value"] == 0.0
+    assert loaded["rx_level"]["expected_val"] == 0.0
+    assert loaded["rx_level"]["tolerance"] == 0.5
 
 
 def test_cli_config_and_metadata_pin_ignore_script_loads(
