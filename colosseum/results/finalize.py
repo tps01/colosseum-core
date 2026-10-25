@@ -72,6 +72,8 @@ def _insert_blocked_owed_keys(ctx: RuntimeContext) -> None:
     if ctx.parameters_map is None or not ctx.db.is_initialized():
         return
     measured = ctx.db.measurement_keys()
+    if ctx.run_options.dry_run:
+        measured.update(item[2] for item in ctx.dry_run_measurements)
     abort_message = _abort_message(ctx)
     for key in owed_limit_keys(ctx.parameters_map):
         if key in measured:

@@ -76,10 +76,12 @@ Suite CLI options
 -----------------
 
 Suites accept the shared path and config flags documented in :doc:`running_tests`
-(``-i``, ``-o``, ``-g``, ``-m``, ``-d``, ``--no-artifacts``). Suites also accept
-``-p/--procedure`` or ``--mode procedure``, which run **test** slots in procedure
-mode (commands and measurements only; verifications are skipped). Setup,
-``between_tests``, and teardown slots always use full mode. Suites reject
+(``-i``, ``-o``, ``-g``, ``-m``, ``-d``, ``--no-artifacts``, ``--dry-run``).
+``--dry-run`` walks every slot with the same procedure checks as a single run.
+It cannot be combined with ``--mode``, ``-p/--procedure``, or ``--no-artifacts``.
+Suites also accept ``-p/--procedure`` or ``--mode procedure``, which run **test**
+slots in procedure mode (commands and measurements only; verifications are skipped).
+Setup, ``between_tests``, and teardown slots always use full mode. Suites reject
 ``--mode verify_only`` and ``--use-previous-output`` (those remain single-run only).
 
 Worked example: between two tests

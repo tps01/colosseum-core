@@ -95,6 +95,22 @@ class ResultAggregator:
             cause=cause,
         )
 
+    def record_measurement(
+        self,
+        result: OutcomeResult,
+        *,
+        key: str = "",
+        command: str = "",
+        domain: str = "",
+    ) -> None:
+        self._record_outcome(
+            result,
+            key=key,
+            command=command,
+            domain=domain,
+            kind="measurement",
+        )
+
     def mark_suite_error(self, message: str) -> None:
         self.suite_error = True
         self._records.append(

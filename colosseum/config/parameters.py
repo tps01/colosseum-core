@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING, Any
 
 from colosseum.config.toml_relaxed import read_relaxed_toml
@@ -98,6 +99,78 @@ def apply_parameters_to_kwargs(
     merged = dict(parameters[key])
     merged.update(kwargs)
     return merged
+
+
+def toml_value_supported(value: object) -> bool:
+    """Return whether ``value`` can be written into an exported parameters file."""
+    if isinstance(value, bool):
+        return True
+    if isinstance(value, int):
+        return True
+    if isinstance(value, float):
+        return math.isfinite(value)
+    if isinstance(value, str):
+        return True
+    if isinstance(value, list):
+        return all(toml_value_supported(item) for item in value)
+    if isinstance(value, dict):
+        return all(
+            isinstance(key, str) and toml_value_supported(item) for key, item in value.items()
+        )
+    return False
+
+
+def _toml_quoted(text: str) -> str:
+    escaped = (
+        text.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
+    )
+    return f'"{escaped}"'
+
+
+def _toml_key(name: str) -> str:
+    if name and all(char.isalnum() or char in {"_", "-"} for char in name):
+        return name
+    return _toml_quoted(name)
+
+
+def _toml_value(value: object) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        return repr(value)
+    if isinstance(value, str):
+        return _toml_quoted(value)
+    if isinstance(value, list):
+        return "[" + ", ".join(_toml_value(item) for item in value) + "]"
+    if isinstance(value, dict):
+        fields = ", ".join(
+            f"{_toml_key(str(key))} = {_toml_value(item)}" for key, item in value.items()
+        )
+        return "{ " + fields + " }"
+    raise ParametersError(
+        f"cannot export value of type {type(value).__name__}",
+    )
+
+
+def write_parameters_file(path: Path, tables: dict[str, dict[str, Any]]) -> None:
+    """Write parameter sections in first-seen key order."""
+    lines: list[str] = []
+    for key, fields in tables.items():
+        lines.append(f"[{_toml_quoted(key)}]")
+        for name, value in fields.items():
+            if not toml_value_supported(value):
+                raise ParametersError(
+                    f"key={key!r} field {name} cannot be exported ({type(value).__name__})",
+                )
+            lines.append(f"{_toml_key(name)} = {_toml_value(value)}")
+        lines.append("")
+    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
 def attach_parameters(

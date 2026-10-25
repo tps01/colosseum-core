@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from colosseum.config import ConfigError, load_config
-from colosseum.context import init_context
+from colosseum.context import RuntimeContext, init_context
 from colosseum.database.evidence_import import import_evidence_from_previous
 from colosseum.results.exit_policy import endex
 from colosseum.runner.command_invoke import (
@@ -16,10 +16,12 @@ from colosseum.runner.command_invoke import (
 )
 from colosseum.runner.provenance import record_single_provenance
 from colosseum.runner.run_options import (
+    ExportKind,
     RunOptions,
     RunOptionsError,
     resolve_execution_mode,
     resolve_input_path,
+    validate_run_flags,
 )
 from colosseum.runner.runtime import OutputNotWritableError, ensure_runtime_ready
 
@@ -33,6 +35,9 @@ _EPILOG = """examples:
   colosseum run my_test.py -g config.toml
   colosseum run -c template.arm_device,key=dev1 -g config.toml
   colosseum run-suite suite.toml -g config.toml -d
+  colosseum run my_test.py --dry-run -g config.toml
+  colosseum run-suite suite.toml --dry-run -g config.toml
+  colosseum run my_test.py --export parameters -g config.toml
   colosseum --gui
 """
 
@@ -94,6 +99,14 @@ def _add_shared_run_options(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Skip outputs/, debug.log, and on-disk execution.sqlite (utility/script mode)",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Walk each script, check procedure structure, and log decorated calls "
+            "without running them unless their dry_run policy says so"
+        ),
+    )
 
 
 def _add_execution_mode_options(
@@ -137,6 +150,12 @@ def _add_run_only_options(parser: argparse.ArgumentParser) -> None:
         "--show-faults",
         action="store_true",
         help="Enable faulthandler crash dumps for this run",
+    )
+    parser.add_argument(
+        "--export",
+        choices=("parameters",),
+        default=None,
+        help="Write parameters.toml from keyed calls and do not run the test",
     )
     parser.add_argument(
         "-c",
@@ -231,10 +250,29 @@ def _shared_run_options(
     args: argparse.Namespace,
     *,
     command: str,
+    has_test_file: bool = True,
 ) -> RunOptions:
     """Resolve mode flags before any output-directory allocation."""
     previous_raw = getattr(args, "previous_output_dir", None)
     previous_path = Path(previous_raw).resolve() if previous_raw is not None else None
+    parameters_raw = getattr(args, "parameters_path", None)
+    parameters_path = Path(parameters_raw).resolve() if parameters_raw is not None else None
+    dry_run = bool(getattr(args, "dry_run", False))
+    export_arg = getattr(args, "export", None)
+    export_text = export_arg if isinstance(export_arg, str) else None
+    validate_run_flags(
+        command=command,  # type: ignore[arg-type]
+        dry_run=dry_run,
+        export=export_text,
+        mode=getattr(args, "execution_mode", None),
+        procedure=bool(getattr(args, "procedure", False)),
+        previous_output=previous_path,
+        plugin_commands=list(getattr(args, "plugin_commands", []) or []),
+        parameters_path=parameters_path,
+        has_test_file=has_test_file,
+        no_artifacts=bool(getattr(args, "no_artifacts", False)),
+    )
+    export: ExportKind | None = "parameters" if export_text == "parameters" else None
     execution_mode, previous_output_dir = resolve_execution_mode(
         command=command,  # type: ignore[arg-type]
         mode=getattr(args, "execution_mode", None),
@@ -246,7 +284,6 @@ def _shared_run_options(
     if getattr(args, "output_dir", None) is not None:
         outputs_root = Path(args.output_dir).resolve()
     report_cli = getattr(args, "reports", None)
-    parameters_raw = getattr(args, "parameters_path", None)
     return RunOptions(
         input_dir=Path(args.input_dir).resolve() if getattr(args, "input_dir", None) else None,
         outputs_root=outputs_root,
@@ -254,14 +291,49 @@ def _shared_run_options(
         previous_output_dir=previous_output_dir,
         plugin_commands=list(getattr(args, "plugin_commands", []) or []),
         show_faults=bool(getattr(args, "show_faults", False)),
-        parameters_path=Path(parameters_raw).resolve() if parameters_raw is not None else None,
+        parameters_path=parameters_path,
         report_cli=list(report_cli) if report_cli is not None else None,
+        dry_run=dry_run,
+        export=export,
     )
 
 
 def _maybe_enable_faulthandler(*, show_faults: bool) -> None:
     if show_faults:
         faulthandler.enable()
+
+
+def finish_parameter_export(ctx: RuntimeContext, *, failed: bool) -> int:
+    """Write ``parameters.toml`` when the walk succeeded, then close the runtime.
+
+    The run folder is left without a ``-pass`` or ``-fail`` suffix, and no scored
+    summary is written.
+    """
+    from colosseum.config.parameters import write_parameters_file
+    from colosseum.logging.setup import close_logger_handlers
+    from colosseum.results.finalize import close_resource_cache
+
+    errors = list(ctx.export_errors)
+    ready = not failed and not errors and ctx.parameter_export is not None
+    if ready and ctx.output_dir is None:
+        errors.append("parameter export has no output directory")
+        ready = False
+    if ready and ctx.output_dir is not None and ctx.parameter_export is not None:
+        path = ctx.output_dir / "parameters.toml"
+        write_parameters_file(path, ctx.parameter_export)
+        if ctx.logger is not None:
+            ctx.logger.info("Wrote parameters file: %s", path)
+    elif ctx.logger is not None:
+        for message in errors:
+            ctx.logger.error("Parameter export failed: %s", message)
+        if failed and not errors:
+            ctx.logger.error("Parameter export failed: script did not finish")
+    close_resource_cache(ctx.resource_cache, logger=ctx.logger)
+    if ctx.logger is not None:
+        close_logger_handlers(ctx.logger)
+    if ctx.db.is_initialized():
+        ctx.db.close()
+    return 0 if ready else 1
 
 
 def _import_previous_evidence(ctx: object, run_options: RunOptions) -> None:
@@ -304,37 +376,54 @@ def _run_single_test(
     from colosseum.results.reports import apply_enabled_reports
 
     apply_enabled_reports(ctx)
+    exporting = options.export == "parameters"
     resolved_parameters = resolve_parameters_path(
         script_path=test_path,
         cli_path=options.parameters_path,
     )
-    try:
-        attach_parameters(
-            ctx,
-            resolved_parameters,
-            required=options.parameters_path is not None,
-        )
-    except ParametersError as exc:
-        record_single_provenance(ctx, test_path, resolved_parameters)
-        ctx.result_aggregator.mark_suite_error(str(exc))
-        if ctx.logger is not None:
-            ctx.logger.error("Parameters load failed: %s", exc)
-        endex()
-        return
+    if exporting:
+        ctx.parameter_export = {}
+    else:
+        try:
+            attach_parameters(
+                ctx,
+                resolved_parameters,
+                required=options.parameters_path is not None,
+            )
+        except ParametersError as exc:
+            record_single_provenance(ctx, test_path, resolved_parameters)
+            ctx.result_aggregator.mark_suite_error(str(exc))
+            if ctx.logger is not None:
+                ctx.logger.error("Parameters load failed: %s", exc)
+            endex()
+            return
     record_single_provenance(ctx, test_path, resolved_parameters)
     _import_previous_evidence(ctx, options)
+    export_failed = False
     try:
         if options.plugin_commands:
             invoke_plugin_commands(ctx, options.plugin_commands)
         if test_path is not None:
             run_script(test_path)
     except (ScriptRunError, CommandInvokeError):
-        ctx.result_aggregator.mark_suite_error("test script failed")
+        if exporting:
+            export_failed = True
+        else:
+            ctx.result_aggregator.mark_suite_error("test script failed")
     except Exception as exc:
-        ctx.result_aggregator.mark_suite_error(f"test run failed: {exc}")
-        if ctx.logger is not None:
-            ctx.logger.exception("Unhandled error during test run")
+        if exporting:
+            export_failed = True
+            if ctx.logger is not None:
+                ctx.logger.exception("Unhandled error during parameter export")
+        else:
+            ctx.result_aggregator.mark_suite_error(f"test run failed: {exc}")
+            if ctx.logger is not None:
+                ctx.logger.exception("Unhandled error during test run")
     finally:
+        if exporting:
+            code = finish_parameter_export(ctx, failed=export_failed)
+            ctx.finalized = True
+            ctx.final_exit_code = code
         endex()
 
 
@@ -363,7 +452,11 @@ def run_cli(argv: list[str] | None = None) -> int:
 
     if args.command == "run":
         try:
-            run_options = _shared_run_options(args, command="run")
+            run_options = _shared_run_options(
+                args,
+                command="run",
+                has_test_file=bool(args.test_file),
+            )
         except RunOptionsError as exc:
             _exit_with_message(str(exc))
         _maybe_enable_faulthandler(show_faults=run_options.show_faults)

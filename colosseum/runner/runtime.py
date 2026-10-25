@@ -186,6 +186,9 @@ def begin_script_slot(
     ctx.next_measurement_key = 0
     ctx.next_verification_key = 0
     ctx.auto_key_warned = False
+    ctx.parameter_export = None
+    ctx.export_errors.clear()
+    ctx.dry_run_measurements.clear()
     ctx.started_at = datetime.now(timezone.utc).astimezone()
     # Mode/phase bookkeeping must run before the no-artifacts early return so
     # procedure applies only to test slots and supporting phases stay full.

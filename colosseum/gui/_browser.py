@@ -233,10 +233,12 @@ def format_summary_text(summary: dict[str, Any] | None) -> str:
         lines.append(f"Suite error: {summary.get('suite_error')}")
     if summary.get("teardown_failed"):
         lines.append("Teardown failed: yes")
-    if "suite_failed" in summary:
-        lines.append(f"Suite failed: {'yes' if summary.get('suite_failed') else 'no'}")
-    if summary.get("suite_fail_reason"):
-        lines.append(f"Suite fail reason: {summary.get('suite_fail_reason')}")
+    if "fail_fast_stopped" in summary:
+        lines.append(
+            f"Fail-fast stopped: {'yes' if summary.get('fail_fast_stopped') else 'no'}",
+        )
+    if summary.get("fail_fast_stop_reason"):
+        lines.append(f"Fail-fast reason: {summary.get('fail_fast_stop_reason')}")
     failed = summary.get("failed_required_verifications") or []
     if failed:
         lines.append("")

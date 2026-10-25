@@ -388,6 +388,35 @@ def test_suite_rejects_verify_only_mode(
     assert "verify_only" in combined.lower() or "invalid choice" in combined.lower()
 
 
+@pytest.mark.requirement("E2E-SUITE-13")
+def test_suite_dry_run_passes_and_missing_key_fails(
+    core_config, fixtures_dir, isolated_cwd, subprocess_env,
+) -> None:
+    """run-suite --dry-run passes a keyed script and fails a missing measurement key."""
+    passed = run_suite_cli(
+        _suite(fixtures_dir, "dry_run_pass.toml"),
+        core_config,
+        isolated_cwd,
+        subprocess_env,
+        extra_args=["--dry-run"],
+    )
+    assert passed.returncode == 0, passed.stderr + passed.stdout
+    assert latest_suite_container(isolated_cwd).name.endswith("-pass")
+
+    failed = run_suite_cli(
+        _suite(fixtures_dir, "dry_run_missing_key.toml"),
+        core_config,
+        isolated_cwd,
+        subprocess_env,
+        extra_args=["--dry-run"],
+    )
+    assert failed.returncode == 1, failed.stderr + failed.stdout
+    container = latest_suite_container(isolated_cwd)
+    assert container.name.endswith("-fail")
+    slot = _slot(container, "dry_run_missing_key")
+    assert "requires `key=`" in (slot / "summary.txt").read_text(encoding="utf-8")
+
+
 @pytest.mark.requirement("E2E-SUITE-12")
 def test_cycle_count_repeats_test_sequence(
     core_config, fixtures_dir, isolated_cwd, subprocess_env,
