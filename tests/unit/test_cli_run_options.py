@@ -109,6 +109,76 @@ def test_suite_parser_has_shared_flags_and_procedure_only() -> None:
     assert options.execution_mode == "procedure"
 
 
+def test_run_parser_accepts_dry_run_and_export() -> None:
+    dry = _build_parser().parse_args(["run", "pass_test.py", "--dry-run"])
+    dry_options = _shared_run_options(dry, command="run")
+    assert dry_options.dry_run is True
+    assert dry_options.export is None
+
+    exported = _build_parser().parse_args(["run", "pass_test.py", "--export", "parameters"])
+    export_options = _shared_run_options(exported, command="run")
+    assert export_options.export == "parameters"
+    assert export_options.dry_run is False
+
+
+def test_run_parser_rejects_dry_run_combined_with_export_or_mode() -> None:
+    both = _build_parser().parse_args(
+        ["run", "pass_test.py", "--dry-run", "--export", "parameters"],
+    )
+    with pytest.raises(RunOptionsError, match="dry-run"):
+        _shared_run_options(both, command="run")
+
+    procedure = _build_parser().parse_args(
+        ["run", "pass_test.py", "--export", "parameters", "-p"],
+    )
+    with pytest.raises(RunOptionsError, match="procedure"):
+        _shared_run_options(procedure, command="run")
+
+    previous = _build_parser().parse_args(
+        ["run", "pass_test.py", "--dry-run", "-u", "./prior"],
+    )
+    with pytest.raises(RunOptionsError, match="use-previous-output"):
+        _shared_run_options(previous, command="run")
+
+
+def test_run_parser_rejects_export_without_a_script_or_with_parameters() -> None:
+    missing = _build_parser().parse_args(["run", "--export", "parameters"])
+    with pytest.raises(RunOptionsError, match="test file"):
+        _shared_run_options(missing, command="run", has_test_file=False)
+
+    limits = _build_parser().parse_args(
+        ["run", "pass_test.py", "--export", "parameters", "--parameters", "limits.toml"],
+    )
+    with pytest.raises(RunOptionsError, match="--parameters"):
+        _shared_run_options(limits, command="run")
+
+    command = _build_parser().parse_args(
+        ["run", "pass_test.py", "--export", "parameters", "-c", "stub.ping"],
+    )
+    with pytest.raises(RunOptionsError, match="--command"):
+        _shared_run_options(command, command="run")
+
+
+def test_suite_parser_accepts_dry_run_and_rejects_procedure() -> None:
+    args = _build_parser().parse_args(["run-suite", "suite.toml", "--dry-run"])
+    options = _shared_run_options(args, command="run-suite")
+    assert options.dry_run is True
+
+    combined = _build_parser().parse_args(["run-suite", "suite.toml", "--dry-run", "-p"])
+    with pytest.raises(RunOptionsError, match="dry-run"):
+        _shared_run_options(combined, command="run-suite")
+    mode = _build_parser().parse_args(
+        ["run-suite", "suite.toml", "--dry-run", "--mode", "full"],
+    )
+    with pytest.raises(RunOptionsError, match="--mode"):
+        _shared_run_options(mode, command="run-suite")
+    quiet = _build_parser().parse_args(
+        ["run-suite", "suite.toml", "--dry-run", "--no-artifacts"],
+    )
+    with pytest.raises(RunOptionsError, match="no-artifacts"):
+        _shared_run_options(quiet, command="run-suite")
+
+
 def test_suite_parser_rejects_verify_only_mode() -> None:
     with pytest.raises(SystemExit):
         _build_parser().parse_args(

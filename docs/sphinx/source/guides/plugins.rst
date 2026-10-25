@@ -113,6 +113,21 @@ Define decorated plugin functions with keyword-only parameters (``def fn(*, ...)
 so test scripts are immediately readable to people less familiar with Python:
 ``expected_val=5``, ``units="V"``, and ``tolerance=0.5`` show intent at the call site.
 
+``--dry-run`` does not call a decorated body unless that function opts in.
+Pass ``dry_run="call"`` to run the real function, or ``dry_run=probe`` to call
+``probe`` with the same arguments instead. The default, ``dry_run="log"``, logs
+the arguments and returns ``None``.
+
+.. code-block:: python
+
+   @command(dry_run="call")
+   def comment(*, message: str) -> None:
+       _logger.info("%s", message)
+
+   @command(dry_run=probe_idn)
+   def open_instrument(*, address: str) -> None:
+       ...
+
 Decorators resolve the evidence domain when the function is defined. They
 check its module, then walk parent packages for ``__colosseum_domain__``. Set
 the package domain **before importing decorated APIs**, as the maintained

@@ -194,6 +194,40 @@ verifications.
 
 **Test:** `test_run_cli.py::test_use_previous_output_reruns_verifications`
 
+### E2E-RUN-14
+
+**Behavior:** `--dry-run` logs each decorated call and does not run a default
+`dry_run="log"` body.
+
+**Acceptance criteria:**
+
+- Exit code 0 when every measurement and verification has a key.
+- Run directory ends with `-pass`.
+- `summary.txt` contains `Dry run: yes` and the visited keys.
+- `debug.log` records `status=DRY` and the call arguments.
+- No measurement rows are written.
+
+**Fixtures:** `keyed_values_test.py`
+
+**Test:** `test_run_cli.py::test_dry_run_logs_calls_without_running_bodies`
+
+### E2E-RUN-15
+
+**Behavior:** `--export parameters` writes `parameters.toml` from keyed call
+kwargs and does not score the run.
+
+**Acceptance criteria:**
+
+- Exit code 0.
+- Run directory name has no `-pass` or `-fail` suffix.
+- `parameters.toml` contains one section per key, with the keyword values passed
+  in the script.
+- `summary.txt` is not written.
+
+**Fixtures:** `keyed_values_test.py`
+
+**Test:** `test_run_cli.py::test_export_parameters_writes_file_without_scoring`
+
 ## Direct Python execution
 
 ### E2E-DIR-01
@@ -398,6 +432,20 @@ between those executions, including across the cycle boundary.
 **Fixtures:** `suites/cycle_sequence.toml`
 
 **Test:** `test_suite_cli.py::test_cycle_count_repeats_test_sequence`
+
+### E2E-SUITE-13
+
+**Behavior:** `run-suite --dry-run` walks every slot. A passing script exits 0.
+A test slot with a missing measurement key fails the suite container.
+
+**Acceptance criteria:**
+
+- A keyed script exits 0 and the container name ends with ``-pass``.
+- A test slot that omits a measurement key exits 1 and the container name ends with ``-fail``.
+
+**Fixtures:** `suites/dry_run_pass.toml`, `suites/dry_run_missing_key.toml`
+
+**Test:** `test_suite_cli.py::test_suite_dry_run_passes_and_missing_key_fails`
 
 ## Configuration errors
 

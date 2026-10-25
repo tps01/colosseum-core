@@ -1,0 +1,3 @@
+name = "dry_run_pass"
+
+tests = ["../scripts/keyed_values_test.py"]

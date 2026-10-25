@@ -4,10 +4,17 @@ from __future__ import annotations
 
 import sys
 from inspect import Parameter, signature
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
+from colosseum.config.parameters import (
+    ParametersError,
+    apply_parameters_to_kwargs,
+    toml_value_supported,
+)
 from colosseum.context import RuntimeContext, get_context
 from colosseum.runner.runtime import ensure_runtime_ready
+
+from ._kernel import log_evidence, log_evidence_error, short_repr
 
 if TYPE_CHECKING:
     import types
@@ -175,6 +182,401 @@ def publish_optional_parameter(wrapper: Callable[..., Any], func: Callable[..., 
     Functions that already declare ``optional`` keep their own signature.
     """
     _publish_keyword_parameter(wrapper, func, name="optional", default=False, annotation=bool)
+
+
+DRY_RUN_ATTR = "__colosseum_dry_run__"
+_EXPORT_OMIT = frozenset({"key", "optional", "description", "row_index"})
+
+
+class _Outcome:
+    """Minimal status object accepted by the result aggregator."""
+
+    def __init__(self, status: str, message: str = "", *, optional: bool = False) -> None:
+        self.status = status
+        self.message = message
+        self.optional = optional
+
+
+def bind_dry_run_policy(wrapper: Callable[..., Any], policy: object) -> None:
+    """Store ``dry_run`` on a decorator wrapper.
+
+    ``"log"`` skips the body and records the arguments. ``"call"`` runs the body.
+    A callable replaces the body during a dry run.
+    """
+    if policy != "log" and policy != "call" and not callable(policy):
+        raise TypeError(
+            "dry_run must be 'log', 'call', or a callable, "
+            f"got {type(policy).__name__}",
+        )
+    setattr(wrapper, DRY_RUN_ATTR, policy)
+
+
+def _record_outcome(
+    ctx: RuntimeContext,
+    *,
+    kind: str,
+    result: _Outcome,
+    key: str,
+    command: str,
+    domain: str,
+    description: str = "",
+) -> None:
+    if kind == "command":
+        ctx.result_aggregator.record_command(
+            result, key=key, command=command, domain=domain,
+        )
+        return
+    if kind == "measurement":
+        ctx.result_aggregator.record_measurement(
+            result, key=key, command=command, domain=domain,
+        )
+        return
+    ctx.result_aggregator.record_verification(
+        result,
+        key=key,
+        command=command,
+        domain=domain,
+        description=description,
+    )
+
+
+def capture_parameter_export(
+    ctx: RuntimeContext,
+    *,
+    kind: str,
+    command: str,
+    key: str,
+    kwargs: dict[str, Any],
+) -> bool:
+    """Store one keyed call while exporting parameters.
+
+    Returns True when this call should not run. Commands without a key are
+    omitted. A measurement or verification without a key is an export error.
+    """
+    if ctx.parameter_export is None:
+        return False
+    if not key:
+        if kind != "command":
+            ctx.export_errors.append(f"`{command}` requires `key=`")
+        return True
+    section = ctx.parameter_export.setdefault(key, {})
+    for name, value in kwargs.items():
+        if name in _EXPORT_OMIT:
+            continue
+        if not toml_value_supported(value):
+            ctx.export_errors.append(
+                f"key={key!r} field {name} cannot be exported ({type(value).__name__})",
+            )
+            continue
+        section[name] = value
+    return True
+
+
+def finish_dry_run_missing_key(
+    ctx: RuntimeContext,
+    *,
+    kind: str,
+    domain: str,
+    command: str,
+    key: str,
+    call_args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> bool:
+    """Record a missing measurement or verification key and let the walk continue."""
+    if not ctx.run_options.dry_run or key:
+        return False
+    message = f"`{command}` requires `key=`"
+    _record_outcome(
+        ctx,
+        kind=kind,
+        result=_Outcome("ERROR", message),
+        key="",
+        command=command,
+        domain=domain,
+    )
+    log_evidence(
+        ctx,
+        kind=kind,
+        domain=domain,
+        command=command,
+        key="",
+        status="ERROR",
+        detail=f"message={message!r}",
+        call_args=call_args,
+        kwargs=kwargs,
+    )
+    return True
+
+
+def _measurement_already_logged(
+    ctx: RuntimeContext,
+    *,
+    domain: str,
+    command: str,
+    key: str,
+    row_index: int,
+    multi_row: bool,
+) -> bool:
+    """Return whether this measurement identity was already visited or stored."""
+    if multi_row:
+        seen = (domain, command, key, row_index) in ctx.dry_run_measurements
+    else:
+        seen = any(
+            item[0] == domain and item[1] == command and item[2] == key
+            for item in ctx.dry_run_measurements
+        )
+    if seen or not ctx.db.is_initialized():
+        return seen
+    if multi_row:
+        return (
+            ctx.db.get_measurement(
+                domain=domain, command=command, key=key, row_index=row_index,
+            )
+            is not None
+        )
+    return bool(ctx.db.list_measurements(domain=domain, command=command, key=key))
+
+
+def _evidence_key_measured(ctx: RuntimeContext, key: str) -> bool:
+    """Return whether a dry-run walk or the database already has this evidence key."""
+    if any(item[2] == key for item in ctx.dry_run_measurements):
+        return True
+    if not ctx.db.is_initialized():
+        return False
+    return key in ctx.db.measurement_keys()
+
+
+def _dry_run_structure_message(
+    ctx: RuntimeContext,
+    *,
+    kind: str,
+    domain: str,
+    command: str,
+    key: str,
+    func: Callable[..., Any],
+    call_args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    injected: bool,
+    apply_parameters: bool,
+    pop_key: bool,
+    pop_optional: bool,
+    pop_description: bool,
+    multi_row: bool,
+    require_prior_measurement: bool,
+) -> str | None:
+    """Return a procedure error for a log-policy call, remembering a valid measurement."""
+    row_index = 0
+    if kind == "measurement":
+        if multi_row and "row_index" not in kwargs:
+            return f"`{command}` with multi_row=True requires `row_index=`"
+        if multi_row:
+            try:
+                row_index = int(kwargs["row_index"])
+            except (TypeError, ValueError):
+                return f"`{command}` row_index must be an integer"
+        if _measurement_already_logged(
+            ctx,
+            domain=domain,
+            command=command,
+            key=key,
+            row_index=row_index,
+            multi_row=multi_row,
+        ):
+            if multi_row:
+                return (
+                    f"Duplicate measurement key for "
+                    f"({domain}, {command}, {key}, row_index={row_index})"
+                )
+            return f"Duplicate measurement key for ({domain}, {command}, {key})"
+    if require_prior_measurement and not _evidence_key_measured(ctx, key):
+        return f"no measurement recorded for key={key!r}"
+    call_kwargs = dict(kwargs)
+    if apply_parameters and key and not injected:
+        try:
+            call_kwargs = apply_parameters_to_kwargs(
+                call_kwargs,
+                key=key,
+                parameters=ctx.parameters_map,
+            )
+        except ParametersError as exc:
+            return str(exc)
+    if pop_optional:
+        call_kwargs.pop("optional", None)
+    if pop_key:
+        call_kwargs.pop("key", None)
+    if pop_description:
+        call_kwargs.pop("description", None)
+    # A parameters section may hold limit fields for another call on the same key.
+    # Drop file-only names the function does not accept; caller keywords still bind.
+    bound = signature(func)
+    if not any(item.kind is Parameter.VAR_KEYWORD for item in bound.parameters.values()):
+        accepted = set(bound.parameters)
+        for name in list(call_kwargs):
+            if name not in accepted and name not in kwargs:
+                del call_kwargs[name]
+    try:
+        bound.bind(*call_args, **call_kwargs)
+    except TypeError as exc:
+        return str(exc)
+    if kind == "measurement" and key:
+        ctx.dry_run_measurements.add((domain, command, key, row_index))
+    return None
+
+
+def finish_dry_run_log(
+    ctx: RuntimeContext,
+    *,
+    kind: str,
+    domain: str,
+    command: str,
+    key: str,
+    optional: bool,
+    policy: object,
+    func: Callable[..., Any],
+    call_args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    description: str = "",
+    injected: bool = False,
+    apply_parameters: bool = False,
+    pop_key: bool = False,
+    pop_optional: bool = False,
+    pop_description: bool = False,
+    multi_row: bool = False,
+    require_prior_measurement: bool = False,
+) -> bool:
+    """Check structure, log the call, and skip the body when the policy is ``log``."""
+    if not ctx.run_options.dry_run or policy != "log":
+        return False
+    message = _dry_run_structure_message(
+        ctx,
+        kind=kind,
+        domain=domain,
+        command=command,
+        key=key,
+        func=func,
+        call_args=call_args,
+        kwargs=kwargs,
+        injected=injected,
+        apply_parameters=apply_parameters,
+        pop_key=pop_key,
+        pop_optional=pop_optional,
+        pop_description=pop_description,
+        multi_row=multi_row,
+        require_prior_measurement=require_prior_measurement,
+    )
+    if message is not None:
+        _record_outcome(
+            ctx,
+            kind=kind,
+            result=_Outcome("ERROR", message=message, optional=False),
+            key=key,
+            command=command,
+            domain=domain,
+            description=description,
+        )
+        log_evidence(
+            ctx,
+            kind=kind,
+            domain=domain,
+            command=command,
+            key=key,
+            status="ERROR",
+            optional=False,
+            detail=f"message={message!r}",
+            call_args=call_args,
+            kwargs=kwargs,
+        )
+        return True
+    _record_outcome(
+        ctx,
+        kind=kind,
+        result=_Outcome("DRY", optional=optional),
+        key=key,
+        command=command,
+        domain=domain,
+        description=description,
+    )
+    log_evidence(
+        ctx,
+        kind=kind,
+        domain=domain,
+        command=command,
+        key=key,
+        status="DRY",
+        optional=optional,
+        call_args=call_args,
+        kwargs=kwargs,
+    )
+    return True
+
+
+def invoke_dry_run_substitute(
+    ctx: RuntimeContext,
+    *,
+    kind: str,
+    domain: str,
+    command: str,
+    key: str,
+    optional: bool,
+    policy: object,
+    call_args: tuple[Any, ...],
+    call_kwargs: dict[str, Any],
+    logged_kwargs: dict[str, Any],
+    description: str = "",
+) -> tuple[bool, Any]:
+    """Run a dry-run substitute. ``(False, None)`` means the real body should run."""
+    if not ctx.run_options.dry_run or policy == "call" or policy == "log":
+        return False, None
+    if not callable(policy):
+        raise TypeError(
+            "dry_run must be 'log', 'call', or a callable, "
+            f"got {type(policy).__name__}",
+        )
+    substitute = cast("Callable[..., Any]", policy)
+    try:
+        value = substitute(*call_args, **call_kwargs)
+    except Exception as exc:  # noqa: BLE001 — substitute failures are recorded, then re-raised
+        _record_outcome(
+            ctx,
+            kind=kind,
+            result=_Outcome("ERROR", str(exc)),
+            key=key,
+            command=command,
+            domain=domain,
+            description=description,
+        )
+        log_evidence_error(
+            ctx,
+            kind=kind,
+            domain=domain,
+            command=command,
+            key=key,
+            call_args=call_args,
+            kwargs=logged_kwargs,
+        )
+        raise
+    _record_outcome(
+        ctx,
+        kind=kind,
+        result=_Outcome("DRY", optional=optional),
+        key=key,
+        command=command,
+        domain=domain,
+        description=description,
+    )
+    log_evidence(
+        ctx,
+        kind=kind,
+        domain=domain,
+        command=command,
+        key=key,
+        status="DRY",
+        optional=optional,
+        detail=f"value={short_repr(value)}",
+        call_args=call_args,
+        kwargs=logged_kwargs,
+    )
+    return True, value
 
 
 def publish_description_parameter(wrapper: Callable[..., Any], func: Callable[..., Any]) -> None:

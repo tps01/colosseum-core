@@ -9,7 +9,12 @@ from typing import TYPE_CHECKING, Any, TypeVar, overload
 from colosseum.database import MeasurementRow
 
 from ._common import (
+    bind_dry_run_policy,
+    capture_parameter_export,
     ensure_runtime_context,
+    finish_dry_run_log,
+    finish_dry_run_missing_key,
+    invoke_dry_run_substitute,
     publish_optional_parameter,
     resolve_auto_key,
     resolve_command,
@@ -18,7 +23,7 @@ from ._common import (
 )
 from ._kernel import log_evidence, log_evidence_error, record_error_event, short_repr
 from ._typing import ParamSpec
-from .command import COLOSSEUM_DECORATOR
+from .command import COLOSSEUM_DECORATOR, CommandResult
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -37,12 +42,15 @@ def measurement(func: Callable[P, R], /) -> Callable[P, R]: ...
 
 @overload
 def measurement(
-    func: None = None, /, *, multi_row: bool = False,
+    func: None = None, /, *, multi_row: bool = False, dry_run: object = "log",
 ) -> Callable[[Callable[P, R]], Callable[P, R]]: ...
 
 
 def measurement(
-    _func: Callable[..., Any] | None = None, *, multi_row: bool = False,
+    _func: Callable[..., Any] | None = None,
+    *,
+    multi_row: bool = False,
+    dry_run: object = "log",
 ) -> object:
     def decorate(func: Callable[..., Any]) -> Callable[..., Any]:
         domain = resolve_domain(func)
@@ -58,8 +66,40 @@ def measurement(
                 return None
             optional = bool(kwargs.get("optional", False))
             key, injected = resolve_auto_key(ctx, kwargs, family="measurement")
+            key_text = "" if not key else str(key)
+            if capture_parameter_export(
+                ctx, kind="measurement", command=command, key=key_text, kwargs=kwargs,
+            ):
+                return None
+            if finish_dry_run_missing_key(
+                ctx,
+                kind="measurement",
+                domain=domain,
+                command=command,
+                key=key_text,
+                call_args=args,
+                kwargs=kwargs,
+            ):
+                return None
             if not key:
                 raise MeasurementKeyError(f"`{command}` requires `key=`")
+            if finish_dry_run_log(
+                ctx,
+                kind="measurement",
+                domain=domain,
+                command=command,
+                key=key_text,
+                optional=optional,
+                policy=dry_run,
+                func=func,
+                call_args=args,
+                kwargs=kwargs,
+                injected=injected,
+                pop_key=injected and not accepts_key,
+                pop_optional=not accepts_optional,
+                multi_row=multi_row,
+            ):
+                return None
             row_index = int(kwargs.get("row_index", 0))
             if multi_row and "row_index" not in kwargs:
                 raise MeasurementKeyError(f"`{command}` with multi_row=True requires `row_index=`")
@@ -84,6 +124,20 @@ def measurement(
                 call_kwargs.pop("optional", None)
             if injected and not accepts_key:
                 call_kwargs.pop("key", None)
+            handled, value = invoke_dry_run_substitute(
+                ctx,
+                kind="measurement",
+                domain=domain,
+                command=command,
+                key=key_text,
+                optional=optional,
+                policy=dry_run,
+                call_args=args,
+                call_kwargs=call_kwargs,
+                logged_kwargs=logged_kwargs,
+            )
+            if handled:
+                return value
             try:
                 value = func(*args, **call_kwargs)
                 # Persist a JSON-safe form for bytes while returning the original value.
@@ -139,11 +193,18 @@ def measurement(
                         status="ERROR",
                     ),
                 )
+                ctx.result_aggregator.record_measurement(
+                    CommandResult(status="ERROR", message=str(exc), optional=optional),
+                    key=key,
+                    command=command,
+                    domain=domain,
+                )
                 if optional:
                     return None
                 raise
 
         setattr(wrapper, COLOSSEUM_DECORATOR, "measurement")
+        bind_dry_run_policy(wrapper, dry_run)
         publish_optional_parameter(wrapper, func)
         return wrapper
 

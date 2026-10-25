@@ -1,0 +1,325 @@
+"""Dry-run policies and parameter export collection."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from colosseum.config.parameters import write_parameters_file
+from colosseum.results.finalize import _insert_blocked_owed_keys
+from colosseum.context import auto_key
+from colosseum.decorators import VerificationResult, command, measurement, verification
+from colosseum.decorators._common import DRY_RUN_ATTR
+from colosseum.runner.cli import finish_parameter_export
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover
+    import tomli as tomllib  # type: ignore[no-redef]
+
+
+def test_dry_run_log_skips_the_body(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    ctx.run_options.dry_run = True
+    called = False
+
+    @command
+    def ping(*, message: str) -> None:
+        nonlocal called
+        called = True
+
+    assert getattr(ping, DRY_RUN_ATTR) == "log"
+    assert ping(message="hi") is None
+    assert called is False
+    assert ctx.result_aggregator._records[0]["status"] == "DRY"  # noqa: SLF001
+    assert ctx.result_aggregator.overall_pass()
+    assert ctx.db.count_rows("commands") == 0
+
+
+def test_dry_run_call_runs_the_body(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    ctx.run_options.dry_run = True
+
+    @measurement(dry_run="call")
+    def capture(*, key: str, value: float) -> float:
+        return value
+
+    assert capture(key="a", value=2.0) == 2.0
+    assert ctx.db.get_measurement("core", "capture", "a") is not None
+
+
+def test_dry_run_substitute_runs_instead_of_the_body(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    ctx.run_options.dry_run = True
+
+    def probe(*, message: str) -> str:
+        return f"saw {message}"
+
+    @command(dry_run=probe)
+    def ping(*, message: str) -> None:
+        raise AssertionError("body ran")
+
+    assert ping(message="hi") == "saw hi"
+    assert ctx.db.count_rows("commands") == 0
+    assert ctx.result_aggregator._records[0]["status"] == "DRY"  # noqa: SLF001
+
+
+def test_dry_run_substitute_error_is_recorded_and_reraised(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    ctx.run_options.dry_run = True
+
+    def probe(*, message: str) -> None:
+        raise RuntimeError("no instrument")
+
+    @command(dry_run=probe)
+    def ping(*, message: str) -> None:
+        raise AssertionError("body ran")
+
+    with pytest.raises(RuntimeError, match="no instrument"):
+        ping(message="x")
+    assert ctx.result_aggregator._records[-1]["status"] == "ERROR"  # noqa: SLF001
+    assert ctx.result_aggregator.overall_pass() is False
+
+
+def test_dry_run_missing_key_does_not_stop_the_walk(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    ctx.run_options.dry_run = True
+
+    @measurement
+    def capture(*, key: str, value: float) -> float:
+        raise AssertionError("body ran")
+
+    assert capture(value=1.0) is None
+    assert capture(key="later", value=2.0) is None
+    statuses = [row["status"] for row in ctx.result_aggregator._records]  # noqa: SLF001
+    assert statuses == ["ERROR", "DRY"]
+    assert ctx.result_aggregator.overall_pass() is False
+
+
+def _statuses(ctx) -> list[str]:
+    return [row["status"] for row in ctx.result_aggregator._records]  # noqa: SLF001
+
+
+def test_dry_run_rejects_duplicate_and_missing_row_index(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    ctx.run_options.dry_run = True
+
+    @measurement
+    def capture(*, key: str, value: float) -> float:
+        raise AssertionError("body ran")
+
+    @measurement(multi_row=True)
+    def rows(*, key: str, value: float, row_index: int) -> float:
+        raise AssertionError("body ran")
+
+    assert capture(key="level", value=1.0) is None
+    assert capture(key="level", value=2.0) is None
+    assert rows(key="sweep", value=1.0) is None
+    assert rows(key="sweep", value=1.0, row_index=0) is None
+    assert rows(key="sweep", value=2.0, row_index=0) is None
+    assert rows(key="sweep", value=3.0, row_index=1) is None
+    assert _statuses(ctx) == ["DRY", "ERROR", "ERROR", "DRY", "ERROR", "DRY"]
+    messages = [row["message"] for row in ctx.result_aggregator._records]  # noqa: SLF001
+    assert "Duplicate measurement key" in messages[1]
+    assert "row_index" in messages[2]
+    assert "row_index=0" in messages[4]
+    assert ctx.result_aggregator.overall_pass() is False
+
+
+def test_dry_run_requires_a_measurement_before_its_verification(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    ctx.run_options.dry_run = True
+
+    @measurement
+    def capture(*, key: str, value: float) -> float:
+        raise AssertionError("body ran")
+
+    @verification
+    def check(*, key: str, expected_val: float) -> VerificationResult:
+        raise AssertionError("body ran")
+
+    assert check(key="late", expected_val=1.0) is None
+    assert capture(key="late", value=1.0) is None
+    assert check(key="late", expected_val=1.0) is None
+    assert _statuses(ctx) == ["ERROR", "DRY", "DRY"]
+    assert "no measurement recorded" in ctx.result_aggregator._records[0]["message"]  # noqa: SLF001
+
+
+def test_dry_run_fills_parameters_then_checks_the_signature(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    ctx.run_options.dry_run = True
+    ctx.parameters_map = {"rx_level": {"expected_val": 0.0, "tolerance": 0.5}}
+
+    @measurement
+    def capture(*, key: str, value: float) -> float:
+        raise AssertionError("body ran")
+
+    @verification
+    def check(*, key: str, expected_val: float, tolerance: float) -> VerificationResult:
+        raise AssertionError("body ran")
+
+    @verification
+    def note(*, key: str, comment: str = "ok") -> VerificationResult:
+        raise AssertionError("body ran")
+
+    @command
+    def ping(*, message: str) -> None:
+        raise AssertionError("body ran")
+
+    assert capture(key="rx_level", value=0.0) is None
+    assert check(key="rx_level") is None
+    assert note(key="rx_level") is None
+    assert capture(key="other", value=1.0) is None
+    assert check(key="other", expected_val=1.0, tolerance=0.1) is None
+    assert ping() is None
+    assert ping(message="hi", extra=1) is None
+    assert ping(message="ok") is None
+    assert _statuses(ctx) == ["DRY", "DRY", "DRY", "DRY", "ERROR", "ERROR", "ERROR", "DRY"]
+    messages = [row["message"] for row in ctx.result_aggregator._records]  # noqa: SLF001
+    assert "no section for key='other'" in messages[4]
+    assert "message" in messages[5]
+    assert "unexpected keyword" in messages[6]
+
+
+def test_dry_run_owed_limit_blocks_only_unmeasured_keys(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    ctx.run_options.dry_run = True
+    ctx.parameters_map = {
+        "seen": {"expected_val": 1.0, "tolerance": 0.1},
+        "missed": {"expected_val": 2.0, "tolerance": 0.1},
+    }
+
+    @measurement
+    def capture(*, key: str, value: float) -> float:
+        raise AssertionError("body ran")
+
+    assert capture(key="seen", value=1.0) is None
+    _insert_blocked_owed_keys(ctx)
+    blocked = [
+        row["key"]
+        for row in ctx.result_aggregator._records  # noqa: SLF001
+        if row["status"] == "BLOCKED"
+    ]
+    assert blocked == ["missed"]
+
+
+def test_dry_run_policy_must_be_log_call_or_callable() -> None:
+    with pytest.raises(TypeError, match="dry_run"):
+
+        @command(dry_run=1)
+        def ping(*, message: str) -> None:
+            return None
+
+
+def test_export_merges_keyed_kwargs_and_skips_bookkeeping(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    ctx.parameter_export = {}
+
+    @command
+    def note(*, message: str) -> None:
+        raise AssertionError("body ran")
+
+    @measurement
+    def capture(*, key: str, value: float) -> float:
+        raise AssertionError("body ran")
+
+    @verification
+    def check(
+        *,
+        key: str,
+        expected_val: float,
+        tolerance: float = 0.0,
+        optional: bool = False,
+    ) -> VerificationResult:
+        raise AssertionError("body ran")
+
+    assert note(message="hello") is None
+    assert capture(key="rx_level", value=0.0) is None
+    assert check(key="rx_level", expected_val=1.5, tolerance=0.25, optional=True) is None
+    assert ctx.parameter_export == {
+        "rx_level": {"value": 0.0, "expected_val": 1.5, "tolerance": 0.25},
+    }
+    assert ctx.export_errors == []
+
+
+def test_export_records_missing_keys_and_keeps_walking(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    ctx.parameter_export = {}
+
+    @measurement
+    def capture(*, key: str, value: float) -> float:
+        raise AssertionError("body ran")
+
+    assert capture(value=1.0) is None
+    assert capture(key="ok", value=2.0) is None
+    assert ctx.export_errors == ["`capture` requires `key=`"]
+    assert ctx.parameter_export == {"ok": {"value": 2.0}}
+
+
+def test_export_uses_auto_key(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    ctx.parameter_export = {}
+    auto_key()
+
+    @measurement
+    def capture(*, key: str, value: float) -> float:
+        raise AssertionError("body ran")
+
+    assert capture(value=1.25) is None
+    assert ctx.parameter_export == {"1": {"value": 1.25}}
+
+
+def test_export_rejects_values_that_are_not_toml(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    ctx.parameter_export = {}
+
+    @command
+    def tagged(*, key: str, payload: object) -> None:
+        raise AssertionError("body ran")
+
+    assert tagged(key="rx_level", payload=object()) is None
+    assert any("payload" in message for message in ctx.export_errors)
+    assert "payload" not in ctx.parameter_export["rx_level"]
+
+
+def test_write_parameters_file_round_trip(tmp_path: Path) -> None:
+    path = tmp_path / "parameters.toml"
+    write_parameters_file(
+        path,
+        {
+            "rx_level": {
+                "value": 0.0,
+                "enabled": True,
+                "notes": 'a "b"',
+                "limits": [1, 2],
+                "nested": {"unit": "V"},
+            },
+        },
+    )
+    loaded = tomllib.loads(path.read_text(encoding="utf-8"))
+    assert loaded["rx_level"]["value"] == 0.0
+    assert loaded["rx_level"]["enabled"] is True
+    assert loaded["rx_level"]["notes"] == 'a "b"'
+    assert loaded["rx_level"]["limits"] == [1, 2]
+    assert loaded["rx_level"]["nested"] == {"unit": "V"}
+
+
+def test_finish_writes_parameters_without_a_summary(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    ctx.parameter_export = {"rx_level": {"value": 1.0}}
+    assert ctx.output_dir is not None
+    code = finish_parameter_export(ctx, failed=False)
+    assert code == 0
+    assert (ctx.output_dir / "parameters.toml").is_file()
+    assert not (ctx.output_dir / "summary.txt").exists()
+
+
+def test_finish_skips_the_file_when_export_failed(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    ctx.parameter_export = {"rx_level": {"value": 1.0}}
+    ctx.export_errors.append("`capture` requires `key=`")
+    assert ctx.output_dir is not None
+    code = finish_parameter_export(ctx, failed=False)
+    assert code == 1
+    assert not (ctx.output_dir / "parameters.toml").exists()

@@ -1,0 +1,3 @@
+name = "dry_run_missing_key"
+
+tests = ["../scripts/dry_run_missing_key.py"]
