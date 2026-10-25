@@ -7,8 +7,14 @@ from functools import wraps
 from inspect import signature
 from typing import TYPE_CHECKING, Any, TypeVar, overload
 
-from colosseum.config.parameters import ParametersError, apply_parameters_to_kwargs
+from colosseum.config.parameters import (
+    ParametersError,
+    apply_parameters_to_kwargs,
+    coerce_bool,
+    coerce_optional_kwarg,
+)
 from colosseum.database import VerificationRow
+from colosseum.units import coerce_units
 
 from ._common import (
     bind_dry_run_policy,
@@ -136,7 +142,6 @@ def verification(
             if should_skip_verification(ctx):
                 return None
             key, injected = resolve_auto_key(ctx, kwargs, family="verification")
-            optional = bool(kwargs.get("optional", False))
             key_text = "" if not key else str(key)
             if capture_parameter_export(
                 ctx, kind="verification", command=command, key=key_text, kwargs=kwargs,
@@ -158,7 +163,7 @@ def verification(
                 domain=domain,
                 command=command,
                 key=key_text,
-                optional=optional,
+                optional=False,
                 policy=dry_run,
                 func=func,
                 call_args=args,
@@ -173,8 +178,14 @@ def verification(
                 return None
             if not key:
                 description = _clean_description(kwargs.get("description"))
+                try:
+                    optional = coerce_bool(kwargs["optional"]) if "optional" in kwargs else False
+                    message = f"`{command}` requires `key=`"
+                except ParametersError as exc:
+                    optional = False
+                    message = str(exc)
                 result = VerificationResult(
-                    status="ERROR", message=f"`{command}` requires `key=`", optional=optional,
+                    status="ERROR", message=message, optional=optional,
                 )
                 ctx.result_aggregator.record_verification(
                     result,
@@ -209,54 +220,61 @@ def verification(
                 return result
 
             call_kwargs = dict(kwargs)
-            if not injected:
-                try:
+            try:
+                if not injected:
                     call_kwargs = apply_parameters_to_kwargs(
                         call_kwargs,
                         key=str(key),
                         parameters=ctx.parameters_map,
                     )
-                except ParametersError as exc:
-                    description = _clean_description(kwargs.get("description"))
-                    result = VerificationResult(
-                        status="ERROR", message=str(exc), optional=optional,
-                    )
-                    ctx.result_aggregator.record_verification(
-                        result,
-                        key=str(key),
-                        command=command,
-                        domain=domain,
-                        description=description or "",
-                    )
-                    expected, compare_op, tolerance = _verification_fields(call_kwargs)
-                    ctx.db.insert_verification(
-                        VerificationRow(
-                            domain=domain,
-                            command=command,
-                            key=key,
-                            expected=expected,
-                            actual=None,
-                            tolerance=tolerance,
-                            compare_op=compare_op,
-                            status=result.status,
-                            optional=result.optional,
-                            message=result.message,
-                            description=description,
-                        ),
-                    )
-                    log_evidence(
-                        ctx,
-                        kind="verification",
+                optional = coerce_optional_kwarg(call_kwargs)
+            except ParametersError as exc:
+                description = _clean_description(call_kwargs.get("description"))
+                optional = False
+                if "optional" in kwargs:
+                    try:
+                        optional = coerce_bool(kwargs["optional"])
+                    except ParametersError:
+                        optional = False
+                result = VerificationResult(
+                    status="ERROR", message=str(exc), optional=optional,
+                )
+                ctx.result_aggregator.record_verification(
+                    result,
+                    key=str(key),
+                    command=command,
+                    domain=domain,
+                    description=description or "",
+                )
+                expected, compare_op, tolerance = _verification_fields(call_kwargs)
+                ctx.db.insert_verification(
+                    VerificationRow(
                         domain=domain,
                         command=command,
-                        key=str(key),
+                        key=key,
+                        expected=expected,
+                        actual=None,
+                        tolerance=tolerance,
+                        compare_op=compare_op,
                         status=result.status,
                         optional=result.optional,
-                        detail=f"message={result.message!r}",
-                        call_args=args,
-                        kwargs=kwargs,
-                    )
-                    return result
+                        message=result.message,
+                        description=description,
+                    ),
+                )
+                log_evidence(
+                    ctx,
+                    kind="verification",
+                    domain=domain,
+                    command=command,
+                    key=str(key),
+                    status=result.status,
+                    optional=result.optional,
+                    detail=f"message={result.message!r}",
+                    call_args=args,
+                    kwargs=kwargs,
+                )
+                return result
 
             description = _clean_description(call_kwargs.get("description"))
             logged_kwargs = dict(call_kwargs)
@@ -281,6 +299,7 @@ def verification(
                 return value
 
             try:
+                call_kwargs = coerce_units(call_kwargs)
                 result = _coerce_verification_result(
                     func(*args, **call_kwargs), optional=optional,
                 )

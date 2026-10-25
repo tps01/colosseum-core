@@ -17,7 +17,12 @@ from tests.support.e2e_specifications import (
     run_metadata,
     verification_row,
 )
-from tests.support.helpers import REPO_ROOT as REPO, latest_output_dir, latest_run_in, query_db
+from tests.support.helpers import (
+    REPO_ROOT as REPO,
+    latest_output_dir,
+    latest_run_in,
+    query_db,
+)
 
 OPTIONAL_FAIL = REPO / "tests" / "fixtures" / "scripts" / "optional_fail_test.py"
 FAIL_REQUIRED = REPO / "tests" / "fixtures" / "scripts" / "fail_required_verify.py"
@@ -244,6 +249,44 @@ def test_use_previous_output_reruns_verifications(core_config, isolated_cwd, sub
     assert query_db(rerun_dir, "SELECT COUNT(*) FROM measurements")[0][0] >= 1
     assert query_db(rerun_dir, "SELECT status FROM verifications WHERE key=?", ("stored",))[0][0] == "PASS"
     assert run_metadata(rerun_dir).get("imported_from") == str(prior_dir)
+
+
+def test_use_previous_output_accepts_absolute_path_with_spaces(
+    core_config, isolated_cwd, subprocess_env,
+) -> None:
+    """An absolute -u path that contains spaces still imports the prior measurement."""
+    output_root = isolated_cwd / "prior runs"
+    first = run_cli(
+        MEASURE_ONLY,
+        core_config,
+        isolated_cwd,
+        subprocess_env,
+        extra_args=["-o", str(output_root)],
+    )
+    assert first.returncode == 0, first.stderr
+    prior_dir = latest_run_in(output_root).resolve()
+    assert " " in str(prior_dir)
+    verify_root = isolated_cwd / "verify runs"
+    second = run_cli(
+        VERIFY_ONLY,
+        core_config,
+        isolated_cwd,
+        subprocess_env,
+        extra_args=["-u", str(prior_dir), "-o", str(verify_root)],
+    )
+    assert second.returncode == 0, second.stderr + second.stdout
+    rerun_dir = latest_run_in(verify_root)
+    stored = query_db(
+        rerun_dir,
+        "SELECT value_json FROM measurements WHERE key=?",
+        ("stored",),
+    )
+    assert stored[0][0] == "4.2"
+    assert query_db(
+        rerun_dir,
+        "SELECT status FROM verifications WHERE key=?",
+        ("stored",),
+    )[0][0] == "PASS"
 
 
 @pytest.mark.requirement("E2E-RUN-14")

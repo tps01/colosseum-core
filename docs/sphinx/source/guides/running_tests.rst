@@ -96,7 +96,11 @@ Shared path and config flags for ``colosseum run`` and ``colosseum run-suite``:
   repeatable; may be used without a script path
 - ``-p/--procedure`` - run commands and measurements; skip verifications
 - ``-u/--use-previous-output PATH`` - import prior measurements/commands from a completed
-  run directory and re-run verifications only (mutually exclusive with ``-p``)
+  run directory and re-run verifications only (mutually exclusive with ``-p``).
+  On Windows PowerShell, do not end a quoted path with one backslash. PowerShell
+  treats that backslash as escaping the closing quote, and a path that contains
+  spaces is merged with the next argument (``unrecognized arguments``). Omit the
+  trailing backslash. A trailing forward slash is also accepted.
 - ``--show-faults`` - opt-in ``faulthandler`` crash dumps for this run
 - ``--export parameters`` - walk the script, write ``parameters.toml`` in the run
   folder from the keys and keyword values that were passed, and do not run decorated
@@ -112,6 +116,8 @@ Examples::
    colosseum run -o D:/test_runs -c template.arm_device,device_id=1 -g config/config.toml
    colosseum run scripts/my_test.py -p -g config/config.toml
    colosseum run scripts/my_test.py -u outputs/2026-01-01_120000_my_test-pass -g config/config.toml
+   colosseum run scripts/my_test.py -u "D:\runs\prior run" -g config/config.toml
+   colosseum run scripts/my_test.py -u "D:/runs/prior run/" -g config/config.toml
    colosseum run scripts/my_test.py --parameters limits.toml --report wats --report junit -g config/config.toml
    colosseum run scripts/my_test.py --dry-run -g config/config.toml
    colosseum run-suite suite.toml --dry-run -g config/config.toml

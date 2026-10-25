@@ -118,7 +118,8 @@ Parameters file (optional)
 
 An optional TOML parameters file supplies kwargs by evidence key. Tables are
 keys; values are keyword arguments for ``@command`` and ``@verification`` calls
-that pass ``key=``. A value on the call wins over the file.
+that pass ``key=``. A field in the file overrides the same argument on the call.
+Arguments the file omits stay as passed.
 
 Resolution order (first hit wins):
 
@@ -167,10 +168,13 @@ copy a folder from :doc:`testware_library`.
 ``colosseum run SCRIPT --export parameters`` walks ``main()`` and writes
 ``parameters.toml`` in the run folder. Sections are the evidence keys. Values are
 the keyword arguments passed on ``@command``, ``@measurement``, and
-``@verification`` calls, except ``key``, ``optional``, ``description``, and
-``row_index``. Decorated functions are not called, and the folder is not renamed
-with a pass or fail suffix. Variables and ``col.auto_key()`` are evaluated
-because ``main()`` still runs.
+``@verification`` calls, except ``key`` and ``row_index``. ``key`` is already
+the section name. ``row_index`` identifies one row of a multi-row measurement
+(together with the domain, command, and key). Export keeps a single section per
+key and later calls overwrite earlier fields, so a series would collapse to the
+last index. The script chooses the row as it loops. Decorated functions are not
+called, and the folder is not renamed with a pass or fail suffix. Variables and
+``col.auto_key()`` are evaluated because ``main()`` still runs.
 
 Metadata (optional)
 -------------------

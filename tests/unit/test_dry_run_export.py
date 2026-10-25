@@ -146,6 +146,25 @@ def test_dry_run_requires_a_measurement_before_its_verification(unit_runtime_con
     assert "no measurement recorded" in ctx.result_aggregator._records[0]["message"]  # noqa: SLF001
 
 
+def test_dry_run_parameters_key_does_not_require_a_measurement(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    ctx.run_options.dry_run = True
+    ctx.parameters_map = {
+        "logfile": {"pattern": "ERROR", "path": "uut.log", "description": "from file"},
+    }
+
+    @verification
+    def check(*, key: str, pattern: str, path: str, description: str = "") -> VerificationResult:
+        raise AssertionError("body ran")
+
+    assert check(key="logfile", description="from call") is None
+    assert check(key="other", pattern="x", path="y") is None
+    assert _statuses(ctx) == ["DRY", "ERROR"]
+    records = ctx.result_aggregator._records  # noqa: SLF001
+    assert records[0]["description"] == "from file"
+    assert "no measurement recorded" in records[1]["message"]
+
+
 def test_dry_run_fills_parameters_then_checks_the_signature(unit_runtime_context) -> None:
     ctx = unit_runtime_context
     ctx.run_options.dry_run = True
@@ -236,9 +255,22 @@ def test_export_merges_keyed_kwargs_and_skips_bookkeeping(unit_runtime_context) 
 
     assert note(message="hello") is None
     assert capture(key="rx_level", value=0.0) is None
-    assert check(key="rx_level", expected_val=1.5, tolerance=0.25, optional=True) is None
+    assert check(
+        key="rx_level",
+        expected_val=1.5,
+        tolerance=0.25,
+        optional=True,
+        description="level",
+        row_index=3,
+    ) is None
     assert ctx.parameter_export == {
-        "rx_level": {"value": 0.0, "expected_val": 1.5, "tolerance": 0.25},
+        "rx_level": {
+            "value": 0.0,
+            "expected_val": 1.5,
+            "tolerance": 0.25,
+            "optional": True,
+            "description": "level",
+        },
     }
     assert ctx.export_errors == []
 
