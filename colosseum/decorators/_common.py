@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, cast
 from colosseum.config.parameters import (
     ParametersError,
     apply_parameters_to_kwargs,
+    coerce_bool,
     toml_value_supported,
 )
 from colosseum.context import RuntimeContext, get_context
@@ -185,7 +186,7 @@ def publish_optional_parameter(wrapper: Callable[..., Any], func: Callable[..., 
 
 
 DRY_RUN_ATTR = "__colosseum_dry_run__"
-_EXPORT_OMIT = frozenset({"key", "optional", "description", "row_index"})
+_EXPORT_OMIT = frozenset({"key", "row_index"})
 
 
 class _Outcome:
@@ -363,17 +364,22 @@ def _dry_run_structure_message(
     pop_description: bool,
     multi_row: bool,
     require_prior_measurement: bool,
-) -> str | None:
-    """Return a procedure error for a log-policy call, remembering a valid measurement."""
+) -> tuple[str | None, dict[str, Any]]:
+    """Return a procedure error and the kwargs after the parameters file is applied.
+
+    A parameters-file field overrides the call. ``optional`` is coerced to a bool
+    when it is present. The returned mapping still contains bookkeeping names so
+    the dry-run record can use the file's ``optional`` and ``description``.
+    """
     row_index = 0
     if kind == "measurement":
         if multi_row and "row_index" not in kwargs:
-            return f"`{command}` with multi_row=True requires `row_index=`"
+            return f"`{command}` with multi_row=True requires `row_index=`", kwargs
         if multi_row:
             try:
                 row_index = int(kwargs["row_index"])
             except (TypeError, ValueError):
-                return f"`{command}` row_index must be an integer"
+                return f"`{command}` row_index must be an integer", kwargs
         if _measurement_already_logged(
             ctx,
             domain=domain,
@@ -386,10 +392,15 @@ def _dry_run_structure_message(
                 return (
                     f"Duplicate measurement key for "
                     f"({domain}, {command}, {key}, row_index={row_index})"
-                )
-            return f"Duplicate measurement key for ({domain}, {command}, {key})"
-    if require_prior_measurement and not _evidence_key_measured(ctx, key):
-        return f"no measurement recorded for key={key!r}"
+                ), kwargs
+            return f"Duplicate measurement key for ({domain}, {command}, {key})", kwargs
+    key_in_parameters = ctx.parameters_map is not None and key in ctx.parameters_map
+    if (
+        require_prior_measurement
+        and not key_in_parameters
+        and not _evidence_key_measured(ctx, key)
+    ):
+        return f"no measurement recorded for key={key!r}", kwargs
     call_kwargs = dict(kwargs)
     if apply_parameters and key and not injected:
         try:
@@ -399,7 +410,19 @@ def _dry_run_structure_message(
                 parameters=ctx.parameters_map,
             )
         except ParametersError as exc:
-            return str(exc)
+            return str(exc), kwargs
+    elif (
+        key_in_parameters
+        and ctx.parameters_map is not None
+        and "optional" in ctx.parameters_map[key]
+    ):
+        call_kwargs["optional"] = ctx.parameters_map[key]["optional"]
+    try:
+        if "optional" in call_kwargs:
+            call_kwargs["optional"] = coerce_bool(call_kwargs["optional"])
+    except ParametersError as exc:
+        return str(exc), call_kwargs
+    resolved = dict(call_kwargs)
     if pop_optional:
         call_kwargs.pop("optional", None)
     if pop_key:
@@ -417,10 +440,10 @@ def _dry_run_structure_message(
     try:
         bound.bind(*call_args, **call_kwargs)
     except TypeError as exc:
-        return str(exc)
+        return str(exc), resolved
     if kind == "measurement" and key:
         ctx.dry_run_measurements.add((domain, command, key, row_index))
-    return None
+    return None, resolved
 
 
 def finish_dry_run_log(
@@ -447,7 +470,7 @@ def finish_dry_run_log(
     """Check structure, log the call, and skip the body when the policy is ``log``."""
     if not ctx.run_options.dry_run or policy != "log":
         return False
-    message = _dry_run_structure_message(
+    message, resolved = _dry_run_structure_message(
         ctx,
         kind=kind,
         domain=domain,
@@ -464,6 +487,10 @@ def finish_dry_run_log(
         multi_row=multi_row,
         require_prior_measurement=require_prior_measurement,
     )
+    if "description" in resolved:
+        description = str(resolved["description"]).strip()
+    if isinstance(resolved.get("optional"), bool):
+        optional = resolved["optional"]
     if message is not None:
         _record_outcome(
             ctx,
@@ -484,7 +511,7 @@ def finish_dry_run_log(
             optional=False,
             detail=f"message={message!r}",
             call_args=call_args,
-            kwargs=kwargs,
+            kwargs=resolved,
         )
         return True
     _record_outcome(
@@ -505,7 +532,7 @@ def finish_dry_run_log(
         status="DRY",
         optional=optional,
         call_args=call_args,
-        kwargs=kwargs,
+        kwargs=resolved,
     )
     return True
 

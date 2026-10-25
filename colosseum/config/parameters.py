@@ -21,6 +21,8 @@ except ModuleNotFoundError:  # pragma: no cover
 LIMIT_FIELDS = frozenset(
     {"expected_val", "tolerance", "minimum", "maximum", "exact", "expected"},
 )
+_TRUE_TOKENS = frozenset({"true", "t", "yes", "y", "1"})
+_FALSE_TOKENS = frozenset({"false", "f", "no", "n", "0"})
 
 
 class ParametersError(ProceduralFault):
@@ -81,23 +83,55 @@ def owed_limit_keys(parameters: dict[str, dict[str, Any]]) -> list[str]:
     return [key for key, fields in parameters.items() if is_limit_section(fields)]
 
 
+def coerce_bool(value: object, *, name: str = "optional") -> bool:
+    """Return a bool from a real bool or a common true/false spelling.
+
+    Strings are matched case-insensitively: ``true``, ``t``, ``yes``, ``y``,
+    ``1``, and ``false``, ``f``, ``no``, ``n``, ``0``. Integers ``0`` and ``1``
+    are accepted because unquoted TOML numbers load as ints.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int) and value in (0, 1):
+        return bool(value)
+    if isinstance(value, str):
+        token = value.strip().lower()
+        if token in _TRUE_TOKENS:
+            return True
+        if token in _FALSE_TOKENS:
+            return False
+    raise ParametersError(f"{name} must be a boolean, got {value!r}")
+
+
+def coerce_optional_kwarg(kwargs: dict[str, Any]) -> bool:
+    """Coerce ``kwargs['optional']`` to a bool and return the decorator flag.
+
+    Missing ``optional`` stays false and is left unset.
+    """
+    if "optional" not in kwargs:
+        return False
+    value = coerce_bool(kwargs["optional"])
+    kwargs["optional"] = value
+    return value
+
+
 def apply_parameters_to_kwargs(
     kwargs: dict[str, Any],
     *,
     key: str,
     parameters: dict[str, dict[str, Any]] | None,
 ) -> dict[str, Any]:
-    """Copy omitted fields from the parameters table for ``key``.
+    """Merge the parameters table for ``key`` over the call.
 
-    When a parameters file is loaded, ``key`` must exist in the file. Call
-    values win over file values.
+    When a parameters file is loaded, ``key`` must exist in the file. A field
+    present in that section overrides the call. A field only on the call is kept.
     """
     if parameters is None:
         return dict(kwargs)
     if key not in parameters:
         raise ParametersError(f"Parameters file has no section for key={key!r}")
-    merged = dict(parameters[key])
-    merged.update(kwargs)
+    merged = dict(kwargs)
+    merged.update(parameters[key])
     return merged
 
 
