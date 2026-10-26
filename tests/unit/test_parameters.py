@@ -11,7 +11,9 @@ from colosseum.config.parameters import (
     apply_parameters_to_kwargs,
     attach_parameters,
     coerce_bool,
+    coerce_parameter_value,
     is_limit_section,
+    load_parameter,
     load_parameters_file,
     owed_limit_keys,
     resolve_parameters_path,
@@ -223,6 +225,135 @@ def test_file_description_overrides_call(unit_runtime_context, tmp_path: Path) -
     result = check(key="probe", expected_val=9.0, description="from call")
     assert result.message == "from file"
     assert result.actual == 1.0
+
+
+def test_load_parameter_is_public() -> None:
+    from colosseum import load_parameter as exported_load_parameter
+
+    assert exported_load_parameter is load_parameter
+
+
+def test_load_parameter_requires_runtime() -> None:
+    with pytest.raises(RuntimeError, match="Runtime is not initialized"):
+        load_parameter(key="example_key", field="list1")
+
+
+def test_load_parameter_from_file(unit_runtime_context, tmp_path: Path) -> None:
+    path = tmp_path / "parameters.toml"
+    path.write_text(
+        "\n".join(
+            [
+                "[example_key]",
+                'list1 = "[thing1, thing2, thing3]"',
+                "count = 99",
+                "enabled = true",
+                'serial = "12345"',
+                'ratio = "1.5"',
+                'note = "[see manual]"',
+                'path = "C:/data/file.bin"',
+                'draft = "[draft"',
+                'items = ["thing1", "thing2"]',
+                'meta = { gain = 1.5, mode = "fast" }',
+                'nested = ["[a, b]", "plain"]',
+                'literal = "[\'thing1\', \'thing2\']"',
+                'group = "{1, 2}"',
+                "",
+            ],
+        ),
+        encoding="utf-8",
+    )
+    attach_parameters(unit_runtime_context, path)
+    stored = unit_runtime_context.parameters_map
+    assert stored is not None
+
+    assert load_parameter(key="example_key", field="list1") == ["thing1", "thing2", "thing3"]
+    assert load_parameter(key="example_key", field="count") == 99
+    assert load_parameter(key="example_key", field="enabled") is True
+    assert load_parameter(key="example_key", field="serial") == "12345"
+    assert load_parameter(key="example_key", field="ratio") == "1.5"
+    assert load_parameter(key="example_key", field="note") == "[see manual]"
+    assert load_parameter(key="example_key", field="path") == "C:/data/file.bin"
+    assert load_parameter(key="example_key", field="draft") == "[draft"
+    assert load_parameter(key="example_key", field="items") == ["thing1", "thing2"]
+    assert load_parameter(key="example_key", field="meta") == {"gain": 1.5, "mode": "fast"}
+    assert load_parameter(key="example_key", field="nested") == [["a", "b"], "plain"]
+    assert load_parameter(key="example_key", field="literal") == ["thing1", "thing2"]
+    assert load_parameter(key="example_key", field="group") == {1, 2}
+    assert stored["example_key"]["list1"] == "[thing1, thing2, thing3]"
+    assert stored["example_key"]["nested"] == ["[a, b]", "plain"]
+    assert load_parameter(key="example_key", field="items") is not stored["example_key"]["items"]
+
+
+def test_load_parameter_leaves_key_injection_as_toml(
+    unit_runtime_context,
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "parameters.toml"
+    path.write_text('[example_key]\nlist1 = "[thing1, thing2]"\n', encoding="utf-8")
+    attach_parameters(unit_runtime_context, path)
+
+    @command
+    def take(*, list1: str) -> str:
+        return list1
+
+    assert take(key="example_key") == "[thing1, thing2]"
+    assert load_parameter(key="example_key", field="list1") == ["thing1", "thing2"]
+
+
+def test_load_parameter_missing_file_key_and_field(unit_runtime_context) -> None:
+    with pytest.raises(ParametersError, match="no parameters file is loaded"):
+        load_parameter(key="example_key", field="list1")
+
+    unit_runtime_context.parameters_map = {"example_key": {"count": 1}}
+    with pytest.raises(ParametersError, match="parameters key not found: missing"):
+        load_parameter(key="missing", field="count")
+    with pytest.raises(ParametersError, match=r"field 'list1' not found in \[example_key\]"):
+        load_parameter(key="example_key", field="list1")
+
+
+def test_load_parameter_broken_container_names_the_field(unit_runtime_context) -> None:
+    unit_runtime_context.parameters_map = {"example_key": {"list1": "[a,,b]"}}
+    with pytest.raises(ParametersError, match=r"field 'list1' in \[example_key\]"):
+        load_parameter(key="example_key", field="list1")
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("['thing1', 'thing2']", ["thing1", "thing2"]),
+        ("{'a': 1}", {"a": 1}),
+        ("{1, 2}", {1, 2}),
+        ("(1, 'a')", (1, "a")),
+        ("[{'a': 1}, {'b': 2}]", [{"a": 1}, {"b": 2}]),
+        ("[99, 1.5, 'a b', True, None]", [99, 1.5, "a b", True, None]),
+        ("[C:/a.bin, D:/b.bin]", ["C:/a.bin", "D:/b.bin"]),
+        ("{thing1, thing2}", {"thing1", "thing2"}),
+        ("{a: 1, b: [x, y]}", {"a": 1, "b": ["x", "y"]}),
+        ("[thing1, thing2,]", ["thing1", "thing2"]),
+        ("['a,b', thing]", ["a,b", "thing"]),
+        ("[true, false, yes, no]", [True, False, True, False]),
+        ("[1, 0]", [1, 0]),
+        ("[thing1]", ["thing1"]),
+        ("[]", []),
+        ("{}", {}),
+        ("()", ()),
+        ("(thing1, thing2)", ("thing1", "thing2")),
+        ("  [see manual]  ", "  [see manual]  "),
+        ("99", "99"),
+        ("12345", "12345"),
+        ("hello world", "hello world"),
+        ("[draft", "[draft"),
+        ("['[a, b]', 'c']", ["[a, b]", "c"]),
+    ],
+)
+def test_coerce_parameter_value_parses_fields(raw: str, expected: object) -> None:
+    assert coerce_parameter_value(raw) == expected
+
+
+@pytest.mark.parametrize("raw", ["[a,,b]", "[a, [b]", "{[1]}"])
+def test_coerce_parameter_value_rejects_broken_containers(raw: str) -> None:
+    with pytest.raises(ParametersError, match="cannot parse parameter value"):
+        coerce_parameter_value(raw)
 
 
 def test_procedural_fault_sets_cause(unit_runtime_context) -> None:

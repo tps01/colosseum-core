@@ -58,6 +58,11 @@ Terms used in the runtime and in the user guides. See
       ``verify_only`` (``-u``, import prior measurements/commands and re-run
       verifications).
 
+   load_parameter
+      ``col.load_parameter(key=..., field=...)``. Returns one field from the
+      loaded :term:`parameters file`. Collection-shaped strings become lists,
+      dicts, sets, or tuples. See :doc:`writing_test_scripts`.
+
    measurement
       A decorated plugin call that stores a captured value under
       ``(domain, command, key)`` in the ``measurements`` table.
