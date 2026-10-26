@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, Any
 
-from colosseum.config.toml_relaxed import read_relaxed_toml
+from colosseum.config.toml_relaxed import coerce_config_bool, read_relaxed_toml
 from colosseum.exceptions import ProceduralFault
 
 if TYPE_CHECKING:
@@ -21,8 +21,6 @@ except ModuleNotFoundError:  # pragma: no cover
 LIMIT_FIELDS = frozenset(
     {"expected_val", "tolerance", "minimum", "maximum", "exact", "expected"},
 )
-_TRUE_TOKENS = frozenset({"true", "t", "yes", "y", "1"})
-_FALSE_TOKENS = frozenset({"false", "f", "no", "n", "0"})
 
 
 class ParametersError(ProceduralFault):
@@ -90,17 +88,10 @@ def coerce_bool(value: object, *, name: str = "optional") -> bool:
     ``1``, and ``false``, ``f``, ``no``, ``n``, ``0``. Integers ``0`` and ``1``
     are accepted because unquoted TOML numbers load as ints.
     """
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, int) and value in (0, 1):
-        return bool(value)
-    if isinstance(value, str):
-        token = value.strip().lower()
-        if token in _TRUE_TOKENS:
-            return True
-        if token in _FALSE_TOKENS:
-            return False
-    raise ParametersError(f"{name} must be a boolean, got {value!r}")
+    parsed = coerce_config_bool(value)
+    if parsed is None:
+        raise ParametersError(f"{name} must be a boolean, got {value!r}")
+    return parsed
 
 
 def coerce_optional_kwarg(kwargs: dict[str, Any]) -> bool:
@@ -123,13 +114,12 @@ def apply_parameters_to_kwargs(
 ) -> dict[str, Any]:
     """Merge the parameters table for ``key`` over the call.
 
-    When a parameters file is loaded, ``key`` must exist in the file. A field
-    present in that section overrides the call. A field only on the call is kept.
+    When a parameters file is loaded and ``key`` has no section, the call kwargs
+    are kept. A field present in a matching section overrides the call. A field
+    only on the call is kept.
     """
-    if parameters is None:
+    if parameters is None or key not in parameters:
         return dict(kwargs)
-    if key not in parameters:
-        raise ParametersError(f"Parameters file has no section for key={key!r}")
     merged = dict(kwargs)
     merged.update(parameters[key])
     return merged

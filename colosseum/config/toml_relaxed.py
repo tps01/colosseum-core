@@ -14,6 +14,8 @@ except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib  # type: ignore[no-redef]
 
 _KEY_VALUE = re.compile(r"^(?P<indent>\s*)(?P<key>[\w.-]+)\s*=\s*(?P<value>.+?)\s*$")
+_TRUE_TOKENS = frozenset({"true", "t", "yes", "y", "1"})
+_FALSE_TOKENS = frozenset({"false", "f", "no", "n", "0"})
 
 
 def _split_inline_comment(value_part: str) -> tuple[str, str]:
@@ -50,7 +52,9 @@ def _needs_quoting(value: str) -> bool:
         return False
     if value[0] in "\"'[{:":
         return False
-    if value.lower() in ("true", "false"):
+    # Only the lowercase TOML literals parse as bools. ``True`` and ``T`` are
+    # quoted here and turned into bools after the file loads.
+    if value in ("true", "false"):
         return False
     return not _is_numeric_literal(value)
 
@@ -81,8 +85,46 @@ def prepare_toml_text(text: str) -> str:
     return "\n".join(lines)
 
 
+def coerce_config_bool(value: object) -> bool | None:
+    """Return a bool for a real bool or a common true/false spelling.
+
+    Strings match case-insensitively: ``true``, ``t``, ``yes``, ``y``, ``1``,
+    and ``false``, ``f``, ``no``, ``n``, ``0``. Integers ``0`` and ``1`` are
+    accepted because unquoted TOML numbers load as ints. Anything else returns
+    ``None`` so callers can keep the original value.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int) and value in (0, 1):
+        return bool(value)
+    if isinstance(value, str):
+        token = value.strip().lower()
+        if token in _TRUE_TOKENS:
+            return True
+        if token in _FALSE_TOKENS:
+            return False
+    return None
+
+
+def _coerce_bool_strings(value: object) -> object:
+    """Turn boolean spellings into bools. Integers stay integers."""
+    if isinstance(value, dict):
+        return {key: _coerce_bool_strings(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_coerce_bool_strings(item) for item in value]
+    if isinstance(value, str):
+        coerced = coerce_config_bool(value)
+        if coerced is not None:
+            return coerced
+    return value
+
+
 def loads_relaxed(text: str) -> dict[str, Any]:
-    return tomllib.loads(prepare_toml_text(text))
+    parsed = tomllib.loads(prepare_toml_text(text))
+    coerced = _coerce_bool_strings(parsed)
+    if isinstance(coerced, dict):
+        return coerced
+    return parsed
 
 
 def read_relaxed_toml(path: Path) -> dict[str, Any]:

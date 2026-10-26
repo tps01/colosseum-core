@@ -3,8 +3,19 @@
 from __future__ import annotations
 
 import sys
-from inspect import Parameter, signature
-from typing import TYPE_CHECKING, Any, cast
+import types
+from inspect import Parameter, Signature, signature
+from typing import (
+    TYPE_CHECKING,
+    Annotated,
+    Any,
+    Literal,
+    Union,
+    cast,
+    get_args,
+    get_origin,
+    get_type_hints,
+)
 
 from colosseum.config.parameters import (
     ParametersError,
@@ -14,12 +25,15 @@ from colosseum.config.parameters import (
 )
 from colosseum.context import RuntimeContext, get_context
 from colosseum.runner.runtime import ensure_runtime_ready
+from colosseum.units import coerce_units
 
 from ._kernel import log_evidence, log_evidence_error, short_repr
 
 if TYPE_CHECKING:
-    import types
     from collections.abc import Callable
+
+_union_type = getattr(types, "UnionType", None)
+_UNION_ORIGINS: tuple[Any, ...] = (Union,) if _union_type is None else (Union, _union_type)
 
 
 def resolve_domain(func: Callable[..., Any]) -> str:
@@ -347,6 +361,76 @@ def _evidence_key_measured(ctx: RuntimeContext, key: str) -> bool:
     return key in ctx.db.measurement_keys()
 
 
+def _hints_for(func: Callable[..., Any]) -> dict[str, Any]:
+    """Return resolved annotations. An annotation that cannot be resolved is omitted."""
+    try:
+        hints = get_type_hints(func)
+    except Exception:  # noqa: BLE001 — unresolved forward references stay unchecked
+        hints = {
+            name: hint
+            for name, hint in getattr(func, "__annotations__", {}).items()
+            if not isinstance(hint, str)
+        }
+    hints.pop("return", None)
+    return hints
+
+
+def _annotation_matches(value: object, hint: object) -> bool:
+    """Return whether ``value`` agrees with a minimal reading of ``hint``."""
+    if hint is Any or hint is Parameter.empty:
+        return True
+    origin = get_origin(hint)
+    if origin in _UNION_ORIGINS:
+        return any(_annotation_matches(value, item) for item in get_args(hint))
+    if origin is Literal:
+        return any(value == item and type(value) is type(item) for item in get_args(hint))
+    if origin is Annotated:
+        args = get_args(hint)
+        return _annotation_matches(value, args[0]) if args else True
+    if isinstance(origin, type):
+        return _isinstance_hint(value, origin)
+    if origin is not None:
+        return True
+    if hint is float:
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if hint is int:
+        return isinstance(value, int) and not isinstance(value, bool)
+    if isinstance(hint, type):
+        return _isinstance_hint(value, hint)
+    return True
+
+
+def _isinstance_hint(value: object, hint: type[Any]) -> bool:
+    try:
+        return isinstance(value, hint)
+    except TypeError:
+        return True
+
+
+def _format_hint(hint: object) -> str:
+    if hint is type(None):
+        return "None"
+    if isinstance(hint, type):
+        return hint.__name__
+    return str(hint).replace("typing.", "")
+
+
+def _dry_run_type_error(
+    func: Callable[..., Any],
+    bound: Signature,
+    values: dict[str, Any],
+) -> str | None:
+    hints = _hints_for(func)
+    for name, value in values.items():
+        hint = hints.get(name, Parameter.empty)
+        if hint is Parameter.empty or name not in bound.parameters:
+            continue
+        if _annotation_matches(value, hint):
+            continue
+        return f"`{name}` must match {_format_hint(hint)}, got {value!r}"
+    return None
+
+
 def _dry_run_structure_message(
     ctx: RuntimeContext,
     *,
@@ -438,9 +522,17 @@ def _dry_run_structure_message(
             if name not in accepted and name not in kwargs:
                 del call_kwargs[name]
     try:
-        bound.bind(*call_args, **call_kwargs)
+        binding = bound.bind(*call_args, **call_kwargs)
     except TypeError as exc:
         return str(exc), resolved
+    binding.apply_defaults()
+    try:
+        checked = coerce_units(dict(binding.arguments))
+    except ValueError as exc:
+        return str(exc), resolved
+    type_error = _dry_run_type_error(func, bound, checked)
+    if type_error is not None:
+        return type_error, resolved
     if kind == "measurement" and key:
         ctx.dry_run_measurements.add((domain, command, key, row_index))
     return None, resolved

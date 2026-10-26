@@ -99,6 +99,12 @@ but are not ID-indexed.
 Plain string tokens may omit quotes when they contain only supported path/token
 characters. Standard TOML quoting remains recommended for portable configuration.
 
+Boolean fields accept ``true``, ``t``, ``yes``, ``y``, and ``1``, and ``false``,
+``f``, ``no``, ``n``, and ``0``, in any case. Bare words such as ``True`` and
+``T`` are included. The same spellings apply in suite files and parameters
+files. Unquoted ``1`` and ``0`` stay numbers. Boolean fields such as
+``[colosseum.reports]`` and ``fail_fast`` also accept those numbers.
+
 Suite TOML (``colosseum run-suite``) lists scripts. It is not a plugin section
 file; pass config separately with ``--config``.
 
@@ -155,6 +161,7 @@ configuration, not unit identity (do not put these flags in metadata)::
    wats = false
    junit = false
 
+``wats = T`` and ``junit = "no"`` are the same as ``true`` and ``false``.
 Both default to false when the table is absent. CLI ``--report NAME``
 (repeatable) replaces the table for that process. An unknown name warns and
 does not fail the run. See :doc:`output_artifacts`.

@@ -132,11 +132,12 @@ Resolution order (first hit wins):
    :alt: Parameters file resolution and BLOCKED owed limits
    :align: center
 
-When a file is loaded, an unknown ``key=`` fails at the call as a
-:term:`ProceduralFault`. A present but invalid file fails the slot before
-``main``. Sections that contain ``expected_val``, ``tolerance``, ``minimum``,
-``maximum``, ``exact``, or ``expected`` are owed limits: if the run aborts
-before those keys are measured, finalize inserts ``BLOCKED`` verification rows.
+When a file is loaded, a ``key=`` with no section keeps the arguments from the
+call. A section that is present overrides those arguments. A present but invalid
+file fails the slot before ``main``. Sections that contain ``expected_val``,
+``tolerance``, ``minimum``, ``maximum``, ``exact``, or ``expected`` are owed
+limits: if the run aborts before those keys are measured, finalize inserts
+``BLOCKED`` verification rows.
 
 **Limit-only parameters file** (``parameters.toml``)::
 
