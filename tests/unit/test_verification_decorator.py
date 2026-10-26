@@ -263,6 +263,25 @@ def test_auto_compares_returned_value_to_expected_val(ctx) -> None:
     assert failed.actual == 3.5
 
 
+def test_auto_compares_expected_result_alias(ctx) -> None:
+    import json
+
+    @verification()
+    def check(*, key: str, expected_result: float, tolerance: float = 0.0) -> float:
+        return 3.25
+
+    passed = check(key="rail", expected_result=3.3, tolerance=0.1)
+    assert passed.status == "PASS"
+    assert passed.actual == 3.25
+    row = ctx.db.fetch_table_rows("verifications")[-1]
+    assert json.loads(row["expected_json"]) == 3.3
+    assert row["compare_op"] == "GELE"
+    assert json.loads(row["tolerance_json"]) == 0.1
+
+    failed = check(key="rail_hi", expected_result=3.3, tolerance=0.01)
+    assert failed.status == "FAIL"
+
+
 def test_auto_exact_match_when_tolerance_omitted(ctx) -> None:
     @verification()
     def check(*, key: str, expected_val: float) -> float:

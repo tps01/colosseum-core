@@ -67,16 +67,16 @@ Verifications
 ``@verification`` records ``PASS``, ``FAIL``, ``ERROR``, or ``BLOCKED``. Look up
 prior measurements in the verifier body (for example
 ``get_context().db.get_measurement(...)``) and return the measured value; the
-decorator compares it to limit kwargs (``expected_val`` with optional
-``tolerance``, or ``minimum`` / ``maximum`` / ``exact`` / ``expected``). Omit
-``tolerance`` for an exact match. ``tolerance`` may be a ± number, a signed
-one-sided band string such as ``"+10"``, or an operator (``">="``, ``"GE"``,
-``"!="``, and so on). Return ``missing_measurement_result`` when evidence is
-absent, or return ``VerificationResult`` / ``bool`` when the body decides the
-outcome itself. After a required command failed with ``cause=unit``, that helper
-returns ``BLOCKED`` instead of ``ERROR``. At finalize, owed limit keys from the
-parameters file with no measurement also become ``BLOCKED`` rows.
-``overall_pass`` treats ``BLOCKED`` like ``FAIL``.
+decorator compares it to limit kwargs (``expected_val`` or ``expected_result``
+with optional ``tolerance``, or ``minimum`` / ``maximum`` / ``exact`` /
+``expected``). Omit ``tolerance`` for an exact match. ``tolerance`` may be a ±
+number, a signed one-sided band string such as ``"+10"``, or an operator
+(``">="``, ``"GE"``, ``"!="``, and so on). Return ``missing_measurement_result``
+when evidence is absent, or return ``VerificationResult`` / ``bool`` when the
+body decides the outcome itself. After a required command failed with
+``cause=unit``, that helper returns ``BLOCKED`` instead of ``ERROR``. At
+finalize, owed limit keys from the parameters file with no measurement also
+become ``BLOCKED`` rows. ``overall_pass`` treats ``BLOCKED`` like ``FAIL``.
 
 The domain string passed to ``get_measurement(domain, command, key, ...)`` must match
 the domain under which the measurement was recorded (the API module's

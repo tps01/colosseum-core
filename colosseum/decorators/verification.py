@@ -297,8 +297,10 @@ def _verification_fields(
 ) -> tuple[Any, str | None, float | str | None]:
     if kwargs.get("compare_op") == "LOG":
         return None, "LOG", None
-    if "expected_val" in kwargs:
-        expected = kwargs["expected_val"]
+    if "expected_val" in kwargs or "expected_result" in kwargs:
+        expected = (
+            kwargs["expected_val"] if "expected_val" in kwargs else kwargs["expected_result"]
+        )
         if "tolerance" not in kwargs:
             return expected, "EQ", None
         compare_op, stored = _tolerance_evidence(kwargs["tolerance"])
@@ -319,8 +321,11 @@ def _auto_limit_args(kwargs: dict[str, Any]) -> tuple[object, object] | None:
     """Return ``(expected, tolerance)`` for automatic value comparison, or ``None``."""
     if kwargs.get("compare_op") == "LOG":
         return None
-    if "expected_val" in kwargs:
-        return kwargs["expected_val"], kwargs.get("tolerance")
+    if "expected_val" in kwargs or "expected_result" in kwargs:
+        expected = (
+            kwargs["expected_val"] if "expected_val" in kwargs else kwargs["expected_result"]
+        )
+        return expected, kwargs.get("tolerance")
     if "minimum" in kwargs:
         return kwargs["minimum"], "GE"
     if "maximum" in kwargs:
@@ -594,7 +599,8 @@ def verification(
                 status=result.status,
                 optional=result.optional,
                 detail=(
-                    f"expected={call_kwargs.get('expected_val')!r} "
+                    "expected="
+                    f"{call_kwargs.get('expected_val', call_kwargs.get('expected_result'))!r} "
                     f"message={result.message!r}"
                 ),
                 call_args=args,
