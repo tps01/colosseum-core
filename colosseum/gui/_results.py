@@ -320,8 +320,13 @@ def comparison_label(compare_op: str, expected: str, tolerance: str) -> str:
         return f">= {_plain(expected_value)}"
     if op == "LE":
         return f"<= {_plain(expected_value)}"
-    if op == "GELE" and _is_number(expected_value) and _is_number(tolerance_value):
-        return f"{_plain(expected_value)} ± {_plain(tolerance_value)}"
+    if op == "GELE" and _is_number(expected_value):
+        if isinstance(tolerance_value, str):
+            text = tolerance_value.strip()
+            if text.startswith(("+", "-")) and len(text) > 1:
+                return f"{_plain(expected_value)} {text}"
+        if _is_number(tolerance_value):
+            return f"{_plain(expected_value)} ± {_plain(tolerance_value)}"
     if op:
         return f"{op} {_plain(expected_value)}".strip()
     return ""

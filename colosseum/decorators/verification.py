@@ -274,11 +274,35 @@ def missing_measurement_result(*, key: str, optional: bool = False) -> Verificat
     )
 
 
-def _verification_fields(kwargs: dict[str, Any]) -> tuple[Any, str | None, float | None]:
+def _tolerance_evidence(tolerance: object) -> tuple[str, float | str | None]:
+    """Map a ``tolerance`` value to ``(compare_op, stored_tolerance)`` for evidence."""
+    if tolerance is None:
+        return "EQ", None
+    if isinstance(tolerance, bool):
+        return "GELE", None
+    if isinstance(tolerance, (int, float)):
+        return "GELE", abs(float(tolerance))
+    if isinstance(tolerance, str):
+        text = tolerance.strip()
+        if _parse_signed_band(text) is not None:
+            return "GELE", text
+        op = _OPERATOR_ALIASES.get(text) or _OPERATOR_ALIASES.get(text.upper())
+        if op is not None:
+            return op, None
+    return "GELE", None
+
+
+def _verification_fields(
+    kwargs: dict[str, Any],
+) -> tuple[Any, str | None, float | str | None]:
     if kwargs.get("compare_op") == "LOG":
         return None, "LOG", None
     if "expected_val" in kwargs:
-        return kwargs["expected_val"], "GELE", kwargs.get("tolerance", 0.0)
+        expected = kwargs["expected_val"]
+        if "tolerance" not in kwargs:
+            return expected, "EQ", None
+        compare_op, stored = _tolerance_evidence(kwargs["tolerance"])
+        return expected, compare_op, stored
     if "minimum" in kwargs:
         return kwargs["minimum"], "GE", None
     if "maximum" in kwargs:
@@ -291,6 +315,23 @@ def _verification_fields(kwargs: dict[str, Any]) -> tuple[Any, str | None, float
     return None, None, None
 
 
+def _auto_limit_args(kwargs: dict[str, Any]) -> tuple[object, object] | None:
+    """Return ``(expected, tolerance)`` for automatic value comparison, or ``None``."""
+    if kwargs.get("compare_op") == "LOG":
+        return None
+    if "expected_val" in kwargs:
+        return kwargs["expected_val"], kwargs.get("tolerance")
+    if "minimum" in kwargs:
+        return kwargs["minimum"], "GE"
+    if "maximum" in kwargs:
+        return kwargs["maximum"], "LE"
+    if "exact" in kwargs:
+        return kwargs["exact"], None
+    if "expected" in kwargs:
+        return kwargs["expected"], None
+    return None
+
+
 def _clean_description(value: object) -> str | None:
     if value is None:
         return None
@@ -298,7 +339,12 @@ def _clean_description(value: object) -> str | None:
     return text or None
 
 
-def _coerce_verification_result(raw_result: object, *, optional: bool) -> VerificationResult:
+def _coerce_verification_result(
+    raw_result: object,
+    *,
+    optional: bool,
+    kwargs: dict[str, Any],
+) -> VerificationResult:
     if isinstance(raw_result, VerificationResult):
         return raw_result
     if isinstance(raw_result, bool):
@@ -307,7 +353,13 @@ def _coerce_verification_result(raw_result: object, *, optional: bool) -> Verifi
             message="" if raw_result else "verification returned False",
             optional=optional,
         )
-    return VerificationResult(status="PASS", message=str(raw_result), optional=optional)
+    limit = _auto_limit_args(kwargs)
+    if limit is not None:
+        expected, tolerance = limit
+        return apply_tolerance(raw_result, expected, tolerance, optional=optional)
+    return VerificationResult(
+        status="PASS", message=str(raw_result), optional=optional, actual=raw_result,
+    )
 
 
 @overload
@@ -495,7 +547,9 @@ def verification(
             try:
                 call_kwargs = coerce_units(call_kwargs)
                 result = _coerce_verification_result(
-                    func(*args, **call_kwargs), optional=optional,
+                    func(*args, **call_kwargs),
+                    optional=optional,
+                    kwargs=call_kwargs,
                 )
             except Exception as exc:  # noqa: BLE001
                 log_evidence_error(

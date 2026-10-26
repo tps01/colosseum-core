@@ -251,27 +251,40 @@ def _as_float(value: object) -> float:
     raise TypeError(f"expected numeric WATS limit, got {type(value)!r}")
 
 
+def _gele_limits(expected: object, tolerance: object) -> tuple[float, float]:
+    """Return ``(low, high)`` for a GELE band, including ``+N`` / ``-N`` strings."""
+    from colosseum.decorators.verification import _parse_signed_band
+
+    exp = _as_float(expected)
+    if isinstance(tolerance, str):
+        signed = _parse_signed_band(tolerance.strip())
+        if signed is not None:
+            side, magnitude = signed
+            if side == "+":
+                return exp, exp + magnitude
+            return exp - magnitude, exp
+    band = abs(_as_float(0.0 if tolerance is None else tolerance))
+    return exp - band, exp + band
+
+
 def _numeric_extra(
-    compare_op: str, expected: object, tolerance: float,
+    compare_op: str, expected: object, tolerance: object,
 ) -> dict[str, Any]:
     if compare_op == "LOG":
         return {"compOp": "LOG", "lowLimit": None, "highLimit": None}
     if compare_op == "GELE":
-        exp = _as_float(expected)
-        low = exp - tolerance
-        high = exp + tolerance
+        low, high = _gele_limits(expected, tolerance)
         return {"compOp": "GELE", "lowLimit": low, "highLimit": high}
     return {"compOp": compare_op, "lowLimit": _as_float(expected)}
 
 
 def _numeric_measurement(row: VerificationRecord, *, unit: str) -> dict[str, Any]:
-    tolerance = float(row.tolerance if row.tolerance is not None else 0.0)
     compare_op = row.compare_op or "GELE"
     return {
         "status": _wats_status(row.status),
         "unit": unit,
         "value": float(row.actual),
-        **_numeric_extra(compare_op, row.expected, tolerance),
+        **_numeric_extra(compare_op, row.expected, row.tolerance),
     }
 
 

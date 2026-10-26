@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from colosseum.decorators import (
     VerificationResult,
-    apply_tolerance,
     command,
     measurement,
     verification,
@@ -84,8 +83,12 @@ def verify_widget_count(
     expected_val: float,
     tolerance: float = 0.0,
     optional: bool = False,
-) -> VerificationResult:
-    """Verify a prior measure_widget_count row."""
+) -> float | VerificationResult:
+    """Verify a prior measure_widget_count row.
+
+    Returns the measured value; ``@verification`` applies ``expected_val`` /
+    ``tolerance`` automatically.
+    """
     from colosseum.context import get_context
     from colosseum.decorators import missing_measurement_result
 
@@ -101,7 +104,7 @@ def verify_widget_count(
         tolerance,
         actual,
     )
-    return apply_tolerance(actual, expected_val, tolerance, optional=optional)
+    return actual
 
 
 @verification

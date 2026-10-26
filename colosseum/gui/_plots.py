@@ -51,7 +51,21 @@ def limit_view(
         return LimitView(actual=actual, low=None, high=expected, units=units)
     if op != "GELE":
         return None
-    tolerance = _number(_parse(tolerance_raw))
+    parsed_tol = _parse(tolerance_raw)
+    if isinstance(parsed_tol, str):
+        from colosseum.decorators.verification import _parse_signed_band
+
+        signed = _parse_signed_band(parsed_tol.strip())
+        if signed is not None:
+            side, magnitude = signed
+            if side == "+":
+                return LimitView(
+                    actual=actual, low=expected, high=expected + magnitude, units=units,
+                )
+            return LimitView(
+                actual=actual, low=expected - magnitude, high=expected, units=units,
+            )
+    tolerance = _number(parsed_tol)
     if tolerance is None or tolerance < 0:
         return None
     return LimitView(

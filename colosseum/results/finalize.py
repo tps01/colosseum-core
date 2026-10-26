@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Literal
 
 from colosseum.config.parameters import owed_limit_keys
 from colosseum.database import VerificationRow
-from colosseum.decorators.verification import VerificationResult
+from colosseum.decorators.verification import VerificationResult, _verification_fields
 from colosseum.logging.setup import close_logger_handlers
 from colosseum.results.finalize_policy import (
     FinalizePolicy,
@@ -79,25 +79,7 @@ def _insert_blocked_owed_keys(ctx: RuntimeContext) -> None:
         if key in measured:
             continue
         fields = ctx.parameters_map[key]
-        expected = None
-        compare_op = None
-        tolerance = None
-        if "expected_val" in fields:
-            expected = fields["expected_val"]
-            compare_op = "GELE"
-            tolerance = float(fields.get("tolerance", 0.0))
-        elif "minimum" in fields:
-            expected = fields["minimum"]
-            compare_op = "GE"
-        elif "maximum" in fields:
-            expected = fields["maximum"]
-            compare_op = "LE"
-        elif "exact" in fields:
-            expected = fields["exact"]
-            compare_op = "EQ"
-        elif "expected" in fields:
-            expected = fields["expected"]
-            compare_op = "EQ" if isinstance(expected, str) else None
+        expected, compare_op, tolerance = _verification_fields(fields)
         result = VerificationResult(status="BLOCKED", message=abort_message, optional=False)
         ctx.result_aggregator.record_verification(
             result, key=key, command="owed_limit", domain="core",

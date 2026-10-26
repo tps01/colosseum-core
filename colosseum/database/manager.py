@@ -63,7 +63,7 @@ class VerificationRow:
     key: str
     expected: Any = None
     actual: Any = None
-    tolerance: float | None = None
+    tolerance: float | str | None = None
     compare_op: str | None = None
     status: str = "PASS"
     optional: bool = False
@@ -140,7 +140,8 @@ def _loads_json(value: object) -> object | None:
     raise TypeError(f"unexpected JSON column value: {type(value)!r}")
 
 
-def _as_optional_float(value: object) -> float | None:
+def _as_optional_tolerance(value: object) -> float | str | None:
+    """Load a verification tolerance. Strings keep operator / ``+N`` / ``-N`` forms."""
     if value is None:
         return None
     if isinstance(value, bool):
@@ -148,8 +149,8 @@ def _as_optional_float(value: object) -> float | None:
     if isinstance(value, (int, float)):
         return float(value)
     if isinstance(value, str):
-        return float(value)
-    raise TypeError(f"expected numeric tolerance, got {type(value)!r}")
+        return value
+    raise TypeError(f"expected numeric or string tolerance, got {type(value)!r}")
 
 
 def _as_int(value: object) -> int:
@@ -198,7 +199,7 @@ def _verification_record(item: tuple[object, ...]) -> VerificationRecord:
         key=str(item[3]),
         expected=_loads_json(item[4]),
         actual=_loads_json(item[5]),
-        tolerance=_as_optional_float(_loads_json(item[6])),
+        tolerance=_as_optional_tolerance(_loads_json(item[6])),
         compare_op=item[7],  # type: ignore[arg-type]
         status=str(item[8]),
         optional=bool(item[9]),
