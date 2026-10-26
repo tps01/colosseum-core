@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import math
 from typing import TYPE_CHECKING, Any
 
@@ -227,3 +228,197 @@ def attach_parameters(
         ctx.db.insert_run_metadata("parameters_file", str(resolved))
     if ctx.logger is not None:
         ctx.logger.info("Parameters file: %s (%d section(s))", resolved, len(ctx.parameters_map))
+
+
+_CONTAINER_CLOSERS = {"[": "]", "{": "}", "(": ")"}
+_BARE_BOOLS = {"true": True, "yes": True, "false": False, "no": False}
+
+
+def load_parameter(*, key: str, field: str) -> Any:  # noqa: ANN401
+    """Return one field from the loaded parameters file.
+
+    ``key`` is a TOML table name and ``field`` is a name in that table.
+    Ints, floats, bools, and ordinary strings are returned as loaded. A string
+    shaped like a list, dict, set, or tuple is parsed into that value. ``key=``
+    injection still receives the TOML value stored on the context.
+    """
+    from colosseum.context import get_context
+
+    ctx = get_context()
+    if ctx.parameters_map is None:
+        raise ParametersError("no parameters file is loaded")
+    try:
+        table = ctx.parameters_map[key]
+    except KeyError:
+        raise ParametersError(f"parameters key not found: {key}") from None
+    if field not in table:
+        raise ParametersError(f"parameters field {field!r} not found in [{key}]")
+    try:
+        return coerce_parameter_value(table[field])
+    except ParametersError as exc:
+        raise ParametersError(
+            f"cannot parse parameters field {field!r} in [{key}]: {exc}",
+        ) from exc
+
+
+def coerce_parameter_value(value: object) -> object:
+    """Copy ``value``, parsing collection-shaped strings into Python objects.
+
+    Quoted numbers stay strings. A matched ``[]``, ``{}``, or ``()`` string is
+    ``ast.literal_eval`` when it is a Python literal, otherwise bare words become
+    strings. Bare ``true``, ``false``, ``yes``, and ``no`` become bools. A
+    one-element list whose text contains whitespace stays a string.
+    """
+    if isinstance(value, str):
+        return _coerce_parameter_string(value)
+    if isinstance(value, list):
+        return [coerce_parameter_value(item) for item in value]
+    if isinstance(value, dict):
+        return {item_key: coerce_parameter_value(item) for item_key, item in value.items()}
+    return value
+
+
+def _parse_error(text: str) -> ParametersError:
+    return ParametersError(f"cannot parse parameter value {text!r}")
+
+
+def _matched_container(text: str) -> bool:
+    if len(text) < 2:
+        return False
+    closer = _CONTAINER_CLOSERS.get(text[0])
+    return closer is not None and text[-1] == closer
+
+
+def _coerce_parameter_string(raw: str) -> object:
+    text = raw.strip()
+    if not _matched_container(text):
+        return raw
+    try:
+        return ast.literal_eval(text)
+    except (SyntaxError, ValueError, TypeError):
+        parsed = _parse_bare_container(text)
+    if isinstance(parsed, str):
+        return raw
+    return parsed
+
+
+def _top_level_indexes(text: str, *, separator: str, source: str) -> list[int]:
+    """Return indexes of ``separator`` outside quotes and nested brackets."""
+    indexes: list[int] = []
+    depth = 0
+    in_single = False
+    in_double = False
+    escaped = False
+    for index, char in enumerate(text):
+        if escaped:
+            escaped = False
+            continue
+        if char == "\\" and (in_single or in_double):
+            escaped = True
+            continue
+        if char == "'" and not in_double:
+            in_single = not in_single
+            continue
+        if char == '"' and not in_single:
+            in_double = not in_double
+            continue
+        if in_single or in_double:
+            continue
+        if char in _CONTAINER_CLOSERS:
+            depth += 1
+            continue
+        if char in _CONTAINER_CLOSERS.values():
+            depth -= 1
+            if depth < 0:
+                raise _parse_error(source)
+            continue
+        if char == separator and depth == 0:
+            indexes.append(index)
+    if depth != 0 or in_single or in_double:
+        raise _parse_error(source)
+    return indexes
+
+
+def _split_top_level(text: str, *, separator: str, source: str) -> list[str]:
+    parts: list[str] = []
+    start = 0
+    for index in _top_level_indexes(text, separator=separator, source=source):
+        parts.append(text[start:index])
+        start = index + 1
+    parts.append(text[start:])
+    return parts
+
+
+def _is_unquoted_prose(atom: str) -> bool:
+    if atom[0] in {"'", '"', "[", "{", "("}:
+        return False
+    return any(char.isspace() for char in atom)
+
+
+def _parse_atom(part: str, *, source: str) -> object:
+    atom = part.strip()
+    if not atom:
+        raise _parse_error(source)
+    if _matched_container(atom):
+        return _coerce_parameter_string(atom)
+    try:
+        return ast.literal_eval(atom)
+    except (SyntaxError, ValueError, TypeError):
+        parsed = _BARE_BOOLS.get(atom.lower())
+        if parsed is not None:
+            return parsed
+        return atom
+
+
+def _require_hashable(value: object, *, source: str) -> None:
+    try:
+        hash(value)
+    except TypeError as exc:
+        raise _parse_error(source) from exc
+
+
+def _parse_bare_set(parts: list[str], *, source: str) -> set[Any]:
+    items: set[Any] = set()
+    for part in parts:
+        item = _parse_atom(part, source=source)
+        _require_hashable(item, source=source)
+        items.add(item)
+    return items
+
+
+def _parse_bare_dict(parts: list[str], *, source: str) -> dict[Any, Any]:
+    parsed: dict[Any, Any] = {}
+    for part in parts:
+        colons = _top_level_indexes(part, separator=":", source=source)
+        if not colons:
+            raise _parse_error(source)
+        split_at = colons[0]
+        key = _parse_atom(part[:split_at], source=source)
+        _require_hashable(key, source=source)
+        parsed[key] = _parse_atom(part[split_at + 1 :], source=source)
+    return parsed
+
+
+def _parse_bare_container(text: str) -> object:
+    opener = text[0]
+    inner = text[1:-1]
+    if not inner.strip():
+        if opener == "[":
+            return []
+        if opener == "(":
+            return ()
+        return {}
+    parts = _split_top_level(inner, separator=",", source=text)
+    if parts and not parts[-1].strip():
+        parts.pop()
+    if not parts or any(not part.strip() for part in parts):
+        raise _parse_error(text)
+    if opener == "[":
+        if len(parts) == 1 and _is_unquoted_prose(parts[0].strip()):
+            return text
+        return [_parse_atom(part, source=text) for part in parts]
+    if opener == "(":
+        return tuple(_parse_atom(part, source=text) for part in parts)
+    if any(_top_level_indexes(part, separator=":", source=text) for part in parts):
+        return _parse_bare_dict(parts, source=text)
+    return _parse_bare_set(parts, source=text)
