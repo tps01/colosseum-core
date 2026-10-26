@@ -85,7 +85,18 @@ def _slot_dict(slot: SuiteSlotResult) -> dict[str, object]:
         "cycle_index": slot.cycle_index,
         "overall_result": slot.overall,
         "exit_code": slot.exit_code,
+        "config_path": slot.config_path,
+        "parameters_path": slot.parameters_path,
+        "metadata_path": slot.metadata_path,
     }
+
+
+def _input_file_lines(slot: SuiteSlotResult) -> list[str]:
+    return [
+        f"      config: {slot.config_path or 'N/A'}",
+        f"      parameters: {slot.parameters_path or 'N/A'}",
+        f"      metadata: {slot.metadata_path or 'N/A'}",
+    ]
 
 
 def _text(value: object) -> str:
@@ -230,6 +241,8 @@ class SummaryWriter:
             f"Test case: {ctx.test_case_name}",
             f"Suite: {ctx.suite_name or 'N/A'}",
             f"Config file: {ctx.config_path or 'N/A'}",
+            f"Parameters file: {ctx.parameters_path or 'N/A'}",
+            f"Metadata file: {ctx.metadata_path or 'N/A'}",
             f"Output directory: {output_dir}",
             f"End time: {datetime.now(timezone.utc).isoformat()}",
             f"Overall result: {'PASS' if aggregator.overall_pass() else 'FAIL'}",
@@ -261,6 +274,8 @@ class SummaryWriter:
             "test_case": ctx.test_case_name,
             "suite": ctx.suite_name,
             "config_path": str(ctx.config_path) if ctx.config_path else None,
+            "parameters_path": str(ctx.parameters_path) if ctx.parameters_path else None,
+            "metadata_path": ctx.metadata_path or None,
             "output_directory": str(output_dir),
             "end_time_utc": datetime.now(timezone.utc).isoformat(),
             "overall_result": "PASS" if aggregator.overall_pass() else "FAIL",
@@ -370,6 +385,7 @@ class SuiteSummaryWriter:
                 f"  - [{slot.overall}] test={slot.test_index}{repeat}{cycle} "
                 f"{slot.script_path.name} -> {slot.output_dir.name}",
             )
+            lines.extend(_input_file_lines(slot))
         lines.extend(_common_failure_lines(common_failures))
         lines.extend(["", "All script slots:"])
         if not ctx.suite_slot_results:
@@ -379,6 +395,7 @@ class SuiteSummaryWriter:
             lines.append(
                 f"  - {slot.phase}: {slot.script_path.name} ({result}) -> {slot.output_dir.name}",
             )
+            lines.extend(_input_file_lines(slot))
         summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         payload: dict[str, object] = {
             "colosseum_version": ctx.framework_version,

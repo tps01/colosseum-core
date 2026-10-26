@@ -128,6 +128,13 @@ def ensure_output_dir(ctx: RuntimeContext, logical_name: str | None = None) -> P
     return ctx.output_dir
 
 
+def _stored_path(value: Path | str | None) -> str | None:
+    if value is None:
+        return None
+    text = str(value)
+    return text or None
+
+
 @dataclass
 class SuiteSlotResult:
     phase: str
@@ -139,6 +146,9 @@ class SuiteSlotResult:
     affects_suite_result: bool = False
     overall: str | None = None
     exit_code: int | None = None
+    config_path: str | None = None
+    parameters_path: str | None = None
+    metadata_path: str | None = None
 
 
 def ensure_suite_runtime_ready(ctx: RuntimeContext, suite_name: str) -> None:
@@ -251,6 +261,9 @@ def finalize_script_slot(
         affects_suite_result=affects,
         overall=result_data.overall if affects else None,
         exit_code=result_data.exit_code,
+        config_path=_stored_path(ctx.config_path),
+        parameters_path=_stored_path(ctx.parameters_path),
+        metadata_path=_stored_path(ctx.metadata_path),
     )
     ctx.suite_slot_results.append(result)
     if affects:
