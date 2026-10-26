@@ -163,6 +163,37 @@ finalize inserts ``BLOCKED`` verification rows.
      { path = "receiver_test.py", parameters = "limits_high.toml" },
    ]
 
+**Reading one field**
+
+``col.load_parameter(key=..., field=...)`` returns one value from the loaded
+parameters file. A procedure uses it for a list of paths or another setting
+the script reads itself. Ints, floats, bools, and ordinary strings come back
+as written. A TOML array or inline table comes back as a list or dict.
+A quoted Python literal is parsed, and so is a bracketed list of bare words.
+
+**captures.toml**::
+
+   [captures]
+   files = "[trace.bin, C:/data/other.bin]"
+   count = 3
+
+**Script**::
+
+   files = col.load_parameter(key="captures", field="files")
+   for path in files:
+       measure_capture(path)
+
+``[thing1, thing2]`` becomes a list of strings. ``{1, 2}`` becomes a set and
+``{'a': 1}`` becomes a dict. Bare ``true``, ``false``, ``yes``, and ``no``
+inside a list become bools. A note such as ``[see manual]`` stays a string.
+A quoted number such as ``"99"`` stays a string; unquoted ``99`` is an int.
+``key=`` calls receive the value as loaded from TOML.
+
+A missing parameters file, key, or field raises ``ParametersError``. A matched
+bracket string that cannot be parsed, such as an empty slot or an unclosed
+inner bracket, raises ``ParametersError`` as well. ``{}`` is an empty dict.
+An empty set has no literal form.
+
 See ``examples/parameters/`` in the core package. For ready-made bench procedures,
 copy a folder from :doc:`testware_library`.
 

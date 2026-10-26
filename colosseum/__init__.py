@@ -3,6 +3,7 @@
 from importlib import metadata
 
 from . import config, database
+from .config.parameters import load_parameter
 from .context import auto_key
 from .decorators import (
     CommandResult,
@@ -40,4 +41,5 @@ __all__ = [
     "ProceduralFault",
     "auto_key",
     "endex",
+    "load_parameter",
 ]
