@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from colosseum.decorators import (
     VerificationResult,
+    apply_tolerance,
     command,
     measurement,
     verification,
@@ -100,19 +101,7 @@ def verify_widget_count(
         tolerance,
         actual,
     )
-    if abs(actual - expected_val) <= tolerance:
-        return VerificationResult(
-            status="PASS",
-            message="",
-            optional=optional,
-            actual=actual,
-        )
-    return VerificationResult(
-        status="FAIL",
-        message=f"expected {expected_val} +/- {tolerance}, got {actual}",
-        optional=optional,
-        actual=actual,
-    )
+    return apply_tolerance(actual, expected_val, tolerance, optional=optional)
 
 
 @verification

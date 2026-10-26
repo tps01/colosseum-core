@@ -48,6 +48,200 @@ class VerificationResult:
     actual: Any = None
 
 
+_OPERATOR_ALIASES: dict[str, str] = {
+    ">=": "GE",
+    "GE": "GE",
+    "<=": "LE",
+    "LE": "LE",
+    ">": "GT",
+    "GT": "GT",
+    "+": "GT",
+    "<": "LT",
+    "LT": "LT",
+    "-": "LT",
+    "==": "EQ",
+    "=": "EQ",
+    "EQ": "EQ",
+    "!=": "NE",
+    "<>": "NE",
+    "NE": "NE",
+}
+
+_OP_SYMBOLS: dict[str, str] = {
+    "GE": ">=",
+    "LE": "<=",
+    "GT": ">",
+    "LT": "<",
+    "EQ": "==",
+    "NE": "!=",
+}
+
+
+def _as_finite_number(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    if number != number or number in (float("inf"), float("-inf")):  # noqa: PLR0124
+        return None
+    return number
+
+
+def _parse_signed_band(text: str) -> tuple[str, float] | None:
+    """Return ``(\"+\", N)`` or ``(\"-\", N)`` for signed numeric strings like ``\"+10\"``."""
+    if len(text) < 2 or text[0] not in "+-":
+        return None
+    try:
+        magnitude = float(text[1:])
+    except ValueError:
+        return None
+    if magnitude != magnitude or magnitude in (float("inf"), float("-inf")):  # noqa: PLR0124
+        return None
+    if magnitude < 0:
+        return None
+    return text[0], magnitude
+
+
+def _pass_or_fail(
+    *,
+    passed: bool,
+    actual: object,
+    optional: bool,
+    fail_message: str,
+) -> VerificationResult:
+    if passed:
+        return VerificationResult(status="PASS", message="", optional=optional, actual=actual)
+    return VerificationResult(
+        status="FAIL", message=fail_message, optional=optional, actual=actual,
+    )
+
+
+def _error_result(message: str, *, actual: object, optional: bool) -> VerificationResult:
+    return VerificationResult(
+        status="ERROR", message=message, optional=optional, actual=actual,
+    )
+
+
+def apply_tolerance(
+    actual: object,
+    expected: object,
+    tolerance: object = None,
+    *,
+    optional: bool = False,
+) -> VerificationResult:
+    """Compare ``actual`` to ``expected`` using an overloaded ``tolerance``.
+
+    :param actual: Measured or computed value under test.
+    :type actual: object
+    :param expected: Reference value for the comparison.
+    :type expected: object
+    :param tolerance: Numeric ± band, signed one-sided band string (``\"+10\"`` /
+        ``\"-10\"``), comparison operator string, or ``None`` for exact match.
+    :type tolerance: object, optional
+    :param optional: Propagated onto the returned :class:`VerificationResult`.
+    :type optional: bool, optional
+    :returns: PASS/FAIL/ERROR result with ``actual`` set.
+    :rtype: VerificationResult
+    """
+    if isinstance(tolerance, bool):
+        return _error_result(
+            f"unsupported tolerance {tolerance!r}", actual=actual, optional=optional,
+        )
+
+    if tolerance is None:
+        passed = actual == expected
+        return _pass_or_fail(
+            passed=passed,
+            actual=actual,
+            optional=optional,
+            fail_message=f"expected {expected}, got {actual}",
+        )
+
+    if isinstance(tolerance, (int, float)):
+        actual_n = _as_finite_number(actual)
+        expected_n = _as_finite_number(expected)
+        if actual_n is None or expected_n is None:
+            return _error_result(
+                "non-numeric actual/expected for numeric tolerance",
+                actual=actual,
+                optional=optional,
+            )
+        band = abs(float(tolerance))
+        passed = abs(actual_n - expected_n) <= band
+        return _pass_or_fail(
+            passed=passed,
+            actual=actual,
+            optional=optional,
+            fail_message=f"expected {expected} +/- {band}, got {actual}",
+        )
+
+    if isinstance(tolerance, str):
+        text = tolerance.strip()
+        signed = _parse_signed_band(text)
+        if signed is not None:
+            actual_n = _as_finite_number(actual)
+            expected_n = _as_finite_number(expected)
+            if actual_n is None or expected_n is None:
+                return _error_result(
+                    "non-numeric actual/expected for numeric tolerance",
+                    actual=actual,
+                    optional=optional,
+                )
+            side, magnitude = signed
+            if side == "+":
+                passed = expected_n <= actual_n <= expected_n + magnitude
+                label = f"+{magnitude}"
+            else:
+                passed = expected_n - magnitude <= actual_n <= expected_n
+                label = f"-{magnitude}"
+            return _pass_or_fail(
+                passed=passed,
+                actual=actual,
+                optional=optional,
+                fail_message=f"expected {expected} {label}, got {actual}",
+            )
+
+        op = _OPERATOR_ALIASES.get(text) or _OPERATOR_ALIASES.get(text.upper())
+        if op is None:
+            return _error_result(
+                f"unknown tolerance {tolerance!r}", actual=actual, optional=optional,
+            )
+
+        symbol = _OP_SYMBOLS[op]
+        if op in {"EQ", "NE"}:
+            passed = (actual == expected) if op == "EQ" else (actual != expected)
+            return _pass_or_fail(
+                passed=passed,
+                actual=actual,
+                optional=optional,
+                fail_message=f"expected {symbol} {expected}, got {actual}",
+            )
+
+        actual_n = _as_finite_number(actual)
+        expected_n = _as_finite_number(expected)
+        if actual_n is None or expected_n is None:
+            return _error_result(
+                "non-numeric actual/expected for numeric tolerance",
+                actual=actual,
+                optional=optional,
+            )
+        comparisons = {
+            "GE": actual_n >= expected_n,
+            "LE": actual_n <= expected_n,
+            "GT": actual_n > expected_n,
+            "LT": actual_n < expected_n,
+        }
+        return _pass_or_fail(
+            passed=comparisons[op],
+            actual=actual,
+            optional=optional,
+            fail_message=f"expected {symbol} {expected}, got {actual}",
+        )
+
+    return _error_result(
+        f"unsupported tolerance {tolerance!r}", actual=actual, optional=optional,
+    )
+
+
 def _has_required_unit_command_error() -> bool:
     from colosseum.context import get_context
 

@@ -143,7 +143,9 @@ fallback domain ``core``. A mismatched lookup then reports no measurement.
 
 **colosseum_template/api.py** (excerpts)::
 
-   from colosseum.decorators import VerificationResult, command, measurement, verification
+   from colosseum.decorators import (
+       VerificationResult, apply_tolerance, command, measurement, verification,
+   )
    from colosseum.logging import get_logger
 
    _logger = get_logger("colosseum.template")
@@ -172,14 +174,7 @@ fallback domain ``core``. A mismatched lookup then reports no measurement.
        if row is None or row.value is None:
            return missing_measurement_result(key=key, optional=optional)
        actual = float(row.value)
-       if abs(actual - expected_val) <= tolerance:
-           return VerificationResult(status="PASS", message="", optional=optional, actual=actual)
-       return VerificationResult(
-           status="FAIL",
-           message=f"expected {expected_val} +/- {tolerance}, got {actual}",
-           optional=optional,
-           actual=actual,
-       )
+       return apply_tolerance(actual, expected_val, tolerance, optional=optional)
 
 End users call these from test scripts (see :doc:`writing_test_scripts`)::
 

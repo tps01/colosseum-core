@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from colosseum.context import get_context
-from colosseum.decorators import VerificationResult, measurement, verification
+from colosseum.decorators import VerificationResult, apply_tolerance, measurement, verification
 
 
 @measurement
@@ -23,10 +23,4 @@ def verify_value(
     if row is None:
         return VerificationResult(status="ERROR", message=f"no measurement for key={key}")
     actual = float(row.value)
-    passed = abs(actual - expected_val) <= tolerance
-    return VerificationResult(
-        status="PASS" if passed else "FAIL",
-        message="" if passed else f"{actual} outside {expected_val} ± {tolerance}",
-        optional=optional,
-        actual=actual,
-    )
+    return apply_tolerance(actual, expected_val, tolerance, optional=optional)
