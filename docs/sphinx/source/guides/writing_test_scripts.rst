@@ -135,9 +135,9 @@ Resolution order (first hit wins):
 When a file is loaded, a ``key=`` with no section keeps the arguments from the
 call. A section that is present overrides those arguments. A present but invalid
 file fails the slot before ``main``. Sections that contain ``expected_val``,
-``tolerance``, ``minimum``, ``maximum``, ``exact``, or ``expected`` are owed
-limits: if the run aborts before those keys are measured, finalize inserts
-``BLOCKED`` verification rows.
+``expected_result``, ``tolerance``, ``minimum``, ``maximum``, ``exact``, or
+``expected`` are owed limits: if the run aborts before those keys are measured,
+finalize inserts ``BLOCKED`` verification rows.
 
 **Limit-only parameters file** (``parameters.toml``)::
 
