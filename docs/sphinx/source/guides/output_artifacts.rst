@@ -75,7 +75,8 @@ Enable report listeners in config or on the CLI::
    wats = false
    junit = false
 
-Both default to false when the table is absent. ``colosseum run`` and
+Both default to false when the table is absent. ``wats = T`` and ``junit = "no"``
+are the same as ``true`` and ``false``. ``colosseum run`` and
 ``colosseum run-suite`` accept ``--report wats`` and ``--report junit``
 (repeatable). When any ``--report`` is present, that set replaces the config
 table for the process.

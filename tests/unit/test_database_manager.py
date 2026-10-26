@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import pytest
 
 from colosseum.database.manager import DatabaseManager, MeasurementRow
@@ -36,6 +38,21 @@ def test_measurement_json_round_trip(db: DatabaseManager) -> None:
     assert row is not None
     assert row.value == {"v": 3.3}
     assert row.status == "PASS"
+
+
+def test_measurement_json_dumps_datetime(db: DatabaseManager) -> None:
+    when = datetime(2026, 10, 25, 21, 50, tzinfo=timezone.utc)
+    db.insert_measurement(
+        MeasurementRow(
+            domain="equipment",
+            command="measure_voltage",
+            key="when",
+            value={"captured_at": when},
+        ),
+    )
+    row = db.get_measurement("equipment", "measure_voltage", "when")
+    assert row is not None
+    assert row.value == {"captured_at": str(when)}
 
 
 def test_fetch_table_rejects_invalid_name(db: DatabaseManager) -> None:

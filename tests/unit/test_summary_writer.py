@@ -129,6 +129,50 @@ def _write_failures(directory: Path, rows: list[dict[str, str]]) -> None:
     (directory / "summary.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
+def test_summary_lists_parameters_and_metadata_files(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    out = ctx.output_dir
+    assert out is not None
+    ctx.parameters_path = out / "parameters.toml"
+    ctx.metadata_path = str(out / "metadata.yaml")
+    SummaryWriter().write(out, ctx.result_aggregator, ctx)
+    text = (out / "summary.txt").read_text(encoding="utf-8")
+    payload = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+    assert f"Parameters file: {ctx.parameters_path}" in text
+    assert f"Metadata file: {ctx.metadata_path}" in text
+    assert payload["parameters_path"] == str(ctx.parameters_path)
+    assert payload["metadata_path"] == ctx.metadata_path
+
+
+def test_suite_summary_lists_slot_input_files(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    root = ctx.output_dir
+    assert root is not None
+    container = root / "container"
+    container.mkdir()
+    slot_dir = root / "slot-0"
+    slot_dir.mkdir()
+    slot = _slot(slot_dir, "case.py", test_index=0, overall="PASS")
+    slot.config_path = str(root / "config.toml")
+    slot.parameters_path = str(root / "limits.toml")
+    slot.metadata_path = None
+    ctx.suite_test_results = [slot]
+    ctx.suite_slot_results = [slot]
+
+    SuiteSummaryWriter().write(container, ctx, exit_code=0, overall="PASS")
+
+    text = (container / "summary.txt").read_text(encoding="utf-8")
+    payload = json.loads((container / "summary.json").read_text(encoding="utf-8"))
+    assert f"config: {slot.config_path}" in text
+    assert f"parameters: {slot.parameters_path}" in text
+    assert "metadata: N/A" in text
+    recorded = payload["test_slots"][0]
+    assert recorded["config_path"] == slot.config_path
+    assert recorded["parameters_path"] == slot.parameters_path
+    assert recorded["metadata_path"] is None
+    assert payload["all_slots"][0]["config_path"] == slot.config_path
+
+
 def test_suite_summary_reports_slot_rates_and_runtime(unit_runtime_context) -> None:
     ctx = unit_runtime_context
     root = ctx.output_dir

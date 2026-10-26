@@ -98,8 +98,8 @@ def test_auto_keyed_verification_skips_parameters_lookup(ctx) -> None:
     assert result.status == "PASS"
     assert result.message == "1"
     missing = _verify(key="absent")
-    assert missing.status == "ERROR"
-    assert "no section" in missing.message
+    assert missing.status == "PASS"
+    assert missing.message == "absent"
 
 
 def test_injected_key_is_omitted_when_the_function_does_not_declare_it(ctx) -> None:

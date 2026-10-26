@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from colosseum.config.toml_relaxed import coerce_config_bool
+
 if TYPE_CHECKING:
     from colosseum.context import RuntimeContext
     from colosseum.runner.run_options import RunOptions
@@ -19,8 +21,9 @@ def reports_from_config(ctx: RuntimeContext) -> frozenset[str]:
     enabled: set[str] = set()
     for name, value in section.items():
         key = str(name)
-        if isinstance(value, bool):
-            if value:
+        enabled_flag = coerce_config_bool(value)
+        if enabled_flag is not None:
+            if enabled_flag:
                 enabled.add(key)
             continue
         if ctx.logger is not None:
@@ -72,7 +75,7 @@ def report_section_warnings(raw: dict[str, Any]) -> list[str]:
         warnings.append("`[colosseum.reports]` must be a table; ignored")
         return warnings
     for key, value in reports.items():
-        if not isinstance(value, bool):
+        if coerce_config_bool(value) is None:
             warnings.append(
                 f"`[colosseum.reports].{key}` must be a boolean; ignored",
             )

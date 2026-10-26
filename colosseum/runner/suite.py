@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, Callable
 
-from colosseum.config.toml_relaxed import read_relaxed_toml
+from colosseum.config.toml_relaxed import coerce_config_bool, read_relaxed_toml
 from colosseum.runner.provenance import record_suite_provenance
 from colosseum.runner.runtime import (
     begin_script_slot,
@@ -160,9 +160,10 @@ def _parse_cycle(raw: dict[str, Any]) -> tuple[int, timedelta | None]:
 def _as_bool(value: object, field: str) -> bool:
     if value is None:
         return False
-    if not isinstance(value, bool):
+    parsed = coerce_config_bool(value)
+    if parsed is None:
         raise SuiteError(f"Suite field `{field}` must be a boolean")
-    return value
+    return parsed
 
 
 def load_suite_toml(path: Path) -> SuiteDefinition:

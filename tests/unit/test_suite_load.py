@@ -53,11 +53,26 @@ def test_fail_fast_true_loads(fixtures_dir) -> None:
     assert len(suite.tests) == 2
 
 
+def test_fail_fast_accepts_bool_spellings(tmp_path, fixtures_dir) -> None:
+    script = fixtures_dir / "scripts" / "pass_test.py"
+    path = tmp_path / "fail_fast_t.toml"
+    path.write_text(
+        f'name = "x"\nfail_fast = T\ntests = ["{script.as_posix()}"]\n',
+        encoding="utf-8",
+    )
+    assert load_suite_toml(path).fail_fast is True
+    path.write_text(
+        f'name = "x"\nfail_fast = "no"\ntests = ["{script.as_posix()}"]\n',
+        encoding="utf-8",
+    )
+    assert load_suite_toml(path).fail_fast is False
+
+
 def test_fail_fast_non_bool_raises(tmp_path, fixtures_dir) -> None:
     script = fixtures_dir / "scripts" / "pass_test.py"
     path = tmp_path / "bad_fail_fast.toml"
     path.write_text(
-        f'name = "x"\nfail_fast = "yes"\ntests = ["{script.as_posix()}"]\n',
+        f'name = "x"\nfail_fast = "maybe"\ntests = ["{script.as_posix()}"]\n',
         encoding="utf-8",
     )
     with pytest.raises(SuiteError, match="fail_fast.*boolean"):

@@ -84,8 +84,7 @@ def test_apply_fill_file_wins_and_unknown_key(tmp_path: Path) -> None:
     assert filled["tolerance"] == 0.1
     assert filled["note"] == "call"
     assert apply_parameters_to_kwargs({"x": 1}, key="rail", parameters=None) == {"x": 1}
-    with pytest.raises(ParametersError, match="no section"):
-        apply_parameters_to_kwargs({}, key="missing", parameters=tables)
+    assert apply_parameters_to_kwargs({"x": 1}, key="missing", parameters=tables) == {"x": 1}
 
 
 def test_command_key_stripped_and_fill(unit_runtime_context, tmp_path: Path) -> None:
@@ -101,7 +100,7 @@ def test_command_key_stripped_and_fill(unit_runtime_context, tmp_path: Path) -> 
     assert set_rail(key="step", voltage=1.8) == 3.3
 
 
-def test_command_unknown_key_errors(unit_runtime_context, tmp_path: Path) -> None:
+def test_command_unknown_key_uses_the_call(unit_runtime_context, tmp_path: Path) -> None:
     path = tmp_path / "parameters.toml"
     path.write_text("[step]\nvoltage = 3.3\n", encoding="utf-8")
     attach_parameters(unit_runtime_context, path)
@@ -110,11 +109,10 @@ def test_command_unknown_key_errors(unit_runtime_context, tmp_path: Path) -> Non
     def set_rail(*, voltage: float = 0.0) -> float:
         return voltage
 
-    with pytest.raises(ParametersError, match="no section"):
-        set_rail(key="other")
+    assert set_rail(key="other", voltage=1.8) == 1.8
     row = unit_runtime_context.db.fetch_table_rows("commands")[-1]
-    assert row["status"] == "ERROR"
-    assert row["cause"] == "procedural"
+    assert row["status"] == "PASS"
+    assert row["key"] == "other"
 
 
 def test_verification_fills_limits(unit_runtime_context, tmp_path: Path) -> None:

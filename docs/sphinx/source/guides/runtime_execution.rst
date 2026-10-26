@@ -223,9 +223,12 @@ including each setup, between, test, and teardown slot of ``run-suite``. Omitted
 keys are an error unless the procedure called ``col.auto_key()``. On the default
 ``"log"`` policy the walk also checks the same structure a real run enforces:
 a repeated measurement key, ``multi_row`` without ``row_index``, a verification
-whose evidence key has not been measured yet, a keyed call whose parameters-file
-section is missing, and a call that does not match the function signature after
-parameter values are filled in. Each problem is recorded and the walk continues.
+whose evidence key has not been measured yet, and a call that does not match
+the function signature after parameter values are filled in. Where a parameter
+has a type hint, the walk also checks that the argument agrees with it.
+Duration and frequency strings are checked after they are parsed. An argument
+with no hint is left unchecked. A key with no parameters-file section keeps the
+call arguments. Each problem is recorded and the walk continues.
 A required error still fails that slot. ``"call"`` runs the body, and a callable
 runs instead of the body. ``--export parameters`` uses the same walk to collect
 keys and keyword values into ``parameters.toml``, and does not call decorated

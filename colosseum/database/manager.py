@@ -126,6 +126,11 @@ def _cursor_rowid(cur: sqlite3.Cursor) -> int:
     return int(rowid)
 
 
+def _dumps_json(value: object) -> str:
+    """Encode a user value. Non-JSON types such as ``datetime`` become ``str``."""
+    return json.dumps(value, default=str)
+
+
 def _loads_json(value: object) -> object | None:
     if value is None:
         return None
@@ -361,7 +366,7 @@ class DatabaseManager:
                 row.command,
                 row.key,
                 row.row_index,
-                json.dumps(row.value),
+                _dumps_json(row.value),
                 row.units,
                 row.artifact_path,
                 row.status,
@@ -407,7 +412,7 @@ class DatabaseManager:
                 row.domain,
                 row.command,
                 row.key,
-                json.dumps(row.result),
+                _dumps_json(row.result),
                 row.status,
                 1 if row.optional else 0,
                 row.message,
@@ -429,9 +434,9 @@ class DatabaseManager:
                 row.domain,
                 row.command,
                 row.key,
-                json.dumps(row.expected),
-                json.dumps(row.actual),
-                json.dumps(row.tolerance),
+                _dumps_json(row.expected),
+                _dumps_json(row.actual),
+                _dumps_json(row.tolerance),
                 row.compare_op,
                 row.status,
                 1 if row.optional else 0,

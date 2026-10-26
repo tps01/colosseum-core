@@ -51,6 +51,27 @@ def test_suite_name_without_quotes() -> None:
     assert raw["name"] == "fixture_happy"
 
 
+def test_bool_spellings_become_bools() -> None:
+    raw = loads_relaxed(
+        """
+[colosseum.reports]
+wats = True
+junit = F
+custom = yes
+other = "no"
+"""
+    )
+    reports = raw["colosseum"]["reports"]
+    assert reports == {"wats": True, "junit": False, "custom": True, "other": False}
+
+
+def test_numeric_ids_stay_integers() -> None:
+    raw = loads_relaxed("psu_id = 1\nchannel = 0\n")
+    assert raw["psu_id"] == 1
+    assert raw["channel"] == 0
+    assert isinstance(raw["psu_id"], int)
+
+
 def test_prepare_quotes_bare_word_only() -> None:
     prepared = prepare_toml_text("model = keysight-esg\noutput = false\n")
     assert 'model = "keysight-esg"' in prepared

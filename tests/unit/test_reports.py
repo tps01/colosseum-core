@@ -25,6 +25,15 @@ def test_reports_from_config_table(unit_runtime_context) -> None:
     assert reports_from_config(unit_runtime_context) == frozenset({"wats", "custom"})
 
 
+def test_reports_accept_bool_spellings(unit_runtime_context) -> None:
+    unit_runtime_context.config = ConfigStore(
+        {"colosseum": {"reports": {"wats": "T", "junit": "no", "custom": 1, "skip": "maybe"}}},
+        {},
+        {},
+    )
+    assert reports_from_config(unit_runtime_context) == frozenset({"wats", "custom"})
+
+
 def test_cli_report_replaces_config(unit_runtime_context) -> None:
     unit_runtime_context.config = ConfigStore(
         {"colosseum": {"reports": {"wats": True, "junit": True}}},
