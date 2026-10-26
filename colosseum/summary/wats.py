@@ -252,26 +252,25 @@ def _as_float(value: object) -> float:
 
 
 def _numeric_extra(
-    compare_op: str, expected: object, tolerance: float,
+    compare_op: str, expected: object, tolerance: object,
 ) -> dict[str, Any]:
+    from colosseum.decorators.verification import gele_limits
+
     if compare_op == "LOG":
         return {"compOp": "LOG", "lowLimit": None, "highLimit": None}
     if compare_op == "GELE":
-        exp = _as_float(expected)
-        low = exp - tolerance
-        high = exp + tolerance
+        low, high = gele_limits(expected, tolerance)
         return {"compOp": "GELE", "lowLimit": low, "highLimit": high}
     return {"compOp": compare_op, "lowLimit": _as_float(expected)}
 
 
 def _numeric_measurement(row: VerificationRecord, *, unit: str) -> dict[str, Any]:
-    tolerance = float(row.tolerance if row.tolerance is not None else 0.0)
     compare_op = row.compare_op or "GELE"
     return {
         "status": _wats_status(row.status),
         "unit": unit,
         "value": float(row.actual),
-        **_numeric_extra(compare_op, row.expected, tolerance),
+        **_numeric_extra(compare_op, row.expected, row.tolerance),
     }
 
 

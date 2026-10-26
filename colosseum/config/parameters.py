@@ -19,7 +19,15 @@ except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib  # type: ignore[no-redef]
 
 LIMIT_FIELDS = frozenset(
-    {"expected_val", "tolerance", "minimum", "maximum", "exact", "expected"},
+    {
+        "expected_val",
+        "expected_result",
+        "tolerance",
+        "minimum",
+        "maximum",
+        "exact",
+        "expected",
+    },
 )
 
 

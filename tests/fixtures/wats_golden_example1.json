@@ -86,8 +86,8 @@
                         "status": "P",
                         "unit": "",
                         "value": 105.0,
-                        "highLimit": 104.0,
-                        "lowLimit": 106.0
+                        "highLimit": 106.0,
+                        "lowLimit": 104.0
                     }
                 ]
             }

@@ -177,10 +177,13 @@ Three decorator kinds, same pattern:
        required verification of that missing value still fails the run.
    * - ``@verification``
      - Pass/fail against a prior measurement (usually the same ``key=``). The
-       plugin body typically looks up the measurement and returns
-       ``VerificationResult`` or a ``bool``. Missing ``key=`` or a thrown
-       exception is ERROR, not a crash of the wrapper. ``optional=True``
-       records FAIL/ERROR but does not change the exit code.
+       plugin body typically looks up the measurement and returns the actual
+       value; the decorator compares it to ``expected_val`` /
+       ``expected_result`` / ``tolerance`` (or ``minimum`` / ``maximum`` /
+       ``exact`` / ``expected``). It may also return ``VerificationResult`` or
+       a ``bool``. Missing ``key=`` or a thrown exception is ERROR, not a crash
+       of the wrapper. ``optional=True`` records FAIL/ERROR but does not change
+       the exit code.
 
 See :doc:`measurements_verifications` for script-author rules and
 :doc:`exit_codes` for the single-bit policy.

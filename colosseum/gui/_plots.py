@@ -51,15 +51,13 @@ def limit_view(
         return LimitView(actual=actual, low=None, high=expected, units=units)
     if op != "GELE":
         return None
-    tolerance = _number(_parse(tolerance_raw))
-    if tolerance is None or tolerance < 0:
+    from colosseum.decorators.verification import gele_limits
+
+    try:
+        low, high = gele_limits(expected, _parse(tolerance_raw))
+    except (TypeError, ValueError):
         return None
-    return LimitView(
-        actual=actual,
-        low=expected - tolerance,
-        high=expected + tolerance,
-        units=units,
-    )
+    return LimitView(actual=actual, low=low, high=high, units=units)
 
 
 def limit_window(low: float | None, high: float | None) -> tuple[float, float]:
