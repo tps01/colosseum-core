@@ -127,7 +127,7 @@ def test_dry_run_rejects_duplicate_and_missing_row_index(unit_runtime_context) -
     assert ctx.result_aggregator.overall_pass() is False
 
 
-def test_dry_run_requires_a_measurement_before_its_verification(unit_runtime_context) -> None:
+def test_dry_run_allows_verification_before_measurement(unit_runtime_context) -> None:
     ctx = unit_runtime_context
     ctx.run_options.dry_run = True
 
@@ -142,11 +142,29 @@ def test_dry_run_requires_a_measurement_before_its_verification(unit_runtime_con
     assert check(key="late", expected_val=1.0) is None
     assert capture(key="late", value=1.0) is None
     assert check(key="late", expected_val=1.0) is None
-    assert _statuses(ctx) == ["ERROR", "DRY", "DRY"]
-    assert "no measurement recorded" in ctx.result_aggregator._records[0]["message"]  # noqa: SLF001
+    assert _statuses(ctx) == ["DRY", "DRY", "DRY"]
 
 
-def test_dry_run_parameters_key_does_not_require_a_measurement(unit_runtime_context) -> None:
+def test_dry_run_allows_keyless_verification(unit_runtime_context) -> None:
+    from colosseum.logging.setup import setup_logging
+
+    ctx = unit_runtime_context
+    ctx.run_options.dry_run = True
+    setup_logging(ctx, console=False, file=True)
+
+    @verification
+    def spot_check(*, path: str) -> VerificationResult:
+        raise AssertionError("body ran")
+
+    assert spot_check(path="uut.log") is None
+    assert _statuses(ctx) == ["DRY"]
+    assert ctx.output_dir is not None
+    assert "verification omitted key=" in (ctx.output_dir / "debug.log").read_text(
+        encoding="utf-8",
+    )
+
+
+def test_dry_run_parameters_key_fills_description(unit_runtime_context) -> None:
     ctx = unit_runtime_context
     ctx.run_options.dry_run = True
     ctx.parameters_map = {
@@ -159,10 +177,9 @@ def test_dry_run_parameters_key_does_not_require_a_measurement(unit_runtime_cont
 
     assert check(key="logfile", description="from call") is None
     assert check(key="other", pattern="x", path="y") is None
-    assert _statuses(ctx) == ["DRY", "ERROR"]
+    assert _statuses(ctx) == ["DRY", "DRY"]
     records = ctx.result_aggregator._records  # noqa: SLF001
     assert records[0]["description"] == "from file"
-    assert "no measurement recorded" in records[1]["message"]
 
 
 def test_dry_run_fills_parameters_then_checks_the_signature(unit_runtime_context) -> None:
@@ -304,7 +321,12 @@ def test_export_records_missing_keys_and_keeps_walking(unit_runtime_context) -> 
     def capture(*, key: str, value: float) -> float:
         raise AssertionError("body ran")
 
+    @verification
+    def check(*, key: str, expected_val: float) -> VerificationResult:
+        raise AssertionError("body ran")
+
     assert capture(value=1.0) is None
+    assert check(expected_val=1.0) is None
     assert capture(key="ok", value=2.0) is None
     assert ctx.export_errors == ["`capture` requires `key=`"]
     assert ctx.parameter_export == {"ok": {"value": 2.0}}

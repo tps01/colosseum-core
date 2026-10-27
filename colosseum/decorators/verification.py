@@ -22,7 +22,6 @@ from ._common import (
     capture_parameter_export,
     ensure_runtime_context,
     finish_dry_run_log,
-    finish_dry_run_missing_key,
     invoke_dry_run_substitute,
     publish_description_parameter,
     resolve_auto_key,
@@ -299,6 +298,12 @@ def _has_required_unit_command_error() -> bool:
 
 
 def missing_measurement_result(*, key: str, optional: bool = False) -> VerificationResult:
+    """Return ERROR (or BLOCKED) when a verification needs a key or measurement.
+
+    Authors who require a key or prior measurement opt in from the body, for
+    example ``if not key: return missing_measurement_result(key=key)`` or when
+    ``get_measurement`` returns ``None``.
+    """
     if not optional and _has_required_unit_command_error():
         return VerificationResult(
             status="BLOCKED",
@@ -440,18 +445,10 @@ def verification(
                 return None
             key, injected = resolve_auto_key(ctx, kwargs, family="verification")
             key_text = "" if not key else str(key)
+            if not key and ctx.logger is not None:
+                ctx.logger.debug("`%s` verification omitted key=", command)
             if capture_parameter_export(
                 ctx, kind="verification", command=command, key=key_text, kwargs=kwargs,
-            ):
-                return None
-            if finish_dry_run_missing_key(
-                ctx,
-                kind="verification",
-                domain=domain,
-                command=command,
-                key=key_text,
-                call_args=args,
-                kwargs=kwargs,
             ):
                 return None
             if finish_dry_run_log(
@@ -467,61 +464,19 @@ def verification(
                 kwargs=kwargs,
                 description=_clean_description(kwargs.get("description")) or "",
                 injected=injected,
-                apply_parameters=not injected,
-                pop_key=injected and not accepts_key,
+                apply_parameters=bool(key) and not injected,
+                pop_key=not accepts_key,
                 pop_description=not accepts_description,
-                require_prior_measurement=True,
+                require_prior_measurement=False,
             ):
                 return None
-            if not key:
-                description = _clean_description(kwargs.get("description"))
-                try:
-                    optional = coerce_bool(kwargs["optional"]) if "optional" in kwargs else False
-                    message = f"`{command}` requires `key=`"
-                except ParametersError as exc:
-                    optional = False
-                    message = str(exc)
-                result = VerificationResult(
-                    status="ERROR", message=message, optional=optional,
-                )
-                ctx.result_aggregator.record_verification(
-                    result,
-                    key="",
-                    command=command,
-                    domain=domain,
-                    description=description or "",
-                )
-                ctx.db.insert_verification(
-                    VerificationRow(
-                        domain=domain,
-                        command=command,
-                        key="<missing>",
-                        status=result.status,
-                        optional=result.optional,
-                        message=result.message,
-                        description=description,
-                    ),
-                )
-                log_evidence(
-                    ctx,
-                    kind="verification",
-                    domain=domain,
-                    command=command,
-                    key="",
-                    status=result.status,
-                    optional=result.optional,
-                    detail=f"message={result.message!r}",
-                    call_args=args,
-                    kwargs=kwargs,
-                )
-                return result
 
             call_kwargs = dict(kwargs)
             try:
-                if not injected:
+                if key and not injected:
                     call_kwargs = apply_parameters_to_kwargs(
                         call_kwargs,
-                        key=str(key),
+                        key=key_text,
                         parameters=ctx.parameters_map,
                     )
                 optional = coerce_optional_kwarg(call_kwargs)
@@ -538,7 +493,7 @@ def verification(
                 )
                 ctx.result_aggregator.record_verification(
                     result,
-                    key=str(key),
+                    key=key_text,
                     command=command,
                     domain=domain,
                     description=description or "",
@@ -548,7 +503,7 @@ def verification(
                     VerificationRow(
                         domain=domain,
                         command=command,
-                        key=key,
+                        key=key_text,
                         expected=expected,
                         actual=None,
                         tolerance=tolerance,
@@ -564,7 +519,7 @@ def verification(
                     kind="verification",
                     domain=domain,
                     command=command,
-                    key=str(key),
+                    key=key_text,
                     status=result.status,
                     optional=result.optional,
                     detail=f"message={result.message!r}",
@@ -577,8 +532,10 @@ def verification(
             logged_kwargs = dict(call_kwargs)
             if not accepts_description:
                 call_kwargs.pop("description", None)
-            if injected and not accepts_key:
+            if not accepts_key:
                 call_kwargs.pop("key", None)
+            elif not key:
+                call_kwargs["key"] = ""
             handled, value = invoke_dry_run_substitute(
                 ctx,
                 kind="verification",
@@ -608,14 +565,14 @@ def verification(
                     kind="verification",
                     domain=domain,
                     command=command,
-                    key=str(key),
+                    key=key_text,
                     call_args=args,
                     kwargs=logged_kwargs,
                 )
                 result = VerificationResult(status="ERROR", message=str(exc), optional=optional)
             ctx.result_aggregator.record_verification(
                 result,
-                key=str(key),
+                key=key_text,
                 command=command,
                 domain=domain,
                 description=description or "",
@@ -625,7 +582,7 @@ def verification(
                 VerificationRow(
                     domain=domain,
                     command=command,
-                    key=key,
+                    key=key_text,
                     expected=expected,
                     actual=result.actual,
                     tolerance=tolerance,
@@ -641,7 +598,7 @@ def verification(
                 kind="verification",
                 domain=domain,
                 command=command,
-                key=str(key),
+                key=key_text,
                 status=result.status,
                 optional=result.optional,
                 detail=(

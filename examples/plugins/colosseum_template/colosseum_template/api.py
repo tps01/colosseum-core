@@ -92,6 +92,8 @@ def verify_widget_count(
     from colosseum.context import get_context
     from colosseum.decorators import missing_measurement_result
 
+    if not key:
+        return missing_measurement_result(key=key, optional=optional)
     row = get_context().db.get_measurement("template", "measure_widget_count", key, row_index=0)
     if row is None or row.value is None:
         _logger.debug("verify_widget_count key=%s missing measurement", key)
@@ -122,6 +124,8 @@ def verify_power_rail(
     from colosseum.context import get_context
     from colosseum.decorators import missing_measurement_result
 
+    if not key:
+        return missing_measurement_result(key=key, optional=optional)
     row = get_context().db.get_measurement(
         "template",
         "measure_power_rail",

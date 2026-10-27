@@ -80,12 +80,13 @@ Shared path and config flags for ``colosseum run`` and ``colosseum run-suite``:
 - ``--no-artifacts`` - in-memory SQLite and console logging only
 - ``--dry-run`` - walk each script and log every command, measurement, and
   verification. The default policy logs arguments and does not call the function.
-  Omitted measurement and verification keys fail the slot unless the script called
-  ``col.auto_key()``. The walk checks duplicate measurements, ``multi_row`` row
-  indexes, verification keys that have no measurement yet, call signatures, and
-  argument types where the function has a type hint. Duration and frequency
-  strings are checked after they are parsed. An argument with no hint is not
-  checked. A key with no parameters-file section keeps the call arguments.
+  Omitted measurement keys fail the slot unless the script called
+  ``col.auto_key()``. Omitted verification keys log a debug warning and continue.
+  The walk checks duplicate measurements, ``multi_row`` row indexes, call
+  signatures, and argument types where the function has a type hint. Duration
+  and frequency strings are checked after they are parsed. An argument with no
+  hint is not checked. A key with no parameters-file section keeps the call
+  arguments.
   It records each problem and continues, and a required error fails
   the slot. ``debug.log``, ``summary.txt``, and ``summary.json`` are still written.
   ``run-suite --dry-run`` uses the same checks on every slot.
