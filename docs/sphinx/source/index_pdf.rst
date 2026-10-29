@@ -17,6 +17,7 @@ User guide for running tests and developing plugins.
    guides/running_tests
    guides/writing_test_scripts
    guides/configuration
+   guides/using_parameters
    guides/running_suites
    guides/measurements_verifications
    guides/output_artifacts
@@ -24,6 +25,7 @@ User guide for running tests and developing plugins.
    guides/testware_library
    guides/exit_codes
    guides/platform_notes
+   guides/troubleshooting
 
 .. raw:: latex
 
@@ -34,6 +36,9 @@ User guide for running tests and developing plugins.
 
    guides/runtime_execution
    guides/plugins
+   guides/implementing_evidence
+   guides/configuration_schema
+   guides/python_imports
 
 .. raw:: latex
 

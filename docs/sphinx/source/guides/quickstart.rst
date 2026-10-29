@@ -1,65 +1,77 @@
 Quickstart
 ==========
 
-This page assumes you already installed core (and any plugins you need) from a
-GitHub Release wheel into a virtual environment. See :doc:`installation` if
-``colosseum`` is not on your ``PATH``.
+Run a first test without hardware. This **evidence recording demonstration**
+records a literal voltage and verifies it; it does not read an instrument.
 
-1. Confirm the install
-----------------------
+1. Install core and Shared
+--------------------------
 
-::
+Download the compatible core and Shared wheels from their GitHub Releases
+(see :doc:`installation`). Install both in the same virtual environment,
+substituting the downloaded filenames::
 
+   python -m pip install ./colosseum_core-<version>-py3-none-any.whl
+   python -m pip install ./colosseum_shared-<version>-py3-none-any.whl
    colosseum --help
 
-2. Minimal script
------------------
+2. Create a test
+----------------
 
-Colosseum test cases are ordinary Python scripts that call
-``col.<namespace>.*`` APIs from installed plugins. When you launch with
-``colosseum run``, the runner calls ``main()`` and finalizes the slot when the
-script returns (you do not need ``col.endex()`` under the CLI).
-
-**my_test.py**::
+In an empty directory, save **my_test.py**::
 
    import colosseum as col
 
    def main() -> None:
-       # Replace with calls from installed plugins, for example:
-       # col.shared.wait(duration=0.1)
-       pass
+       col.shared.measure_value(key="voltage", value=3.3)
+       col.shared.verify.verify_field(key="voltage", expected_val=3.3, tolerance=0.1)
 
-3. Minimal config
------------------
+The CLI calls ``main()`` and finalizes the run when it returns. Under the CLI
+you do not need ``col.endex()``. Direct Python execution is covered in
+:doc:`writing_test_scripts`.
 
-Plugins declare the TOML tables they own. A tiny shared-only smoke config can be
-empty of instrument rows; equipment benches need section rows such as
-``[equipment.psu]``. Example placeholder::
+3. Create a config
+------------------
 
-   # config.toml — add plugin sections as required by your script
-   [colosseum.reports]
-   wats = false
-   junit = false
+Save **config.toml** containing only this comment::
 
-4. Run
-------
+   # Shared literal measurements need no device configuration.
 
-::
+A comment-only TOML file is valid. It gives the runner a config path without
+introducing instrument or report settings.
+
+4. Run and inspect the result
+-----------------------------
+
+From the directory containing those two files::
 
    colosseum run my_test.py -g config.toml
 
-Artifacts land under ``outputs/<timestamp>_my_test-pass/`` (or ``-fail``):
-``debug.log``, ``execution.sqlite``, ``summary.txt``, and ``summary.json``.
-Optional WATS or JUnit files appear only when you enable them
-(``--report wats``, ``--report junit``, or ``[colosseum.reports]``). See
-:doc:`output_artifacts`.
+The run exits 0. Open ``summary.txt`` in ``outputs/<timestamp>_my_test-pass/``.
+Its fields include::
+
+   Overall result: PASS
+   Exit code: 0
+   Measurements: 1
+
+There is one required PASS verification. Change ``expected_val`` to ``5.0`` and
+run the same command again. This run exits 1 and writes a ``-fail`` folder;
+the summary shows ``Overall result: FAIL`` and lists ``voltage`` under
+``Failed required outcomes``. A failed verification still lets later steps run.
+
+Each run also writes ``debug.log`` (diagnostics), ``execution.sqlite`` (recorded
+evidence), and ``summary.json`` (machine-readable results). Reports are optional;
+see :doc:`output_artifacts`.
 
 5. Next steps
 -------------
 
-* Ready-made procedures to copy into a project: :doc:`testware_library`.
-* Full script + metadata walkthrough: :doc:`writing_test_scripts`.
-* CLI flags and execution modes: :doc:`running_tests`.
-* Suites: :doc:`running_suites`.
-* First-party plugins (config → procedure → verify): :doc:`first_party_plugins`.
-* Extension authors: :doc:`plugins`.
+* API details: `measure_value <https://tps01.github.io/colosseum-shared/api/measure_value.html>`__
+  and `verify_field <https://tps01.github.io/colosseum-shared/api/verify.html#colosseum_shared.verify.api.verify_field>`__.
+* Evidence keys and failures: :doc:`measurements_verifications`.
+* Write and parameterize scripts: :doc:`writing_test_scripts` and :doc:`using_parameters`.
+* Select APIs by task: :doc:`first_party_plugins`.
+* Run suites: :doc:`running_suites`.
+
+This page works in a standalone directory. Commands elsewhere that start with
+``examples/`` require files from the named package's repository checkout.

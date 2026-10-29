@@ -1,135 +1,145 @@
-Measurements, commands, and verifications
-==========================================
+Evidence and verification
+=========================
 
-Core records decorated API calls in ``execution.sqlite`` and ``debug.log``.
-Plugin internals should use ``colosseum.logging.get_logger`` with
-``colosseum.<namespace>`` (see :doc:`plugins`); those DEBUG lines land in the
-same ``debug.log`` and are distinct from decorator pass/fail records.
+Plugin calls record what the procedure did and what it found. Test scripts use
+these APIs directly; plugin authors implement their decorators (see
+:doc:`implementing_evidence`).
 
-What script authors see
------------------------
+.. list-table::
+   :header-rows: 1
 
-You call plugin APIs; decorators record evidence automatically. The
-``colosseum_template`` example from :doc:`writing_test_scripts`::
+   * - Operation
+     - Purpose
+     - Example
+   * - Command
+     - Change state or perform an action; record its outcome.
+     - Enable a power supply output.
+   * - Measurement
+     - Record a returned value under an evidence key.
+     - Read the rail voltage.
+   * - Verification
+     - Compare evidence or application state with acceptance criteria.
+     - Check that the recorded voltage is within limits.
 
-   col.template.arm_device(device_id=1)
-   col.template.measure_widget_count(device_id=1, key="widgets")
-   col.template.verify_widget_count(key="widgets", expected_val=10.0, tolerance=0.0)
+Recording and checking a value
+------------------------------
 
-Each call writes rows to ``execution.sqlite`` and pass/fail lines to ``debug.log``.
-You do not implement decorators in test scripts. Plugin authors add them in the API
-module (see :doc:`plugins`). Measurement identity is domain, command, ``key``, and
-``row_index``. A ``bytes`` return value is given back to the caller unchanged and
-stored as ``{"encoding": "hex", "data": "<hex>", "nbytes": N}`` so the row stays
-JSON. Listener-thread inserts go through the database write queue and become
-durable when the run drains that queue at finalize (requires core 0.17.1 or newer).
+A measurement key identifies a recorded result. A verification uses that key to
+retrieve the measurement and compare it with its expected value. With Shared
+installed, put this evidence recording demonstration inside ``main()``::
 
-Commands
---------
+   col.shared.measure_value(key="dut_rail_v", value=3.3)
+   col.shared.verify.verify_field(key="dut_rail_v", expected_val=3.3, tolerance=0.1)
 
-``@command`` records setup and action calls. When a required command raises, Colosseum
-records an ERROR row and event, then re-raises so remaining script steps do not run.
-The runner still calls ``col.endex()`` to write the FAIL result. ``optional=True``
-records the ERROR without failing the run or aborting the script.
+This records a literal; it does not measure hardware. Verification can occur
+later in the procedure. The value must have been recorded before it is checked.
+See :doc:`quickstart` for complete files and the run command.
 
-``key=`` is stripped when the wrapped function does not declare it (the same way
-``optional=`` is stripped). When a parameters file is loaded, kwargs for that
-key are filled from the file. A field in the file overrides the call.
+Keys, instruments, and rows
+---------------------------
 
-A :term:`ProceduralFault` (for example an equipment session that never opens, or
-an unreadable parameters file) records ``cause=procedural`` on the command row.
-Other exceptions record ``cause=unit``. Both still produce ``ERROR``. The
-command ERROR line in ``debug.log`` includes that cause.
+A measurement's identity is its **domain, command, key, and row index**. A
+domain identifies the plugin evidence family, and a command identifies the
+measurement function. Most measurements have row index 0. APIs that support
+``multi_row`` can record indexed series under one key.
 
-``debug.log`` records every command, measurement, and verification call with the
-arguments that were used, including values filled from a parameters file. A
-field in the file overrides the call. ``password``, ``passwd``, ``token``,
-``secret``, and ``api_key`` are redacted.
+Instrument IDs and channels are call arguments; they are not part of that
+identity. Two DMMs calling ``measure_voltage`` with the same key in one slot
+collide. Use ``rail_a_v`` and ``rail_b_v`` even when the DMM IDs differ.
+Repeating the same identity raises an error rather than replacing the value.
+Each suite slot has its own evidence database.
 
-Measurements
-------------
+Plugin verifiers generally know the originating domain and command. A DMM
+``verify_voltage`` can therefore use just the key. It does not verify a DMM
+``fetch`` row, which has a different command identity. Shared's field and regex
+verifiers instead select the latest matching key across **all** domains and
+commands. Reusing a key in another plugin can change what those verifiers check.
 
-``@measurement`` records a returned value under a required ``key``. Keys are unique for
-the same domain, command, and row index. Use ``multi_row=True`` for indexed series.
+Outcomes and continuation
+-------------------------
 
-A raised exception is stored as ``status=ERROR`` with a null value, then re-raised.
-``optional=True`` records that ERROR row and returns ``None`` so later steps still run.
-The measurement error does not itself change the exit code. A later required
-verification that needs the missing value fails, and the script can still record
-other measurements. ``verify_measurement_exists`` treats the ERROR row as present.
-Duplicate keys still raise. A missing ``key=`` raises unless the procedure called
-:term:`auto_key`. ``optional=`` is stripped when the wrapped function does not
-declare it.
+.. list-table::
+   :header-rows: 1
 
-Verifications
--------------
+   * - Outcome
+     - Meaning
+   * - PASS
+     - The verification met its criteria.
+   * - FAIL
+     - The verification completed but its criteria were not met.
+   * - ERROR
+     - An operation or verification could not complete correctly.
+   * - BLOCKED
+     - A verification could not be performed because earlier work prevented it.
 
-``@verification`` records ``PASS``, ``FAIL``, ``ERROR``, or ``BLOCKED``. Look up
-prior measurements in the verifier body (for example
-``get_context().db.get_measurement(...)``) and return the measured value; the
-decorator compares it to limit kwargs (``expected_val`` or ``expected_result``
-with optional ``tolerance``, or ``minimum`` / ``maximum`` / ``exact`` /
-``expected``). Omit ``tolerance`` for an exact match. ``tolerance`` may be a ±
-number, a signed one-sided band string such as ``"+10"``, or an operator
-(``">="``, ``"GE"``, ``"!="``, and so on). Return ``missing_measurement_result``
-when evidence is absent, or return ``VerificationResult`` / ``bool`` when the
-body decides the outcome itself. After a required command failed with
-``cause=unit``, that helper returns ``BLOCKED`` instead of ``ERROR``. At
-finalize, owed limit keys from the parameters file with no measurement also
-become ``BLOCKED`` rows. ``overall_pass`` treats ``BLOCKED`` like ``FAIL``.
+A required verification with FAIL, ERROR, or BLOCKED fails the overall run.
+Verification failures and exceptions are recorded without aborting later test
+steps. A required command exception records ERROR and re-raises, so later steps
+are skipped unless the script catches it. A measurement exception also
+re-raises; measurements themselves do not contribute an aggregate verdict.
+An uncaught exception still fails the CLI slot.
 
-The domain string passed to ``get_measurement(domain, command, key, ...)`` must match
-the domain under which the measurement was recorded (the API module's
-``__colosseum_domain__``, or the namespace when set automatically). A mismatch returns
-``None`` and produces a verification ERROR with ``no measurement for key=…``.
+If a run ends without measuring a key with configured limits, finalization
+records a BLOCKED verification. The parameter system calls these outstanding
+checks *owed limits*. A missing-value verifier may also produce BLOCKED after
+a required command with a unit fault; otherwise missing evidence normally
+produces ERROR. See :doc:`using_parameters` and :doc:`exit_codes`.
 
-Unlike commands, verification exceptions become ``VerificationResult(status="ERROR")``
-and do not abort the script. Optional verifications may fail without failing the
-aggregate result.
+Required and optional operations
+--------------------------------
 
-``description=`` is optional on every verification, even when the wrapped function
-does not declare it. When set, it is the WATS step name, the label beside
-``[verification]`` in ``summary.txt``, and the JUnit testcase name. When it is
-omitted or blank, those names fall back to ``key``.
+.. list-table::
+   :header-rows: 1
 
-Automatic keys
---------------
+   * - Operation with an exception or failing check
+     - Default behavior
+     - With ``optional=True``
+   * - Command
+     - ERROR fails the run and re-raises.
+     - ERROR is retained; execution continues and the command does not fail the run.
+   * - Measurement
+     - ERROR stores a null value and re-raises.
+     - ERROR stores a null value, returns ``None``, and execution continues.
+   * - Verification
+     - FAIL/ERROR/BLOCKED fails the run; execution continues.
+     - The outcome is retained but excluded from the aggregate verdict.
 
-Call ``col.auto_key()`` near the top of ``main()`` when a procedure checks
-downloaded files or logs and does not need a meaningful evidence key. Under
-``colosseum run`` the runtime already exists, so it can be the first call. A
-direct ``python`` script calls it after ``col.config.load_config()``.
+Optional measurement errors do not make dependent verifications optional.
+For example, with the environment variable below unset::
 
-After that call, a measurement or verification that omits ``key=`` (or passes
-a blank key) is stored under the next integer for that family. The first
-measurement without a key is ``"1"``, then ``"2"``, and so on. Verifications
-have their own counter, also starting at ``"1"``. An explicit ``key=`` is
-stored as given and does not consume a number. A second ``col.auto_key()`` in
-the same procedure does not restart the counters. The next suite slot starts
-with auto-keying off.
+   col.shared.measure_env(key="missing_env", name="COLOSSEUM_DOCS_UNSET", optional=True)
+   col.shared.verify.verify_field(key="missing_env", expected_val="ready")
 
-The first time a key is filled in, Colosseum logs one warning:
-``Autokeying has taken place. Later verifications may fail due to not having
-the correct keys.`` Later numbered calls stay on the normal evidence line
-(``key=2``, and so on) without repeating the warning.
+The measurement records ERROR; the required check of its null value does not
+pass. Its ``summary.txt`` has ``Overall result: FAIL`` and lists the required
+verification under ``Failed required outcomes``. SQLite has a null ERROR
+measurement and a failed required verification with ``optional=0``. Later steps
+still run. By contrast, this intentional optional failure
+allows an otherwise successful run to pass::
 
-Numbered verification keys are not looked up in a parameters file. Explicit
-keys still are. ``multi_row`` calls that omit ``key=`` each receive the next
-integer; pass ``key=`` when a series must share one key. Commands are
-unchanged. Without ``col.auto_key()``, a missing measurement key still raises
-and a missing verification key is still recorded as an ERROR.
+   col.shared.measure_value(key="trial", value=1)
+   col.shared.verify.verify_field(key="trial", expected_val=2, optional=True)
 
-Domains
--------
+In ``summary.txt``, the latter run has ``Overall result: PASS``, ``Exit code: 0``,
+and a FAIL entry under ``Optional outcomes``. In SQLite, the trial measurement
+has ``status='PASS'`` and the verification has ``status='FAIL', optional=1``.
+Measurements have no ``optional`` column: inspect their status and the log.
+See :doc:`output_artifacts` for queries and actual summary fields.
 
-Evidence is stored under a domain string. Resolution order:
+Verification labels and automatic keys
+--------------------------------------
 
-1. Function-level ``__colosseum_domain__`` override.
-2. Defining module, then parent packages' ``__colosseum_domain__``.
-3. Fallback ``core`` when no override is present.
+``description=`` supplies the summary label, WATS step name, and JUnit testcase
+name; blank or omitted descriptions fall back to ``key``.
 
-This resolution happens when the decorator wraps the function. Set the package
-domain before importing decorated APIs, or set it on the API module before
-defining them. ``register_namespace(name, module)`` supplies the namespace name
-on the top-level package when no domain is already present, but it does not
-retroactively change domains captured by existing wrappers. See :doc:`plugins`.
+Call ``col.auto_key()`` near the start of a CLI-managed ``main()`` for file/log
+checks that do not retrieve evidence by key. For direct Python, load config
+first. Omitted measurement and verification keys then use separate counters
+starting at ``"1"``. Explicit keys do not consume a number. Calling
+``auto_key`` again does not reset counters; the next suite slot starts with
+auto-keying off. The first generated key logs a warning about later lookups.
+
+Numbered verification keys do not load parameter overrides; explicit keys do.
+Each omitted multi-row key gets a new number, so use an explicit shared key
+for a series. Without auto-keying, missing measurement keys raise and missing
+verification keys record ERROR. Commands do not receive automatic keys.

@@ -14,12 +14,15 @@ provides:
 - TOML configuration and plugin registration
 - test and test suite runners
 - SQLite database, logs, summaries, and artifacts
-- GUI
+- desktop runner for operators (`colosseum --gui`)
+
+The GUI automation plugin controls applications under test through `col.gui.*`.
+Choose plugins by task in the [feature directory](https://tps01.github.io/colosseum-core/guides/first_party_plugins.html).
 
 ## Install
 
 Download the wheel from [GitHub Releases](https://github.com/tps01/colosseum-core/releases)
-and install it in the same environment as core. Replace `<version>` with
+and install it in a virtual environment. Replace `<version>` with
 the downloaded filename. For development, use `python -m pip install -e .`.
 
 ```sh

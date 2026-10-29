@@ -50,7 +50,7 @@ Browsed docs live on GitHub Pages:
 - **Hub (this repo):** https://tps01.github.io/colosseum-core/
 - **Plugins (separate sites):** equipment, gui, host, messaging, shared — each
   under `https://tps01.github.io/colosseum-<name>/`. Those sites lead with
-  autodoc **API reference** for `col.*`; README/guides are secondary. Linked
+  practical guides and configuration, followed by the autodoc API reference. Linked
   from the Sphinx landing page. The copy-out testware catalog is
   `colosseum-library` (GitHub); the hub documents it under
   **Testware library** (`guides/testware_library`).
@@ -64,3 +64,23 @@ There is no separate umbrella `tps01/colosseum` docs repo.
 - HTML is a backup of the same sources and is what GitHub Pages deploys.
 - The Documentation workflow (`.github/workflows/docs.yml`) builds HTML and
   deploys Pages on `workflow_dispatch` and on pushes that touch docs sources.
+
+## Documentation standards
+
+See the [October 2026 review remediation](documentation-review-2026-10.md)
+for the cross-package changes, verified behavior, and validation limits.
+
+Lead with the task and its observable result. Define evidence keys and failure
+conditions before implementation details. Keep release history out of current
+overviews. Public callables document every argument, units, defaults, return
+values, relevant exceptions, and driver/platform limits. Do not claim hardware
+qualification based on simulated or mocked tests.
+
+Examples specify prerequisites, file layout, the working directory, exact
+invocation, and expected results. Identify simulation and literal recording
+demonstrations. Stateful hardware examples use local `try/finally` cleanup.
+Link workflows to configuration, related APIs, and the core evidence guide.
+
+Build each site with warnings treated as errors. Run simulated examples and
+check links before publishing. Plugin Pages builders own their navigation;
+edit source guides and docstrings rather than generated `build/` files.
