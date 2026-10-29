@@ -78,10 +78,19 @@ body decides the outcome itself. After a required command failed with
 finalize, owed limit keys from the parameters file with no measurement also
 become ``BLOCKED`` rows. ``overall_pass`` treats ``BLOCKED`` like ``FAIL``.
 
+An omitted or blank verification ``key=`` is not an ERROR. The decorator logs a
+debug line (``verification omitted key=``), runs the body, and stores the row
+under an empty key. File and log spot checks can omit ``key`` entirely.
+Measurement-backed verifiers that require a key opt in from the body::
+
+   if not key:
+       return missing_measurement_result(key=key, optional=optional)
+
 The domain string passed to ``get_measurement(domain, command, key, ...)`` must match
 the domain under which the measurement was recorded (the API module's
 ``__colosseum_domain__``, or the namespace when set automatically). A mismatch returns
-``None`` and produces a verification ERROR with ``no measurement for key=…``.
+``None`` and produces a verification ERROR with ``no measurement for key=…`` when
+the body returns ``missing_measurement_result``.
 
 Unlike commands, verification exceptions become ``VerificationResult(status="ERROR")``
 and do not abort the script. Optional verifications may fail without failing the
@@ -95,8 +104,8 @@ omitted or blank, those names fall back to ``key``.
 Automatic keys
 --------------
 
-Call ``col.auto_key()`` near the top of ``main()`` when a procedure checks
-downloaded files or logs and does not need a meaningful evidence key. Under
+Call ``col.auto_key()`` near the top of ``main()`` when a procedure wants omitted
+measurement or verification keys numbered instead of left blank. Under
 ``colosseum run`` the runtime already exists, so it can be the first call. A
 direct ``python`` script calls it after ``col.config.load_config()``.
 
@@ -116,8 +125,8 @@ the correct keys.`` Later numbered calls stay on the normal evidence line
 Numbered verification keys are not looked up in a parameters file. Explicit
 keys still are. ``multi_row`` calls that omit ``key=`` each receive the next
 integer; pass ``key=`` when a series must share one key. Commands are
-unchanged. Without ``col.auto_key()``, a missing measurement key still raises
-and a missing verification key is still recorded as an ERROR.
+unchanged. Without ``col.auto_key()``, a missing measurement key still raises;
+a missing verification key only logs a debug warning and runs the body.
 
 Domains
 -------

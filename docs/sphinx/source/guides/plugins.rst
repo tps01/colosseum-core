@@ -168,6 +168,8 @@ fallback domain ``core``. A mismatched lookup then reports no measurement.
        from colosseum.context import get_context
        from colosseum.decorators import missing_measurement_result
 
+       if not key:
+           return missing_measurement_result(key=key, optional=optional)
        row = get_context().db.get_measurement(
            "template", "measure_widget_count", key, row_index=0
        )

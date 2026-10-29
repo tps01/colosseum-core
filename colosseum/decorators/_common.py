@@ -265,13 +265,13 @@ def capture_parameter_export(
 ) -> bool:
     """Store one keyed call while exporting parameters.
 
-    Returns True when this call should not run. Commands without a key are
-    omitted. A measurement or verification without a key is an export error.
+    Returns True when this call should not run. Commands and verifications
+    without a key are omitted. A measurement without a key is an export error.
     """
     if ctx.parameter_export is None:
         return False
     if not key:
-        if kind != "command":
+        if kind == "measurement":
             ctx.export_errors.append(f"`{command}` requires `key=`")
         return True
     section = ctx.parameter_export.setdefault(key, {})

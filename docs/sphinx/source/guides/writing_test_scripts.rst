@@ -67,10 +67,12 @@ Direct-Python skeleton (script loads config and calls ``endex()``)::
        main()
        col.endex()
 
-File and log checks that do not look evidence up by key can call
-``col.auto_key()`` at the top of ``main()`` (after ``load_config`` when the
-script starts the runtime). Omitted measurement and verification keys are then
-numbered ``"1"``, ``"2"``, and so on. See :doc:`measurements_verifications`.
+File and log checks that do not look evidence up by key can omit ``key=`` on
+``@verification`` calls; the decorator warns in ``debug.log`` and still runs
+the body. Call ``col.auto_key()`` at the top of ``main()`` (after
+``load_config`` when the script starts the runtime) when omitted measurement
+or verification keys should be numbered ``"1"``, ``"2"``, and so on instead.
+See :doc:`measurements_verifications`.
 
 When you run through the CLI, the runner does not execute the script's
 ``if __name__ == "__main__"`` block. It calls ``main()`` and finalizes the slot

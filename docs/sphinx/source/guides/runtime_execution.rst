@@ -223,12 +223,13 @@ Execution modes gate the wrappers:
 
 ``--dry-run`` visits every command, measurement, and verification in call order,
 including each setup, between, test, and teardown slot of ``run-suite``. Omitted
-keys are an error unless the procedure called ``col.auto_key()``. On the default
+measurement keys are an error unless the procedure called ``col.auto_key()``.
+Omitted verification keys log a debug warning and continue. On the default
 ``"log"`` policy the walk also checks the same structure a real run enforces:
-a repeated measurement key, ``multi_row`` without ``row_index``, a verification
-whose evidence key has not been measured yet, and a call that does not match
-the function signature after parameter values are filled in. Where a parameter
-has a type hint, the walk also checks that the argument agrees with it.
+a repeated measurement key, ``multi_row`` without ``row_index``, and a call that
+does not match the function signature after parameter values are filled in.
+Where a parameter has a type hint, the walk also checks that the argument
+agrees with it.
 Duration and frequency strings are checked after they are parsed. An argument
 with no hint is left unchecked. A key with no parameters-file section keeps the
 call arguments. Each problem is recorded and the walk continues.

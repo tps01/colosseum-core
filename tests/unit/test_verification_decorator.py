@@ -61,10 +61,38 @@ def test_optional_failure_does_not_fail_aggregate(ctx) -> None:
     assert ctx.result_aggregator.overall_pass() is True
 
 
-def test_missing_key_is_error(ctx) -> None:
+def test_missing_key_warns_and_runs(ctx) -> None:
+    from colosseum.logging.setup import setup_logging
+
+    setup_logging(ctx, console=False, file=True)
     result = _bool_verify(key="", expected=True)
+    assert result.status == "PASS"
+    assert ctx.db.count_rows("verifications", "key=?", ("",)) >= 1
+    assert ctx.output_dir is not None
+    debug = (ctx.output_dir / "debug.log").read_text(encoding="utf-8")
+    assert "verification omitted key=" in debug
+
+
+def test_author_can_require_key_in_body(ctx) -> None:
+    @verification
+    def needs_key(*, key: str, optional: bool = False) -> VerificationResult:
+        if not key:
+            return missing_measurement_result(key=key, optional=optional)
+        return VerificationResult(status="PASS", message="", optional=optional)
+
+    result = needs_key(key="")
     assert result.status == "ERROR"
-    assert ctx.db.count_rows("verifications", "key=?", ("<missing>",)) >= 1
+    assert "no measurement for key=" in result.message
+
+
+def test_keyless_verification_without_key_parameter(ctx) -> None:
+    @verification
+    def spot_check() -> bool:
+        return True
+
+    result = spot_check()
+    assert result.status == "PASS"
+    assert ctx.db.count_rows("verifications", "key=?", ("",)) >= 1
 
 
 def test_exception_becomes_error_status(ctx) -> None:
