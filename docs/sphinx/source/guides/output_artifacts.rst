@@ -4,6 +4,24 @@ Output artifacts
 Each completed test run writes evidence under ``outputs/``. See :doc:`running_tests`
 for directory naming and :doc:`writing_test_scripts` for a full example run.
 
+.. list-table:: What to inspect first
+   :header-rows: 1
+
+   * - Need
+     - File
+   * - Quick overall outcome
+     - ``summary.txt``
+   * - Automated post-processing
+     - ``summary.json``
+   * - Troubleshooting an operation
+     - ``debug.log``
+   * - Querying recorded measurements and verification rows
+     - ``execution.sqlite``
+   * - CI results
+     - ``junit.xml`` (when enabled)
+   * - WATS integration
+     - ``wats_<datetime>_<script>.json`` (when enabled)
+
 .. list-table::
    :header-rows: 1
 
@@ -35,6 +53,38 @@ for directory naming and :doc:`writing_test_scripts` for a full example run.
 Every run with artifacts still writes ``debug.log``, ``execution.sqlite``,
 ``summary.txt``, and ``summary.json``. Opt-in report listeners never replace
 those defaults.
+
+Query recorded evidence
+-----------------------
+
+In a SQLite client, open the **test slot's** ``execution.sqlite`` (a suite
+container database holds provenance, not all slot measurements). For the
+quickstart value::
+
+   SELECT domain, command, key, row_index, value_json, units, status
+   FROM measurements
+   WHERE key = 'voltage'
+   ORDER BY id;
+
+The value is JSON text. For required versus optional verification outcomes::
+
+   SELECT key, status, optional, actual_json, expected_json, message
+   FROM verifications
+   ORDER BY id;
+
+``optional=1`` means that verification does not fail the aggregate result.
+Measurement errors store ``status='ERROR'`` and a null value; measurements
+do not have an ``optional`` column. Commands have ``optional`` and ``cause``
+columns. See :doc:`measurements_verifications` for continuation behavior.
+
+Without a separate SQLite CLI, use Python from a standalone script, replacing
+the path with a completed run's database::
+
+   import sqlite3
+
+   with sqlite3.connect("outputs/<run>/execution.sqlite") as db:
+       for row in db.execute("SELECT key, value_json, status FROM measurements ORDER BY id"):
+           print(row)
 
 Provenance
 ----------
@@ -75,8 +125,8 @@ Enable report listeners in config or on the CLI::
    wats = false
    junit = false
 
-Both default to false when the table is absent. ``wats = T`` and ``junit = "no"``
-are the same as ``true`` and ``false``. ``colosseum run`` and
+Both default to false when the table is absent. Use standard TOML booleans
+``true`` and ``false``. ``colosseum run`` and
 ``colosseum run-suite`` accept ``--report wats`` and ``--report junit``
 (repeatable). When any ``--report`` is present, that set replaces the config
 table for the process.

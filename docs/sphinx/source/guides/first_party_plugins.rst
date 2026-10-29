@@ -1,12 +1,42 @@
 First-party plugins
 ===================
 
+Find an API by task
+-------------------
+
+.. list-table::
+   :header-rows: 1
+
+   * - Task
+     - Plugin and workflow
+   * - Control bench instruments
+     - `Equipment <https://tps01.github.io/colosseum-equipment/guides/instrument_workflows.html>`__
+   * - Read serial data or send SCPI
+     - `Equipment serial and SCPI <https://tps01.github.io/colosseum-equipment/guides/serial_ports.html>`__
+   * - Check values, files, or logs
+     - `Shared <https://tps01.github.io/colosseum-shared/guides/evidence_workflows.html>`__
+   * - Send HTTP requests
+     - `Messaging HTTP <https://tps01.github.io/colosseum-messaging/guides/http.html>`__
+   * - Execute SSH commands or transfer remote files
+     - `Messaging SSH <https://tps01.github.io/colosseum-messaging/guides/ssh.html>`__
+       and `file transfer <https://tps01.github.io/colosseum-messaging/guides/transfers.html>`__
+   * - Monitor local CPU, memory, processes, or network interfaces
+     - `Host <https://tps01.github.io/colosseum-host/guides/telemetry_workflows.html>`__
+   * - Automate a browser or desktop application
+     - `GUI automation <https://tps01.github.io/colosseum-gui/guides/drivers_locators.html>`__
+   * - Launch and monitor Colosseum tests
+     - Core desktop runner: ``colosseum --gui``
+
+Serial/SCPI talks to a configured instrument or serial port. SSH executes on a
+remote operating system. Host inspects the machine running the Colosseum
+process. Select the API according to that execution location and interface.
+
 Core is the runner and evidence model. Bench APIs live in separate distributions
 you install into the **same** virtual environment as ``colosseum-core`` (GitHub
 Release wheels; see :doc:`installation`). Core discovers them through
 ``colosseum.plugins`` entry points.
 
-Each plugin publishes an API reference site. This page is the hub overview;
+Each plugin publishes workflows, configuration, and API reference. This page is the hub overview;
 each site's **Getting started** guide shows config → procedure → verification
 with ``driver = "sim"`` where possible.
 
@@ -69,8 +99,8 @@ Getting started (per plugin)
 (Links resolve after each plugin's Pages build includes the guide and the
 config reference.)
 
-Copy-out procedures
--------------------
+Example test procedures
+-----------------------
 
 For full test stubs (rail voltage, GPIO, RF blocks, suites), copy folders from
 the :doc:`testware_library` catalog rather than starting from an empty script.

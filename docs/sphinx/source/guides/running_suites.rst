@@ -10,6 +10,22 @@ Suites are TOML files whose script paths are relative to the suite file::
    teardown = ["teardown/cleanup.py"]
    # fail_fast = true   # optional: abort remaining setup/between/test work after any of those fail
 
+Suite pass/fail behavior
+------------------------
+
+Suite pass/fail is determined from **test script slots**, plus session-level
+``suite_failed`` when ``fail_fast = true`` aborts after a supporting-slot failure
+(or a teardown failure under fail_fast). With ``fail_fast = false``, setup,
+``between_tests``, and teardown outcomes are recorded in their slot folders but do
+not change the suite result.
+
+Use ``fail_fast = true`` when a failed setup must prevent tests from running
+and fail the suite. Teardown is still attempted. Inspect supporting-slot
+``debug.log`` and ``execution.sqlite`` even when the suite passes.
+
+Scheduling tests
+----------------
+
 Each entry in ``tests`` is either a path string (one run) or an inline table with
 ``path`` and optional repeat settings:
 
@@ -152,12 +168,6 @@ teardown) keep a timestamped folder without a result suffix. They write
 ``debug.log`` and ``execution.sqlite`` only. They do not write ``summary.txt``,
 ``summary.json``, or report listeners.
 
-Suite pass/fail is determined from **test script slots**, plus session-level
-``suite_failed`` when ``fail_fast = true`` aborts after a supporting-slot failure
-(or a teardown failure under fail_fast). With ``fail_fast = false``, setup,
-``between_tests``, and teardown outcomes are recorded in their slot folders but do
-not change the suite result.
-
 The container summary records the suite start time and wall-clock runtime.
 Pass/fail counts and percentages cover executed test slots only; setup,
 ``between_tests``, and teardown stay in the slot list and do not enter those
@@ -187,3 +197,39 @@ trigger fail-fast.
 
 Soak-style suites accumulate failures across repeat iterations; the suite container
 summary and exit code reflect whether any test slot failed or ``suite_failed`` was set.
+
+State between slots
+-------------------
+
+All slots execute in one Python process. The runtime context and active
+configuration persist; a deliberate reload replaces the shared store. CLI pins
+continue to apply. Imported helper modules and their globals also persist;
+see :doc:`python_imports`. Each script module is loaded for its execution.
+
+Each slot starts fresh evidence, result aggregation, parameter selection, and
+automatic-key state. Finalization closes cached connection handles. Reopen
+connections through plugin APIs in later slots; do not keep a cached handle in
+a helper global. Shutdown hooks run once after the whole suite.
+
+::
+
+   shared Python process + configuration + helper module globals
+       setup slot -> close cached resources
+       test slot  -> close cached resources
+       between    -> close cached resources
+       test slot  -> close cached resources
+       teardown   -> close cached resources -> suite shutdown hooks
+
+Use ``try/finally`` inside the test that enables a hardware output. A later
+suite teardown is a separate slot; it cannot guarantee immediate cleanup when
+that test's measurement raises. Closing a connection does not prove an output
+was switched off.
+
+Duration example
+----------------
+
+If A takes 40 seconds and B takes 40 seconds, ``cycle_for = "60s"`` starts
+one full A/B cycle and finishes it at roughly 80 seconds. It does not interrupt
+B at 60 seconds. A single 80-second test with ``repeat_for = "60s"`` also runs
+once and finishes at roughly 80 seconds. Durations control whether to start
+more work, not a hard interruption deadline.
