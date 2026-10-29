@@ -85,6 +85,21 @@ checks *owed limits*. A missing-value verifier may also produce BLOCKED after
 a required command with a unit fault; otherwise missing evidence normally
 produces ERROR. See :doc:`using_parameters` and :doc:`exit_codes`.
 
+An omitted or blank verification ``key=`` is not an ERROR. The decorator logs a
+debug line (``verification omitted key=``), runs the body, and stores the row
+under an empty key. File and log spot checks can omit ``key`` entirely.
+Measurement-backed verifiers that require a key opt in from the body::
+
+   if not key:
+       return missing_measurement_result(key=key, optional=optional)
+
+The domain string passed to ``get_measurement(domain, command, key, ...)`` must
+match the domain under which the measurement was recorded (the API module's
+``__colosseum_domain__``, or the namespace when set automatically). A mismatch
+returns ``None`` and produces a verification ERROR with
+``no measurement for key=…`` when the body returns
+``missing_measurement_result``.
+
 Required and optional operations
 --------------------------------
 
@@ -141,5 +156,6 @@ auto-keying off. The first generated key logs a warning about later lookups.
 
 Numbered verification keys do not load parameter overrides; explicit keys do.
 Each omitted multi-row key gets a new number, so use an explicit shared key
-for a series. Without auto-keying, missing measurement keys raise and missing
-verification keys record ERROR. Commands do not receive automatic keys.
+for a series. Without auto-keying, missing measurement keys raise; a missing
+verification key only logs a debug warning and runs the body. Commands do not
+receive automatic keys.
