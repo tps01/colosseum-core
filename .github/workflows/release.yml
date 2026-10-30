@@ -19,7 +19,7 @@ concurrency:
 jobs:
   build-sdist-wheel:
     name: sdist and wheel
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -41,7 +41,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # Pin Ubuntu 24.04: ubuntu-latest (26.04) has no Python 3.9 builds.
+        os: [ubuntu-24.04, windows-latest]
         python-version: ["3.9", "3.12"]
     steps:
       - uses: actions/checkout@v7
@@ -62,7 +63,7 @@ jobs:
 
   build-docs:
     name: documentation (HTML + PDF)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -103,7 +104,7 @@ jobs:
     name: publish GitHub release
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     needs: [build-sdist-wheel, build-offline-wheelhouse, build-docs]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
 
