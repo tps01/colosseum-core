@@ -520,8 +520,7 @@ def _dry_run_structure_message(
     if kind == "measurement":
         if multi_row and "row_index" not in kwargs:
             return (
-                f"`{command}` with multi_row=True requires `row_index=` "
-                "(an integer per row)",
+                f"`{command}` with multi_row=True requires `row_index=` (an integer per row)",
                 kwargs,
             )
         if multi_row:

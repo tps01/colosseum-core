@@ -44,9 +44,9 @@ def finalize_suite(ctx: RuntimeContext) -> int:
         close_logger_handlers(ctx.logger)
 
     if ctx.suite_output_dir is not None and not ctx.no_artifacts:
-        # Summaries first so a failed container rename still leaves artifacts.
-        writer.write(ctx.suite_output_dir, ctx, exit_code=code, overall=overall)
+        # Rename is resilient; write afterward so summary paths match the final dir.
         ctx.suite_output_dir = rename_run_directory_for_result(ctx.suite_output_dir, overall)
+        writer.write(ctx.suite_output_dir, ctx, exit_code=code, overall=overall)
 
     ctx.suite_finalized = True
     ctx.finalized = True

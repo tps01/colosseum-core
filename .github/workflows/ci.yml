@@ -16,7 +16,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # Pin Ubuntu 24.04: ubuntu-latest (26.04) has no Python 3.9 builds.
+        os: [ubuntu-24.04, windows-latest]
         python-version: ["3.9", "3.12"]
     steps:
       - uses: actions/checkout@v7
@@ -29,7 +30,7 @@ jobs:
       - run: python scripts/run_tests.py --durations=15
 
   static-analysis:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -41,7 +42,7 @@ jobs:
       - run: python scripts/run_static.py
 
   docs:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -53,7 +54,7 @@ jobs:
       - run: python scripts/docgen/build_all.py --skip-pdf
 
   packaging:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -71,7 +72,7 @@ jobs:
 
   regression:
     name: regression (ubuntu, py3.12)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
