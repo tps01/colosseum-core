@@ -43,7 +43,7 @@ jobs:
       matrix:
         # Pin Ubuntu 24.04: ubuntu-latest (26.04) has no Python 3.9 builds.
         os: [ubuntu-24.04, windows-latest]
-        python-version: ["3.9", "3.12"]
+        python-version: ["3.9", "3.12", "3.14"]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -143,7 +143,7 @@ jobs:
 
             ## Offline wheelhouses
 
-            Use the archive matching your OS and Python (3.9 or 3.12).
+            Use the archive matching your OS and Python (3.9, 3.12, or 3.14).
             Wheels live under `wheels/`; operator scripts are at the archive root.
 
             - Windows: `colosseum-core-offline-windows-py*.zip` → `install.bat`, then `start_cli.bat` / `start_gui.bat`
