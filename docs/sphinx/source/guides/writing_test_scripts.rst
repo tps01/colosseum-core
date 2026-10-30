@@ -3,8 +3,10 @@ Writing test scripts
 
 Colosseum test cases are ordinary Python scripts. Installed plugins expose APIs
 as ``col.<namespace>.*``. This chapter walks through a complete script with matching
-config TOML and metadata YAML. Install ``colosseum-core`` and ``colosseum-template`` first
-(see :doc:`installation`).
+config TOML and metadata YAML. The template plugin below is a developer example,
+not a separately published package. From the core repository, install it with
+``python -m pip install -e examples/plugins/colosseum_template``. For a first test
+using a released plugin, follow :doc:`quickstart`.
 
 Recommended project layout
 --------------------------
@@ -26,6 +28,10 @@ loaded from your script.
 
 Script anatomy
 --------------
+
+A measurement key identifies a recorded result. A verification uses that key
+to retrieve the measurement and compare it with its expected value. See
+:doc:`measurements_verifications` for identity and lookup rules.
 
 Every test script follows the same shape:
 
@@ -67,23 +73,18 @@ Direct-Python skeleton (script loads config and calls ``endex()``)::
        main()
        col.endex()
 
-File and log checks that do not look evidence up by key can call
-``col.auto_key()`` at the top of ``main()`` (after ``load_config`` when the
-script starts the runtime). Omitted measurement and verification keys are then
-numbered ``"1"``, ``"2"``, and so on. See :doc:`measurements_verifications`.
+File and log checks that do not look evidence up by key can omit ``key=`` on
+``@verification`` calls; the decorator warns in ``debug.log`` and still runs
+the body. Call ``col.auto_key()`` at the top of ``main()`` (after
+``load_config`` when the script starts the runtime) when omitted measurement
+or verification keys should be numbered ``"1"``, ``"2"``, and so on instead.
+See :doc:`measurements_verifications`.
 
 When you run through the CLI, the runner does not execute the script's
 ``if __name__ == "__main__"`` block. It calls ``main()`` and finalizes the slot
 automatically if the script returns without calling ``endex()``.
 
-While the script runs, the runner puts the script directory first on
-``sys.path`` (the same as ``python my_test.py``), so sibling helpers in that
-directory import cleanly. After the script returns or raises, ``sys.path`` is
-restored. Sibling modules stay in ``sys.modules`` for the process, so suite
-setup and later tests share the same helper state. A multi-directory suite is
-still one process: the same helper basename in two folders reuses the first
-import. Names that collide with an already-imported module, or with a stdlib or
-plugin name, resolve the same way as a direct Python launch.
+For shared helpers and module-name collisions, see :doc:`python_imports`.
 
 Relative filesystem paths inside a script (``open("data.csv")``, relative
 ``load_config``) still use the process working directory, not the script
@@ -113,100 +114,12 @@ A ``[template.device]`` table matches that plugin's ``ConfigSectionSpec``:
 
 See :doc:`configuration` for section rules, multiple rows, and reading rows from code.
 
-Parameters file (optional)
---------------------------
+Parameters (optional)
+---------------------
 
-An optional TOML parameters file supplies kwargs by evidence key. Tables are
-keys; values are keyword arguments for ``@command`` and ``@verification`` calls
-that pass ``key=``. A field in the file overrides the same argument on the call.
-Arguments the file omits stay as passed.
-
-Resolution order (first hit wins):
-
-1. ``--parameters PATH`` on ``colosseum run`` / ``colosseum run-suite``
-2. A suite test entry's ``parameters`` field
-3. ``parameters.toml`` beside the script
-4. None
-
-.. figure:: ../_static/uml/parameters-resolution.png
-   :alt: Parameters file resolution and BLOCKED owed limits
-   :align: center
-
-When a file is loaded, a ``key=`` with no section keeps the arguments from the
-call. A section that is present overrides those arguments. A present but invalid
-file fails the slot before ``main``. Sections that contain ``expected_val``,
-``expected_result``, ``tolerance``, ``minimum``, ``maximum``, ``exact``, or
-``expected`` are owed limits: if the run aborts before those keys are measured,
-finalize inserts ``BLOCKED`` verification rows.
-
-**Limit-only parameters file** (``parameters.toml``)::
-
-   [dut_3v3_rail]
-   expected_val = 3.3
-   tolerance = 0.1
-
-   [rx_level]
-   expected_val = 0.0
-   tolerance = 0.5
-
-**Script** (limits come from the file via ``key=``)::
-
-   def main() -> None:
-       measure_level(key="rx_level", value=0.0)
-       verify_level(key="rx_level")  # expected_val / tolerance filled from file
-
-**Suite** (same script, two files)::
-
-   name = "receiver_limits"
-   tests = [
-     { path = "receiver_test.py", parameters = "limits_low.toml" },
-     { path = "receiver_test.py", parameters = "limits_high.toml" },
-   ]
-
-**Reading one field**
-
-``col.load_parameter(key=..., field=...)`` returns one value from the loaded
-parameters file. A procedure uses it for a list of paths or another setting
-the script reads itself. Ints, floats, bools, and ordinary strings come back
-as written. A TOML array or inline table comes back as a list or dict.
-A quoted Python literal is parsed, and so is a bracketed list of bare words.
-
-**captures.toml**::
-
-   [captures]
-   files = "[trace.bin, C:/data/other.bin]"
-   count = 3
-
-**Script**::
-
-   files = col.load_parameter(key="captures", field="files")
-   for path in files:
-       measure_capture(path)
-
-``[thing1, thing2]`` becomes a list of strings. ``{1, 2}`` becomes a set and
-``{'a': 1}`` becomes a dict. Bare ``true``, ``false``, ``yes``, and ``no``
-inside a list become bools. A note such as ``[see manual]`` stays a string.
-A quoted number such as ``"99"`` stays a string; unquoted ``99`` is an int.
-``key=`` calls receive the value as loaded from TOML.
-
-A missing parameters file, key, or field raises ``ParametersError``. A matched
-bracket string that cannot be parsed, such as an empty slot or an unclosed
-inner bracket, raises ``ParametersError`` as well. ``{}`` is an empty dict.
-An empty set has no literal form.
-
-See ``examples/parameters/`` in the core package. For ready-made bench procedures,
-copy a folder from :doc:`testware_library`.
-
-``colosseum run SCRIPT --export parameters`` walks ``main()`` and writes
-``parameters.toml`` in the run folder. Sections are the evidence keys. Values are
-the keyword arguments passed on ``@command``, ``@measurement``, and
-``@verification`` calls, except ``key`` and ``row_index``. ``key`` is already
-the section name. ``row_index`` identifies one row of a multi-row measurement
-(together with the domain, command, and key). Export keeps a single section per
-key and later calls overwrite earlier fields, so a series would collapse to the
-last index. The script chooses the row as it loops. Decorated functions are not
-called, and the folder is not renamed with a pass or fail suffix. Variables and
-``col.auto_key()`` are evaluated because ``main()`` still runs.
+A parameters TOML file supplies command arguments and verification limits by
+evidence key. See :doc:`using_parameters` for precedence, a worked limit change,
+and parameter export.
 
 Metadata (optional)
 -------------------

@@ -105,6 +105,35 @@ def test_default_continues_after_test_crash(fixtures_dir, core_config, isolated_
     assert len(summary["test_slots"]) == 2
 
 
+def test_suite_finalizes_when_directory_rename_fails(
+    fixtures_dir, core_config, isolated_cwd, monkeypatch,
+) -> None:
+    """Rename failures must not skip suite summary or tear down (#72)."""
+    from pathlib import Path
+
+    import colosseum.results.exit_policy as exit_policy
+    import colosseum.results.finalize as finalize_mod
+
+    def keep_unrenamed(output_dir: Path, overall: str, **_kwargs: object) -> Path:
+        return output_dir
+
+    monkeypatch.setattr(finalize_mod, "rename_run_directory_for_result", keep_unrenamed)
+    monkeypatch.setattr(exit_policy, "rename_run_directory_for_result", keep_unrenamed)
+
+    suite = fixtures_dir / "suites" / "happy.toml"
+    _run_suite_expect_exit(suite, core_config, isolated_cwd, 0)
+    container = latest_suite_container(isolated_cwd)
+    assert not container.name.endswith(("-pass", "-fail"))
+    assert (container / "summary.txt").is_file()
+    assert (container / "summary.json").is_file()
+    assert (container / "debug.log").is_file()
+    test_slot = _slot_with_stem(container, "pass_test")
+    assert not test_slot.name.endswith(("-pass", "-fail"))
+    assert (test_slot / "summary.txt").is_file()
+    summary = _container_summary(container)
+    assert summary["overall_result"] == "PASS"
+
+
 def test_fail_fast_stops_after_test_crash(fixtures_dir, core_config, isolated_cwd) -> None:
     suite = fixtures_dir / "suites" / "multi_test_fail_fast_crash.toml"
     _run_suite_expect_exit(suite, core_config, isolated_cwd, 1)

@@ -12,58 +12,74 @@ GitHub Pages sites (linked below). Copy-out test stubs live in the
 How Colosseum works
 -------------------
 
-Colosseum is meant to stay approachable for people who are not primarily
-software developers, without capping what experienced authors can do.
+Colosseum runs Python test scripts that call plugins to control equipment,
+communicate with devices, collect measurements, and verify results. A script's
+``main()`` contains the procedure. The runner initializes the framework,
+executes that procedure, records evidence, and generates a result summary.
 
-**Readable procedures.** Plugin APIs use keyword arguments at the call site
-(``expected_val=5``, ``units="V"``, ``tolerance=0.5``). Named steps make the
-intent obvious on the page, so reviewers who do not write code can still follow
-a procedure as a checklist. A typical case is a short, straight-line sequence of
-``col.*`` calls.
+With Shared installed, a procedure can record and check a literal value::
 
-**Operator desktop GUI.** Users who only need to select a script or suite,
-attach config and metadata, and start a run can do that from the desktop GUI
-(``colosseum --gui``) without editing Python. Completed runs are browsable from
-the same app through summaries and logs.
+   import colosseum as col
 
-**Room for advanced cases.** The same scripts are ordinary Python, so authors
-can use loops, variables, conditionals, helpers, and third-party libraries when
-a scenario needs them. Parameters files and suite definitions support
-parameterized limits and multi-slot campaigns without inventing a separate test
-language. Evidence recording (commands, measurements, and verifications) wraps
-those calls; see :doc:`guides/writing_test_scripts` and
-:doc:`guides/measurements_verifications`.
+   def main() -> None:
+       col.shared.measure_value(key="voltage", value=3.3)
+       col.shared.verify.verify_field(key="voltage", expected_val=3.3, tolerance=0.1)
+
+See :doc:`guides/quickstart` for the complete runnable example. Scripts run
+individually or in suites. The **desktop runner** (``colosseum --gui``) lets
+operators launch and monitor tests. The **GUI automation plugin** instead
+controls the application under test through ``col.gui.*``.
 
 .. toctree::
-   :maxdepth: 2
-   :caption: User guide
+   :maxdepth: 1
+   :caption: Getting started
 
    guides/installation
    guides/quickstart
-   guides/running_tests
    guides/writing_test_scripts
-   guides/configuration
-   guides/running_suites
-   guides/measurements_verifications
-   guides/output_artifacts
-   guides/first_party_plugins
-   guides/testware_library
-   guides/exit_codes
-   guides/platform_notes
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Developing
+   :maxdepth: 1
+   :caption: User guide
+
+   guides/configuration
+   guides/using_parameters
+   guides/measurements_verifications
+   guides/running_tests
+   guides/running_suites
+   guides/output_artifacts
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Plugins and examples
+
+   guides/first_party_plugins
+   guides/testware_library
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Reference and troubleshooting
+
+   guides/exit_codes
+   guides/glossary
+   guides/platform_notes
+   guides/troubleshooting
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Development
 
    guides/runtime_execution
    guides/plugins
-   guides/glossary
+   guides/implementing_evidence
+   guides/configuration_schema
+   guides/python_imports
 
 First-party plugins
 -------------------
 
-Each plugin site is an **API reference** for that package's ``col.*`` surface.
-Return here for framework guides (install, config, runners, plugins).
+Choose APIs by task in :doc:`guides/first_party_plugins`. Each plugin site
+contains getting-started guides, workflows, configuration, and API reference.
 
 * `colosseum-equipment <https://tps01.github.io/colosseum-equipment/>`__ —
   instruments and I/O (`col.equipment.*`, `col.io.*`) —

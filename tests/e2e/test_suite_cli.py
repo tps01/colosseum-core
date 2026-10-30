@@ -414,7 +414,9 @@ def test_suite_dry_run_passes_and_missing_key_fails(
     container = latest_suite_container(isolated_cwd)
     assert container.name.endswith("-fail")
     slot = _slot(container, "dry_run_missing_key")
-    assert "requires `key=`" in (slot / "summary.txt").read_text(encoding="utf-8")
+    summary = (slot / "summary.txt").read_text(encoding="utf-8")
+    assert "was missing a key" in summary
+    assert "col.auto_key()" in summary
 
 
 @pytest.mark.requirement("E2E-SUITE-12")

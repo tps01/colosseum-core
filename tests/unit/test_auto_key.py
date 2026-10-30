@@ -38,12 +38,17 @@ def test_auto_key_requires_runtime() -> None:
         auto_key()
 
 
-def test_omitted_key_still_fails_without_auto_key(ctx) -> None:
-    with pytest.raises(MeasurementKeyError, match="requires `key=`"):
+def test_omitted_key_fails_measurement_but_verification_runs(ctx) -> None:
+    from colosseum.logging.setup import setup_logging
+
+    setup_logging(ctx, console=False, file=True)
+    with pytest.raises(MeasurementKeyError, match="was missing a key"):
         _measure()
     result = _verify()
-    assert result.status == "ERROR"
-    assert ctx.db.count_rows("verifications", "key=?", ("<missing>",)) == 1
+    assert result.status == "PASS"
+    assert result.message == ""
+    assert ctx.db.count_rows("verifications", "key=?", ("",)) == 1
+    assert "verification omitted key=" in _debug_log(ctx)
 
 
 def test_auto_key_numbers_each_family_from_one(ctx) -> None:
@@ -71,8 +76,8 @@ def test_auto_key_warns_once(ctx) -> None:
     _verify()
     _measure()
     text = _debug_log(ctx)
-    assert text.count("Autokeying has taken place") == 1
-    assert "due to not having the correct keys" in text
+    assert text.count("col.auto_key() is on") == 1
+    assert "numeric keys or an explicit key=" in text
     assert "key=1" in text
     assert "key=2" in text
 

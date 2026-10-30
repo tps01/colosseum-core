@@ -73,6 +73,10 @@ class RuntimeContext:
     export_errors: list[str] = field(default_factory=list)
     # Measurements a dry-run log walk has already visited: domain, command, key, row_index.
     dry_run_measurements: set[tuple[str, str, str, int]] = field(default_factory=set)
+    # Keys referenced by any dry-run command/measurement/verification call.
+    dry_run_keys_seen: set[str] = field(default_factory=set)
+    # Soft guidance collected during a dry-run walk (shown in summary.txt).
+    dry_run_tips: list[str] = field(default_factory=list)
     # Platform, installed distributions, and input hashes for this run or suite.
     provenance: dict[str, object] | None = None
 
@@ -94,7 +98,8 @@ def auto_key() -> None:
 
     The first omitted measurement key is ``"1"``, then ``"2"``, and so on.
     Verifications use a separate counter. The first assignment logs a warning
-    that later verifications may fail if they expect a specific key.
+    that later verifications must use the same numeric keys or an explicit
+    ``key=``.
     """
     ctx = get_context()
     if ctx.auto_key_enabled:

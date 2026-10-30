@@ -154,10 +154,65 @@ def resolve_auto_key(
         ctx.auto_key_warned = True
         if ctx.logger is not None:
             ctx.logger.warning(
-                "Autokeying has taken place. Later verifications may fail "
-                "due to not having the correct keys.",
+                "col.auto_key() is on; later verifications must use the same "
+                "numeric keys or an explicit key=",
             )
     return key, True
+
+
+def missing_key_guidance(*, kind: str, command: str) -> str:
+    """Return an actionable message when a decorated call omits ``key=``."""
+    if kind == "measurement":
+        return (
+            f"`{command}` measurement was missing a key; "
+            "pass key=... or call col.auto_key() near the start of main()"
+        )
+    if kind == "verification":
+        return (
+            f"`{command}` verification omitted key=; "
+            "spot-checks are fine without a key, or pass key=... / call "
+            "col.auto_key() if this should bind to a measurement"
+        )
+    return (
+        f"`{command}` {kind} was missing a key; "
+        "pass key=... or call col.auto_key() near the start of main()"
+    )
+
+
+def note_dry_run_tip(ctx: RuntimeContext, message: str) -> None:
+    """Record a soft dry-run tip once and mirror it to the run log."""
+    if not ctx.run_options.dry_run:
+        return
+    if message in ctx.dry_run_tips:
+        return
+    ctx.dry_run_tips.append(message)
+    if ctx.logger is not None:
+        ctx.logger.warning(message)
+
+
+def finalize_dry_run_tips(ctx: RuntimeContext) -> None:
+    """Add end-of-walk tips (unused parameters, empty walk) before summary write."""
+    if not ctx.run_options.dry_run:
+        return
+    records = ctx.result_aggregator._records  # noqa: SLF001
+    evidence_kinds = {"command", "measurement", "verification"}
+    if not any(row.get("kind") in evidence_kinds for row in records):
+        note_dry_run_tip(
+            ctx,
+            "dry-run saw no command/measurement/verification calls; "
+            "check that main() runs and plugins are loaded",
+        )
+    if ctx.parameters_map:
+        unused = sorted(
+            key for key in ctx.parameters_map if key not in ctx.dry_run_keys_seen
+        )
+        if unused:
+            listed = ", ".join(repr(key) for key in unused)
+            note_dry_run_tip(
+                ctx,
+                f"parameters file has unused section(s): {listed}; "
+                "check for typos or stale keys",
+            )
 
 
 def _publish_keyword_parameter(
@@ -265,14 +320,14 @@ def capture_parameter_export(
 ) -> bool:
     """Store one keyed call while exporting parameters.
 
-    Returns True when this call should not run. Commands without a key are
-    omitted. A measurement or verification without a key is an export error.
+    Returns True when this call should not run. Commands and verifications
+    without a key are omitted. A measurement without a key is an export error.
     """
     if ctx.parameter_export is None:
         return False
     if not key:
-        if kind != "command":
-            ctx.export_errors.append(f"`{command}` requires `key=`")
+        if kind == "measurement":
+            ctx.export_errors.append(missing_key_guidance(kind=kind, command=command))
         return True
     section = ctx.parameter_export.setdefault(key, {})
     for name, value in kwargs.items():
@@ -297,10 +352,10 @@ def finish_dry_run_missing_key(
     call_args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> bool:
-    """Record a missing measurement or verification key and let the walk continue."""
+    """Record a missing measurement key and let the walk continue."""
     if not ctx.run_options.dry_run or key:
         return False
-    message = f"`{command}` requires `key=`"
+    message = missing_key_guidance(kind=kind, command=command)
     _record_outcome(
         ctx,
         kind=kind,
@@ -419,6 +474,9 @@ def _dry_run_type_error(
     func: Callable[..., Any],
     bound: Signature,
     values: dict[str, Any],
+    *,
+    key: str = "",
+    from_parameters: bool = False,
 ) -> str | None:
     hints = _hints_for(func)
     for name, value in values.items():
@@ -427,7 +485,10 @@ def _dry_run_type_error(
             continue
         if _annotation_matches(value, hint):
             continue
-        return f"`{name}` must match {_format_hint(hint)}, got {value!r}"
+        message = f"`{name}` must match {_format_hint(hint)}, got {value!r}"
+        if from_parameters and key:
+            message += f" (from parameters[{key!r}])"
+        return message
     return None
 
 
@@ -458,12 +519,18 @@ def _dry_run_structure_message(
     row_index = 0
     if kind == "measurement":
         if multi_row and "row_index" not in kwargs:
-            return f"`{command}` with multi_row=True requires `row_index=`", kwargs
+            return (
+                f"`{command}` with multi_row=True requires `row_index=` (an integer per row)",
+                kwargs,
+            )
         if multi_row:
             try:
                 row_index = int(kwargs["row_index"])
             except (TypeError, ValueError):
-                return f"`{command}` row_index must be an integer", kwargs
+                return (
+                    f"`{command}` row_index must be an integer per row",
+                    kwargs,
+                )
         if _measurement_already_logged(
             ctx,
             domain=domain,
@@ -475,10 +542,15 @@ def _dry_run_structure_message(
             if multi_row:
                 return (
                     f"Duplicate measurement key for "
-                    f"({domain}, {command}, {key}, row_index={row_index})"
+                    f"({domain}, {command}, {key}, row_index={row_index}); "
+                    "use a unique key= or distinct row_index="
                 ), kwargs
-            return f"Duplicate measurement key for ({domain}, {command}, {key})", kwargs
-    key_in_parameters = ctx.parameters_map is not None and key in ctx.parameters_map
+            return (
+                f"Duplicate measurement key for ({domain}, {command}, {key}); "
+                "use a unique key= or @measurement(..., multi_row=True) with "
+                "distinct row_index="
+            ), kwargs
+    key_in_parameters = bool(key) and ctx.parameters_map is not None and key in ctx.parameters_map
     if (
         require_prior_measurement
         and not key_in_parameters
@@ -486,13 +558,16 @@ def _dry_run_structure_message(
     ):
         return f"no measurement recorded for key={key!r}", kwargs
     call_kwargs = dict(kwargs)
+    applied_parameters = False
     if apply_parameters and key and not injected:
         try:
+            before = dict(call_kwargs)
             call_kwargs = apply_parameters_to_kwargs(
                 call_kwargs,
                 key=key,
                 parameters=ctx.parameters_map,
             )
+            applied_parameters = call_kwargs != before
         except ParametersError as exc:
             return str(exc), kwargs
     elif (
@@ -511,6 +586,9 @@ def _dry_run_structure_message(
         call_kwargs.pop("optional", None)
     if pop_key:
         call_kwargs.pop("key", None)
+    elif kind == "verification" and not key:
+        # Match live mode: inject blank key so signature.bind succeeds.
+        call_kwargs["key"] = ""
     if pop_description:
         call_kwargs.pop("description", None)
     # A parameters section may hold limit fields for another call on the same key.
@@ -524,17 +602,30 @@ def _dry_run_structure_message(
     try:
         binding = bound.bind(*call_args, **call_kwargs)
     except TypeError as exc:
-        return str(exc), resolved
+        message = f"`{command}` call did not match its signature: {exc}"
+        if key_in_parameters:
+            message += (
+                f"; check parameters[{key!r}] fields against the function signature"
+            )
+        return message, resolved
     binding.apply_defaults()
     try:
         checked = coerce_units(dict(binding.arguments))
     except ValueError as exc:
         return str(exc), resolved
-    type_error = _dry_run_type_error(func, bound, checked)
+    type_error = _dry_run_type_error(
+        func,
+        bound,
+        checked,
+        key=key,
+        from_parameters=applied_parameters or key_in_parameters,
+    )
     if type_error is not None:
         return type_error, resolved
     if kind == "measurement" and key:
         ctx.dry_run_measurements.add((domain, command, key, row_index))
+    if key:
+        ctx.dry_run_keys_seen.add(key)
     return None, resolved
 
 
@@ -606,6 +697,20 @@ def finish_dry_run_log(
             kwargs=resolved,
         )
         return True
+    if kind == "verification" and not key:
+        note_dry_run_tip(ctx, missing_key_guidance(kind="verification", command=command))
+    elif (
+        kind == "verification"
+        and key
+        and not _evidence_key_measured(ctx, key)
+        and not (ctx.parameters_map is not None and key in ctx.parameters_map)
+    ):
+        note_dry_run_tip(
+            ctx,
+            f"`{command}` verification key={key!r} has no measurement in this "
+            "walk yet; measure first, or keep as a spot-check / use "
+            "missing_measurement_result in the body for live",
+        )
     _record_outcome(
         ctx,
         kind=kind,

@@ -191,7 +191,7 @@ def _read_rows(connection: sqlite3.Connection) -> list[EvidenceRow]:
                 record_id=int(item["id"]),
                 status=_cell(item, "status"),
                 optional=_flag(item, "optional"),
-                step=_cell(item, "description") or _cell(item, "key"),
+                step=_cell(item, "description") or _cell(item, "key") or _cell(item, "command"),
                 key=_cell(item, "key"),
                 actual=_display_json(actual),
                 comparison=comparison_label(op, expected, tolerance),

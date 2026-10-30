@@ -8,26 +8,11 @@ services, and so on).
 The :doc:`writing_test_scripts` walkthrough uses a ``[template.device]`` table from the
 ``colosseum_template`` plugin. The rules below apply to any plugin section.
 
-Configuration sections
-----------------------
-
-Each registered section is one ``ConfigSectionSpec``:
-
-* exactly one dotted path (the TOML table, for example ``template.device``)
-* exactly one integer ID field (the row identity, for example ``device_id``)
-* any number of required keys (including none)
-* any number of optional keys (including none)
-
-A plugin that owns several table types registers several specs, one
-``register_config_section`` call per dotted path. The same file can mix sections
-from many plugins.
-
 TOML shape
 ----------
 
 Write either a single table (one row) or an array of tables (several rows).
-Do not mix both for the same dotted path. Both forms become the same ID-indexed
-map at runtime.
+Do not mix both for the same dotted path. Both forms are accepted by the configuration loader.
 
 Single row::
 
@@ -47,11 +32,24 @@ Several rows::
 
 The dotted path is the table header. The ID field must be an integer and unique
 within that section. Missing IDs, non-integer IDs, and duplicate IDs fail the
-load. Missing required keys fail when a plugin requests that row through
-``require_item``. Plugin-row keys outside the registered spec are currently
+load. Missing required keys fail when the plugin requests that row. Plugin-row keys outside the registered spec are currently
 preserved and passed through without a core warning; plugins may consume
 extension data or validate it themselves. Do not rely on core to detect a
 misspelled plugin key. Metadata and report tables have separate validation.
+
+IDs in calls
+------------
+
+``device_id=2`` selects row 2 of ``template.device``. IDs belong to their own
+section: PSU 1 and DMM 1 can coexist. Select a configured ID, not a row number
+in the text file. See each plugin's configuration reference for its ID fields.
+
+A typo such as ``resouce = "COM5"`` is preserved as an unknown plugin key by
+core. It does not satisfy a plugin's required ``resource`` field. Core checks
+table shape and IDs; the plugin checks its required fields and capabilities.
+
+Load configuration
+------------------
 
 Load configuration before calling plugin APIs::
 
@@ -67,6 +65,24 @@ config store to the run. CLI ``-g`` **pins** that store: a later script
 Calling ``load_config`` again (unpinned, or with ``force=True``) replaces the
 whole store. Sections present only in the previous file are dropped unless the
 new TOML includes them.
+
+Reload scenarios
+----------------
+
+With ``colosseum run my_test.py -g bench.toml``, the CLI pins the configuration.
+Inside ``main()``::
+
+   col.config.load_config("other.toml")              # ignored; bench.toml stays active
+   col.config.load_config("other.toml", force=True)  # replaces bench.toml
+
+Without a CLI pin, loading a second file replaces the first::
+
+   col.config.load_config("bench.toml")
+   col.config.load_config("other.toml")  # other.toml is now the entire store
+
+Rows present only in ``bench.toml`` disappear. A reload closes cached resources;
+later calls reopen connections from the active configuration. The same
+``force=True`` rule applies independently to CLI-pinned metadata.
 
 Relative file paths
 -------------------
@@ -85,19 +101,12 @@ CLI ``-g`` / ``-m`` paths remain relative to the working directory. Pinned scrip
 loads are ignored before checking any paths; ``force=True`` enables resolution
 and replacement. Paths stored *inside* config files keep their existing semantics.
 
-Reading rows
-------------
-
-* ``col.config.get("template.device")``: raw nested table or list (or ``None``).
-* ``store.list_items("template.device")``: normalized rows, sorted by ID.
-* ``store.get_item("template.device", 1)`` / ``store.require_item(...)``: one row
-  by ID. ``require_item`` also checks required keys.
-
-Unregistered tables stay in the raw store (``col.config.get("runtime.label")``)
-but are not ID-indexed.
-
 Plain string tokens may omit quotes when they contain only supported path/token
 characters. Standard TOML quoting remains recommended for portable configuration.
+
+Standard TOML uses lowercase ``true`` and ``false``. Use those spellings in
+portable configuration files. Colosseum also accepts extensions for recognized
+boolean fields; these spellings are not standard TOML syntax.
 
 Boolean fields accept ``true``, ``t``, ``yes``, ``y``, and ``1``, and ``false``,
 ``f``, ``no``, ``n``, and ``0``, in any case. Bare words such as ``True`` and
@@ -161,7 +170,7 @@ configuration, not unit identity (do not put these flags in metadata)::
    wats = false
    junit = false
 
-``wats = T`` and ``junit = "no"`` are the same as ``true`` and ``false``.
+Use standard TOML ``wats = true`` and ``junit = false``.
 Both default to false when the table is absent. CLI ``--report NAME``
 (repeatable) replaces the table for that process. An unknown name warns and
 does not fail the run. See :doc:`output_artifacts`.
@@ -174,3 +183,6 @@ does not fail the run. See :doc:`output_artifacts`.
 
 Plugin-owned config sections are documented by each plugin (README or project
 docs). For first-party setup recipes, see :doc:`first_party_plugins`.
+
+Plugin developers: :doc:`configuration_schema` documents registration and the
+normalized store API.

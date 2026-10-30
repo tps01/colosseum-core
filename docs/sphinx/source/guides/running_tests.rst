@@ -11,6 +11,30 @@ The CLI does not execute the script's ``if __name__ == "__main__"`` block.
 See :doc:`writing_test_scripts` for a complete script with matching config TOML and
 metadata YAML.
 
+Choose an execution mode
+------------------------
+
+.. list-table::
+   :header-rows: 1
+
+   * - I want to
+     - Use
+   * - Execute normally
+     - ``colosseum run SCRIPT -g CONFIG``
+   * - Run without saved artifacts
+     - ``--no-artifacts``
+   * - Walk a procedure without executing decorated operations
+     - ``--dry-run``
+   * - Collect measurements and skip verification
+     - ``--procedure``
+   * - Recheck evidence from a previous run
+     - ``--use-previous-output PATH``
+   * - Generate per-key parameters
+     - ``--export parameters``
+
+Dry run still executes ordinary Python in ``main()``. It is not a sandbox for
+subprocess calls, file writes, or other undecorated code.
+
 Single-run flow
 ---------------
 
@@ -30,7 +54,7 @@ Argument priority (summary)
 * **Reports:** any ``--report NAME`` replaces ``[colosseum.reports]`` for the
   process.
 * **Parameters:** ``--parameters`` wins over a suite entry and over sibling
-  ``parameters.toml``. See :doc:`writing_test_scripts`.
+  ``parameters.toml``. See :doc:`using_parameters`.
 
 .. figure:: ../_static/uml/config-priority.png
    :alt: Precedence for config, metadata, reports, and execution mode
@@ -80,15 +104,20 @@ Shared path and config flags for ``colosseum run`` and ``colosseum run-suite``:
 - ``--no-artifacts`` - in-memory SQLite and console logging only
 - ``--dry-run`` - walk each script and log every command, measurement, and
   verification. The default policy logs arguments and does not call the function.
-  Omitted measurement and verification keys fail the slot unless the script called
-  ``col.auto_key()``. The walk checks duplicate measurements, ``multi_row`` row
-  indexes, verification keys that have no measurement yet, call signatures, and
-  argument types where the function has a type hint. Duration and frequency
-  strings are checked after they are parsed. An argument with no hint is not
-  checked. A key with no parameters-file section keeps the call arguments.
-  It records each problem and continues, and a required error fails
-  the slot. ``debug.log``, ``summary.txt``, and ``summary.json`` are still written.
-  ``run-suite --dry-run`` uses the same checks on every slot.
+  Omitted measurement keys fail the slot unless the script called
+  ``col.auto_key()`` (the ERROR text suggests ``key=`` or ``col.auto_key()``).
+  Omitted verification keys are allowed for spot-checks; dry-run records a tip
+  instead of failing. The walk checks duplicate measurements, ``multi_row`` row
+  indexes, call signatures, and argument types where the function has a type
+  hint. Duration and frequency strings are checked after they are parsed. An
+  argument with no hint is not checked. A key with no parameters-file section
+  keeps the call arguments. Soft tips also cover unused parameters-file
+  sections, keyed verifications with no prior measurement in the walk, and an
+  empty walk with no decorated calls. Tips appear in ``debug.log`` and under
+  **Dry-run tips:** in ``summary.txt``. It records each problem and continues,
+  and a required error fails the slot. ``debug.log``, ``summary.txt``, and
+  ``summary.json`` are still written. ``run-suite --dry-run`` uses the same
+  checks on every slot.
 - ``--parameters PATH`` - parameters TOML (limits and per-key kwargs) for this run
 - ``--report NAME`` - enable a report listener (``wats``, ``junit``); repeatable.
   When any ``--report`` is present, that set replaces ``[colosseum.reports]``
@@ -100,10 +129,7 @@ Shared path and config flags for ``colosseum run`` and ``colosseum run-suite``:
 - ``-p/--procedure`` - run commands and measurements; skip verifications
 - ``-u/--use-previous-output PATH`` - import prior measurements/commands from a completed
   run directory and re-run verifications only (mutually exclusive with ``-p``).
-  On Windows PowerShell, do not end a quoted path with one backslash. PowerShell
-  treats that backslash as escaping the closing quote, and a path that contains
-  spaces is merged with the next argument (``unrecognized arguments``). Omit the
-  trailing backslash. A trailing forward slash is also accepted.
+  For Windows quoted paths, see :doc:`troubleshooting`.
 - ``--show-faults`` - opt-in ``faulthandler`` crash dumps for this run
 - ``--export parameters`` - walk the script, write ``parameters.toml`` in the run
   folder from the keys and keyword values that were passed, and do not run decorated
@@ -131,3 +157,20 @@ without executing a test script. Combine ``-c`` with a script path to run plugin
 and the script in one process and one output directory.
 
 See :doc:`running_suites` for suite-specific flags (including ``-p`` on test slots).
+
+Offline evidence replay
+-----------------------
+
+Verification-only execution imports the previous run's measurements and
+commands into a new run, skips decorated acquisitions/actions, and reruns
+verifiers. New limits do not refresh the measurement or contact the device.
+
+After the passing run in :doc:`quickstart`, create the ``tight.toml`` from
+:doc:`using_parameters`, then substitute the actual completed folder below::
+
+   colosseum run my_test.py -g config.toml --parameters tight.toml --use-previous-output outputs/<timestamp>_my_test-pass
+
+The recorded 3.3 is checked against 3.5 +/- 0.05 and fails. The previous run
+stays intact; inspect the newly created run folder. Keep the procedure and keys
+compatible with the original acquisition. Verifiers that inspect live UI or
+files can still need those resources; a database cannot recreate them.
