@@ -34,16 +34,19 @@ def _description_prefix(row: OutcomeRecord) -> str:
     return f"{text} " if text else ""
 
 
-def _dry_run_lines(records: list[OutcomeRecord]) -> list[str]:
+def _dry_run_lines(records: list[OutcomeRecord], tips: list[str] | None = None) -> list[str]:
     lines = ["", "Dry run calls:"]
     if not records:
         lines.append("  (none)")
-        return lines
-    for row in records:
-        lines.append(
-            f"  - [{row.get('kind', 'outcome')}] {row.get('domain', '')}."
-            f"{row.get('command', '')} key={row.get('key', '')}: {row.get('status', '')}",
-        )
+    else:
+        for row in records:
+            lines.append(
+                f"  - [{row.get('kind', 'outcome')}] {row.get('domain', '')}."
+                f"{row.get('command', '')} key={row.get('key', '')}: {row.get('status', '')}",
+            )
+    if tips:
+        lines.extend(["", "Dry-run tips:"])
+        lines.extend(f"  - {tip}" for tip in tips)
     return lines
 
 
@@ -263,7 +266,11 @@ class SummaryWriter:
             *_count_lines(
                 "Commands (optional outcomes)", "optional command", optional_commands,
             ),
-            *(_dry_run_lines(records) if ctx.run_options.dry_run else []),
+            *(
+                _dry_run_lines(records, tips=ctx.dry_run_tips)
+                if ctx.run_options.dry_run
+                else []
+            ),
             *_outcome_lines(failed_required, header="Failed required outcomes:"),
             *_outcome_lines(aggregator.optional_outcomes(), header="Optional outcomes:"),
         ]
@@ -330,6 +337,8 @@ class SummaryWriter:
                 }
                 for row in records
             ]
+            if ctx.dry_run_tips:
+                payload["dry_run_tips"] = list(ctx.dry_run_tips)
         (output_dir / "summary.json").write_text(
             json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8",
         )

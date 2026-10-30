@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import logging
 import re
+import sys
+import time
 import uuid
 from contextlib import suppress
 from dataclasses import dataclass
@@ -23,6 +25,8 @@ _NO_ARTIFACTS_OUTPUT_ERROR = (
     "Output directory is unavailable in no-artifacts mode; "
     "disable no_artifacts or use persisted output for file artifacts."
 )
+_RENAME_RETRIES = 8
+_RENAME_INITIAL_DELAY_S = 0.05
 
 
 class OutputNotWritableError(RuntimeError):
@@ -72,7 +76,19 @@ def allocate_run_directory(
     return candidate
 
 
-def rename_run_directory_for_result(output_dir: Path, overall: str) -> Path:
+def rename_run_directory_for_result(
+    output_dir: Path,
+    overall: str,
+    *,
+    retries: int = _RENAME_RETRIES,
+    initial_delay_s: float = _RENAME_INITIAL_DELAY_S,
+) -> Path:
+    """Rename ``output_dir`` with a ``-pass`` / ``-fail`` suffix.
+
+    Retries briefly on ``OSError`` (common on Windows when a handle is briefly
+    held). On persistent failure, logs to stderr and returns ``output_dir``
+    unchanged so callers can still write summaries into the original path.
+    """
     normalized = overall.lower()
     if normalized not in {"pass", "fail"}:
         raise ValueError(f"Unsupported run result: {overall}")
@@ -84,8 +100,26 @@ def rename_run_directory_for_result(output_dir: Path, overall: str) -> Path:
         suffix += 1
     if candidate == output_dir:
         return output_dir
-    output_dir.rename(candidate)
-    return candidate
+    attempts = max(1, retries)
+    last_error: OSError | None = None
+    delay = max(0.0, initial_delay_s)
+    for attempt in range(attempts):
+        try:
+            output_dir.rename(candidate)
+            return candidate
+        except OSError as exc:
+            last_error = exc
+            if attempt + 1 >= attempts:
+                break
+            if delay > 0:
+                time.sleep(delay)
+                delay = min(delay * 2, 0.5)
+    print(
+        f"Colosseum: failed to rename {output_dir} -> {candidate.name}: {last_error}; "
+        "leaving directory unrenamed",
+        file=sys.stderr,
+    )
+    return output_dir
 
 
 def ensure_runtime_ready(ctx: RuntimeContext, logical_name: str | None = None) -> None:
@@ -169,7 +203,7 @@ def ensure_suite_runtime_ready(ctx: RuntimeContext, suite_name: str) -> None:
     container.mkdir(parents=True, exist_ok=True)
     ctx.suite_output_dir = container
     ctx.logger = ctx.session.start_logging(
-        ctx, console=True, console_level=console_level, file=False,
+        ctx, console=True, console_level=console_level, file=True,
     )
     if ctx.logger is not None:
         ctx.logger.info("Suite container: %s", container)
@@ -199,6 +233,8 @@ def begin_script_slot(
     ctx.parameter_export = None
     ctx.export_errors.clear()
     ctx.dry_run_measurements.clear()
+    ctx.dry_run_keys_seen.clear()
+    ctx.dry_run_tips.clear()
     ctx.started_at = datetime.now(timezone.utc).astimezone()
     # Mode/phase bookkeeping must run before the no-artifacts early return so
     # procedure applies only to test slots and supporting phases stay full.
@@ -249,8 +285,25 @@ def finalize_script_slot(
     if ctx.slot_finalized:
         raise RuntimeError("Script slot is already finalized")
     affects = ctx.slot_affects_suite_result
-    result_data = finalize_run(ctx, policy=policy_for_suite_slot(affects_suite_result=affects))
+    result_data = None
+    finalize_error: BaseException | None = None
+    try:
+        result_data = finalize_run(
+            ctx, policy=policy_for_suite_slot(affects_suite_result=affects),
+        )
+    except Exception as exc:  # noqa: BLE001 - slot must not abort the suite
+        finalize_error = exc
+        ctx.result_aggregator.mark_suite_error(f"slot finalize failed: {exc}")
+        if affects:
+            ctx.session.mark_suite_failed(f"slot_finalize_failed:{script_path}")
+
     final_dir = ctx.output_dir or Path.cwd()
+    if result_data is not None:
+        overall = result_data.overall if affects else None
+        exit_code = result_data.exit_code
+    else:
+        overall = "FAIL" if affects else None
+        exit_code = 1
     result = SuiteSlotResult(
         phase=ctx.phase,
         script_path=script_path,
@@ -259,8 +312,8 @@ def finalize_script_slot(
         repeat_index=repeat_index,
         cycle_index=cycle_index,
         affects_suite_result=affects,
-        overall=result_data.overall if affects else None,
-        exit_code=result_data.exit_code,
+        overall=overall,
+        exit_code=exit_code,
         config_path=_stored_path(ctx.config_path),
         parameters_path=_stored_path(ctx.parameters_path),
         metadata_path=_stored_path(ctx.metadata_path),
@@ -274,6 +327,10 @@ def finalize_script_slot(
     console_level = logging.DEBUG if ctx.debug_logging else logging.INFO
     # Never call start_logging here — that would reprint the identity header.
     ctx.logger = ctx.session.reattach_console(ctx, console_level=console_level)
+    if finalize_error is not None and ctx.logger is not None:
+        ctx.logger.exception(
+            "Script slot finalize failed for %s: %s", script_path, finalize_error,
+        )
     return result
 
 

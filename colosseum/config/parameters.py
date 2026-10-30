@@ -153,19 +153,37 @@ def toml_value_supported(value: object) -> bool:
     return False
 
 
+_TOML_ESCAPES = {
+    "\\": "\\\\",
+    '"': '\\"',
+    "\b": "\\b",
+    "\t": "\\t",
+    "\n": "\\n",
+    "\f": "\\f",
+    "\r": "\\r",
+}
+
+
+def _escape_toml_char(char: str) -> str:
+    escaped = _TOML_ESCAPES.get(char)
+    if escaped is not None:
+        return escaped
+    code = ord(char)
+    if code < 0x20 or code == 0x7F:
+        return f"\\u{code:04x}"
+    return char
+
+
 def _toml_quoted(text: str) -> str:
-    escaped = (
-        text.replace("\\", "\\\\")
-        .replace('"', '\\"')
-        .replace("\n", "\\n")
-        .replace("\r", "\\r")
-        .replace("\t", "\\t")
-    )
-    return f'"{escaped}"'
+    """Quote a TOML basic string, escaping controls so tomllib can reload it."""
+    return '"' + "".join(_escape_toml_char(char) for char in text) + '"'
 
 
 def _toml_key(name: str) -> str:
-    if name and all(char.isalnum() or char in {"_", "-"} for char in name):
+    """Format a key; bare keys are ASCII letters/digits/underscore/dash only."""
+    if name and all(
+        char.isascii() and (char.isalnum() or char in {"_", "-"}) for char in name
+    ):
         return name
     return _toml_quoted(name)
 

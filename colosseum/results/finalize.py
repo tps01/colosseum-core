@@ -202,6 +202,14 @@ def finalize_run(
         commands=commands,
     )
 
+    if ctx.run_options.dry_run:
+        from colosseum.decorators._common import finalize_dry_run_tips
+
+        finalize_dry_run_tips(ctx)
+
+    # Rename is resilient (returns the original path on OSError), so summaries
+    # still land even when the -pass/-fail suffix cannot be applied, and
+    # summary.json records the final directory path.
     if policy.rename_dir and ctx.output_dir is not None:
         ctx.output_dir = rename_run_directory_for_result(ctx.output_dir, overall)
     if policy.write_summary and ctx.output_dir is not None:

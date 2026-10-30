@@ -17,6 +17,7 @@ from ._common import (
     finish_dry_run_log,
     finish_dry_run_missing_key,
     invoke_dry_run_substitute,
+    missing_key_guidance,
     publish_optional_parameter,
     resolve_auto_key,
     resolve_command,
@@ -83,7 +84,9 @@ def measurement(
             ):
                 return None
             if not key:
-                raise MeasurementKeyError(f"`{command}` requires `key=`")
+                raise MeasurementKeyError(
+                    missing_key_guidance(kind="measurement", command=command),
+                )
             if finish_dry_run_log(
                 ctx,
                 kind="measurement",

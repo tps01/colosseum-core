@@ -105,15 +105,19 @@ Shared path and config flags for ``colosseum run`` and ``colosseum run-suite``:
 - ``--dry-run`` - walk each script and log every command, measurement, and
   verification. The default policy logs arguments and does not call the function.
   Omitted measurement keys fail the slot unless the script called
-  ``col.auto_key()``. Omitted verification keys log a debug warning and continue.
-  The walk checks duplicate measurements, ``multi_row`` row indexes, call
-  signatures, and argument types where the function has a type hint. Duration
-  and frequency strings are checked after they are parsed. An argument with no
-  hint is not checked. A key with no parameters-file section keeps the call
-  arguments.
-  It records each problem and continues, and a required error fails
-  the slot. ``debug.log``, ``summary.txt``, and ``summary.json`` are still written.
-  ``run-suite --dry-run`` uses the same checks on every slot.
+  ``col.auto_key()`` (the ERROR text suggests ``key=`` or ``col.auto_key()``).
+  Omitted verification keys are allowed for spot-checks; dry-run records a tip
+  instead of failing. The walk checks duplicate measurements, ``multi_row`` row
+  indexes, call signatures, and argument types where the function has a type
+  hint. Duration and frequency strings are checked after they are parsed. An
+  argument with no hint is not checked. A key with no parameters-file section
+  keeps the call arguments. Soft tips also cover unused parameters-file
+  sections, keyed verifications with no prior measurement in the walk, and an
+  empty walk with no decorated calls. Tips appear in ``debug.log`` and under
+  **Dry-run tips:** in ``summary.txt``. It records each problem and continues,
+  and a required error fails the slot. ``debug.log``, ``summary.txt``, and
+  ``summary.json`` are still written. ``run-suite --dry-run`` uses the same
+  checks on every slot.
 - ``--parameters PATH`` - parameters TOML (limits and per-key kwargs) for this run
 - ``--report NAME`` - enable a report listener (``wats``, ``junit``); repeatable.
   When any ``--report`` is present, that set replaces ``[colosseum.reports]``

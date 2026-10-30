@@ -140,7 +140,7 @@ def test_debug_log_lists_call_arguments(ctx) -> None:
 
 
 def test_missing_key_raises_when_optional(ctx) -> None:
-    with pytest.raises(MeasurementKeyError, match="requires `key=`"):
+    with pytest.raises(MeasurementKeyError, match="was missing a key"):
         _boom(key="", optional=True)
 
 
