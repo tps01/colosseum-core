@@ -23,6 +23,7 @@ from ._common import (
     ensure_runtime_context,
     finish_dry_run_log,
     invoke_dry_run_substitute,
+    missing_key_guidance,
     publish_description_parameter,
     resolve_auto_key,
     resolve_command,
@@ -446,7 +447,10 @@ def verification(
             key, injected = resolve_auto_key(ctx, kwargs, family="verification")
             key_text = "" if not key else str(key)
             if not key and ctx.logger is not None:
-                ctx.logger.debug("`%s` verification omitted key=", command)
+                ctx.logger.debug(
+                    "%s",
+                    missing_key_guidance(kind="verification", command=command),
+                )
             if capture_parameter_export(
                 ctx, kind="verification", command=command, key=key_text, kwargs=kwargs,
             ):

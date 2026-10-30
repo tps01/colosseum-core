@@ -54,3 +54,27 @@ def test_rename_run_directory_for_result_avoids_collision(isolated_cwd) -> None:
     final_dir = rename_run_directory_for_result(run_dir, "PASS")
     assert final_dir.name == "2026-01-01_120000_smoke-pass_1"
     assert final_dir.is_dir()
+
+
+def test_rename_run_directory_for_result_keeps_dir_after_oserror(
+    isolated_cwd, monkeypatch, capsys,
+) -> None:
+    from pathlib import Path
+
+    run_dir = isolated_cwd / "outputs" / "2026-01-01_120000_smoke"
+    run_dir.mkdir(parents=True)
+    (run_dir / "summary.txt").write_text("ok\n", encoding="utf-8")
+
+    def boom(self: Path, target: Path) -> Path:  # noqa: ARG001
+        raise PermissionError(13, "Access is denied")
+
+    monkeypatch.setattr(Path, "rename", boom)
+    final_dir = rename_run_directory_for_result(
+        run_dir, "FAIL", retries=2, initial_delay_s=0.0,
+    )
+    assert final_dir == run_dir
+    assert run_dir.is_dir()
+    assert (run_dir / "summary.txt").is_file()
+    err = capsys.readouterr().err
+    assert "failed to rename" in err
+    assert "leaving directory unrenamed" in err

@@ -508,28 +508,47 @@ def run_suite(
             suite.cycle_for,
         )
 
-    stop = False
-    if suite.setup:
-        stop = _run_phase_scripts(
-            suite,
-            ctx,
-            suite.setup,
-            runner,
-            phase="setup",
-            affects_suite_result=False,
-            stop_on_fail_fast=True,
-        )
-    if not stop:
-        stop = _run_test_schedule(suite, ctx, runner)
-    if suite.teardown:
-        _run_phase_scripts(
-            suite,
-            ctx,
-            suite.teardown,
-            runner,
-            phase="teardown",
-            affects_suite_result=False,
-            stop_on_fail_fast=False,
-        )
+    interrupt: BaseException | None = None
+    try:
+        stop = False
+        if suite.setup:
+            stop = _run_phase_scripts(
+                suite,
+                ctx,
+                suite.setup,
+                runner,
+                phase="setup",
+                affects_suite_result=False,
+                stop_on_fail_fast=True,
+            )
+        if not stop:
+            _run_test_schedule(suite, ctx, runner)
+    except Exception as exc:  # noqa: BLE001 - still tear down and finalize
+        if ctx.logger is not None:
+            ctx.logger.exception("Suite execution failed: %s", exc)
+        ctx.session.mark_suite_failed(f"suite_crash:{exc}")
+    except BaseException as exc:
+        interrupt = exc
+        if ctx.logger is not None:
+            ctx.logger.exception("Suite execution interrupted: %s", exc)
+        ctx.session.mark_suite_failed(f"suite_interrupt:{exc}")
+    finally:
+        try:
+            if suite.teardown:
+                _run_phase_scripts(
+                    suite,
+                    ctx,
+                    suite.teardown,
+                    runner,
+                    phase="teardown",
+                    affects_suite_result=False,
+                    stop_on_fail_fast=False,
+                )
+        except Exception as exc:  # noqa: BLE001 - finalize anyway
+            if ctx.logger is not None:
+                ctx.logger.exception("Suite teardown failed: %s", exc)
+        code = finalize_suite(ctx)
 
-    raise SystemExit(finalize_suite(ctx))
+    if interrupt is not None:
+        raise interrupt
+    raise SystemExit(code)

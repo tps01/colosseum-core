@@ -75,7 +75,7 @@ def setup_logging(
 
     formatter = _formatter()
     if file:
-        output_dir = ctx.output_dir
+        output_dir = ctx.output_dir if ctx.output_dir is not None else ctx.suite_output_dir
         if output_dir is None:
             raise RuntimeError("file logging requires an output directory")
         file_handler = logging.FileHandler(output_dir / "debug.log", mode="a", encoding="utf-8")
@@ -98,20 +98,34 @@ def attach_console_logger(
     *,
     console_level: int = logging.INFO,
 ) -> logging.Logger:
-    """Restore a console-only logger without printing another identity header.
+    """Restore console logging without printing another identity header.
 
     Suite slots call this after finalize closes the slot ``debug.log`` so later
-    suite messages still reach stdout. The next ``begin_script_slot`` call
-    prints the next slot's header via ``setup_logging``.
+    suite messages still reach stdout. When a suite container exists, also
+    reattach that container's ``debug.log`` in append mode. The next
+    ``begin_script_slot`` call prints the next slot's header via ``setup_logging``.
     """
     logger = logging.getLogger("colosseum")
     logger.setLevel(logging.DEBUG)
     logger.propagate = False
     _detach_handlers(logger)
 
+    formatter = _formatter()
+    if (
+        ctx.suite_output_dir is not None
+        and ctx.output_dir is None
+        and not ctx.no_artifacts
+    ):
+        file_handler = logging.FileHandler(
+            ctx.suite_output_dir / "debug.log", mode="a", encoding="utf-8",
+        )
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(console_level)
-    console_handler.setFormatter(_formatter())
+    console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
     ctx.logger = logger
     return logger

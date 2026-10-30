@@ -75,11 +75,33 @@ def test_suite_header_uses_suite_container_path(unit_runtime_context, capsys, tm
     unit_runtime_context.suite_name = "fixture_happy"
     unit_runtime_context.session.kind = "suite"
 
-    setup_logging(unit_runtime_context, console=True, file=False)
+    setup_logging(unit_runtime_context, console=True, file=True)
 
     out = capsys.readouterr().out
     assert f"Output directory: {container}" in out
     assert "no-artifacts mode" not in out
+    assert (container / "debug.log").is_file()
+    assert "Colosseum version:" in (container / "debug.log").read_text(encoding="utf-8")
+
+
+def test_reattach_after_slot_writes_suite_debug_log(unit_runtime_context, tmp_path) -> None:
+    """Between slots, suite container debug.log should keep receiving messages."""
+    from colosseum.runner.runtime import begin_script_slot, ensure_suite_runtime_ready, finalize_script_slot
+
+    ctx = unit_runtime_context
+    ctx.session.kind = "suite"
+    ctx.suite_name = "suite_debug"
+    ctx.no_artifacts = False
+    ensure_suite_runtime_ready(ctx, "suite_debug")
+    assert ctx.suite_output_dir is not None
+    begin_script_slot(ctx, "slot_a", phase="test", affects_suite_result=True)
+    ctx.slot_script_path = tmp_path / "slot_a.py"
+    ctx.slot_script_path.write_text("def main():\n    pass\n", encoding="utf-8")
+    finalize_script_slot(ctx, script_path=ctx.slot_script_path)
+    assert ctx.logger is not None
+    ctx.logger.error("suite-level after slot")
+    log_text = (ctx.suite_output_dir / "debug.log").read_text(encoding="utf-8")
+    assert "suite-level after slot" in log_text
 
 
 def test_suite_kind_without_paths_is_not_fake_no_artifacts(unit_runtime_context, capsys) -> None:

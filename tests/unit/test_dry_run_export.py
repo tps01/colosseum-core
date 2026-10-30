@@ -92,8 +92,11 @@ def test_dry_run_missing_key_does_not_stop_the_walk(unit_runtime_context) -> Non
 
     assert capture(value=1.0) is None
     assert capture(key="later", value=2.0) is None
-    statuses = [row["status"] for row in ctx.result_aggregator._records]  # noqa: SLF001
+    records = ctx.result_aggregator._records  # noqa: SLF001
+    statuses = [row["status"] for row in records]
     assert statuses == ["ERROR", "DRY"]
+    assert "was missing a key" in records[0]["message"]
+    assert "col.auto_key()" in records[0]["message"]
     assert ctx.result_aggregator.overall_pass() is False
 
 
@@ -122,8 +125,10 @@ def test_dry_run_rejects_duplicate_and_missing_row_index(unit_runtime_context) -
     assert _statuses(ctx) == ["DRY", "ERROR", "ERROR", "DRY", "ERROR", "DRY"]
     messages = [row["message"] for row in ctx.result_aggregator._records]  # noqa: SLF001
     assert "Duplicate measurement key" in messages[1]
+    assert "multi_row=True" in messages[1]
     assert "row_index" in messages[2]
     assert "row_index=0" in messages[4]
+    assert "unique key=" in messages[4] or "distinct row_index=" in messages[4]
     assert ctx.result_aggregator.overall_pass() is False
 
 
@@ -143,6 +148,18 @@ def test_dry_run_allows_verification_before_measurement(unit_runtime_context) ->
     assert capture(key="late", value=1.0) is None
     assert check(key="late", expected_val=1.0) is None
     assert _statuses(ctx) == ["DRY", "DRY", "DRY"]
+    assert any("no measurement in this walk yet" in tip for tip in ctx.dry_run_tips)
+
+
+def test_finalize_dry_run_tips_unused_parameters_and_empty_walk(unit_runtime_context) -> None:
+    from colosseum.decorators._common import finalize_dry_run_tips
+
+    ctx = unit_runtime_context
+    ctx.run_options.dry_run = True
+    ctx.parameters_map = {"stale": {"value": 1.0}}
+    finalize_dry_run_tips(ctx)
+    assert any("unused section" in tip for tip in ctx.dry_run_tips)
+    assert any("no command/measurement/verification" in tip for tip in ctx.dry_run_tips)
 
 
 def test_dry_run_allows_keyless_verification(unit_runtime_context) -> None:
@@ -159,9 +176,9 @@ def test_dry_run_allows_keyless_verification(unit_runtime_context) -> None:
     assert spot_check(path="uut.log") is None
     assert _statuses(ctx) == ["DRY"]
     assert ctx.output_dir is not None
-    assert "verification omitted key=" in (ctx.output_dir / "debug.log").read_text(
-        encoding="utf-8",
-    )
+    log_text = (ctx.output_dir / "debug.log").read_text(encoding="utf-8")
+    assert "verification omitted key=" in log_text
+    assert any("verification omitted key=" in tip for tip in ctx.dry_run_tips)
 
 
 def test_dry_run_parameters_key_fills_description(unit_runtime_context) -> None:
@@ -328,7 +345,9 @@ def test_export_records_missing_keys_and_keeps_walking(unit_runtime_context) -> 
     assert capture(value=1.0) is None
     assert check(expected_val=1.0) is None
     assert capture(key="ok", value=2.0) is None
-    assert ctx.export_errors == ["`capture` requires `key=`"]
+    assert len(ctx.export_errors) == 1
+    assert "was missing a key" in ctx.export_errors[0]
+    assert "col.auto_key()" in ctx.export_errors[0]
     assert ctx.parameter_export == {"ok": {"value": 2.0}}
 
 
@@ -380,6 +399,22 @@ def test_write_parameters_file_round_trip(tmp_path: Path) -> None:
     assert loaded["rx_level"]["nested"] == {"unit": "V"}
 
 
+def test_write_parameters_file_round_trips_unicode_keys_and_controls(tmp_path: Path) -> None:
+    from colosseum.config.parameters import load_parameters_file
+
+    path = tmp_path / "parameters.toml"
+    tables = {
+        "rail": {
+            "温度": 25,
+            "expected": "ready\x1b[0m",
+            "nested": {"µV": 1, "ctrl": "\x00\x07\x08\x0b\x0c\x1f\x7f"},
+        },
+    }
+    write_parameters_file(path, tables)
+    loaded = load_parameters_file(path)
+    assert loaded == tables
+
+
 def test_finish_writes_parameters_without_a_summary(unit_runtime_context) -> None:
     ctx = unit_runtime_context
     ctx.parameter_export = {"rx_level": {"value": 1.0}}
@@ -393,7 +428,10 @@ def test_finish_writes_parameters_without_a_summary(unit_runtime_context) -> Non
 def test_finish_skips_the_file_when_export_failed(unit_runtime_context) -> None:
     ctx = unit_runtime_context
     ctx.parameter_export = {"rx_level": {"value": 1.0}}
-    ctx.export_errors.append("`capture` requires `key=`")
+    ctx.export_errors.append(
+        "`capture` measurement was missing a key; "
+        "pass key=... or call col.auto_key() near the start of main()"
+    )
     assert ctx.output_dir is not None
     code = finish_parameter_export(ctx, failed=False)
     assert code == 1

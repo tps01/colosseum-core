@@ -202,9 +202,15 @@ def finalize_run(
         commands=commands,
     )
 
-    if policy.rename_dir and ctx.output_dir is not None:
-        ctx.output_dir = rename_run_directory_for_result(ctx.output_dir, overall)
+    if ctx.run_options.dry_run:
+        from colosseum.decorators._common import finalize_dry_run_tips
+
+        finalize_dry_run_tips(ctx)
+
+    # Write summaries before rename so a failed rename still leaves artifacts.
     if policy.write_summary and ctx.output_dir is not None:
         _write_run_artifacts(ctx.output_dir, ctx, result)
+    if policy.rename_dir and ctx.output_dir is not None:
+        ctx.output_dir = rename_run_directory_for_result(ctx.output_dir, overall)
 
     return result
