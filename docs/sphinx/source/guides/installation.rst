@@ -65,8 +65,8 @@ Offline wheelhouse from a release
 Release assets also include prebuilt offline archives. Prefer the file that
 matches the target OS and Python minor::
 
-   colosseum-core-offline-windows-py{3.9,3.12}.zip
-   colosseum-core-offline-linux-py{3.9,3.12}.tar.gz
+   colosseum-core-offline-windows-py{3.9,3.12,3.14}.zip
+   colosseum-core-offline-linux-py{3.9,3.12,3.14}.tar.gz
 
 Each archive keeps wheels under ``wheels/`` and ships operator scripts at the
 root:
