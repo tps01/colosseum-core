@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import importlib
 import types
-from typing import Any
+from typing import Any, cast
 
 
 class LazyModuleProxy(types.ModuleType):
@@ -18,9 +18,9 @@ class LazyModuleProxy(types.ModuleType):
     def _load(self) -> types.ModuleType:
         loaded = object.__getattribute__(self, "_colosseum_lazy_module")
         if loaded is not None:
-            return loaded
+            return cast(types.ModuleType, loaded)
         target = object.__getattribute__(self, "_colosseum_lazy_target")
-        loaded = importlib.import_module(target)
+        loaded = cast(types.ModuleType, importlib.import_module(target))
         object.__setattr__(self, "_colosseum_lazy_module", loaded)
         return loaded
 
