@@ -36,9 +36,13 @@ coverage without installing a plugin. Plugin repositories own their hardware,
 protocol,
 simulation, and integration suites.
 
-Use `scripts/profile_tests.py` or `scripts/profile_run.py` for local profiling.
+Use `colosseum run` / `run-suite --profile` for a pyinstrument flame chart
+(`profile.html` in the output directory; text only with `--no-artifacts`;
+requires `pip install 'colosseum-core[profile]'`). Use `scripts/profile_tests.py`
+or `scripts/profile_run.py` for cProfile / call-count work.
 
 ```sh
 pytest tests/e2e -v
 python scripts/profile_tests.py --tier e2e
+colosseum run-suite suite.toml -g config.toml --profile
 ```
