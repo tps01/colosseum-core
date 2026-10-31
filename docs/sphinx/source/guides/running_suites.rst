@@ -190,13 +190,17 @@ By default (``fail_fast = false``), a failed **test** iteration does not prevent
 test iterations or teardown. Supporting-slot failures do not fail the suite.
 
 Set ``fail_fast = true`` to abort remaining **setup / between / test** work after any
-of those slots fail (exception, non-zero exit, or required verification/command
-FAIL/ERROR). The runner always runs **every** teardown script. The suite fails
+of those slots fail (script exception, non-zero exit, parameters load failure,
+slot-start / bookkeeping failure, or required verification/command FAIL/ERROR).
+The runner always runs **every** teardown script. The suite fails
 (``suite_failed`` in the container summary). Optional verification failures never
 trigger fail-fast.
 
 Soak-style suites accumulate failures across repeat iterations; the suite container
 summary and exit code reflect whether any test slot failed or ``suite_failed`` was set.
+
+``KeyboardInterrupt`` and other signals keep Python's default behavior; the suite
+runner does not turn them into ``SystemExit``.
 
 State between slots
 -------------------

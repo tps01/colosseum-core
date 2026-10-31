@@ -216,11 +216,57 @@ def load_suite_toml(path: Path) -> SuiteDefinition:
 def _stop_remaining_work(ctx: RuntimeContext, test_path: Path, reason: str) -> None:
     """Record fail-fast stop on the session (durable), then best-effort slot DB."""
     ctx.session.mark_fail_fast_stopped(test_path, reason)
-    if ctx.db.is_initialized():
-        ctx.db.insert_run_metadata("fail_fast_stopped", "1")
-        ctx.db.insert_event("INFO", "runner", f"fail_fast_stop:{test_path}:{reason}")
+    try:
+        if ctx.db.is_initialized():
+            ctx.db.insert_run_metadata("fail_fast_stopped", "1")
+            ctx.db.insert_event("INFO", "runner", f"fail_fast_stop:{test_path}:{reason}")
+    except Exception:  # noqa: BLE001 - session stop must survive slot DB errors
+        if ctx.logger is not None:
+            ctx.logger.exception(
+                "fail_fast: could not record stop metadata for %s", test_path,
+            )
     if ctx.logger is not None:
         ctx.logger.error("fail_fast: stopping remaining tests after %s (%s)", test_path, reason)
+
+
+def _record_slot_failure(
+    suite: SuiteDefinition,
+    ctx: RuntimeContext,
+    script: Path,
+    *,
+    phase: str,
+    affects_suite_result: bool,
+    reason: str,
+) -> bool:
+    """Apply fail-fast / suite-fail notes for a failed slot. Returns stop flag.
+
+    When ``fail_fast`` is false, a normal script/params failure still finalizes the
+    slot (exit code / overall). ``slot_start`` is special: no folder is created, so
+    a test that never starts must mark ``suite_failed`` for the container exit.
+    """
+    if suite.fail_fast:
+        if phase == "teardown":
+            # Fail the suite but never skip remaining teardown scripts.
+            ctx.session.mark_suite_failed(f"teardown_failure:{script}:{reason}")
+            return False
+        _stop_remaining_work(ctx, script, reason)
+        if affects_suite_result:
+            ctx.session.mark_suite_failed(f"test_failure:{script}:{reason}")
+        return True
+    if affects_suite_result and reason == "slot_start":
+        ctx.session.mark_suite_failed(f"slot_start_failed:{script}")
+    return False
+
+
+def _mark_post_endex_slot_failure(ctx: RuntimeContext, script: Path, phase: str) -> None:
+    """Update the in-memory slot result after endex() already finalized the folder."""
+    ctx.session.mark_suite_failed(f"post_endex_failure:{script}")
+    for result in reversed(ctx.suite_slot_results):
+        if result.script_path == script and result.phase == phase:
+            result.exit_code = 1
+            if result.affects_suite_result:
+                result.overall = "FAIL"
+            break
 
 
 def _suite_is_cycling(suite: SuiteDefinition) -> bool:
@@ -261,7 +307,24 @@ def _run_script_slot(
     entry: SuiteTestEntry | None = None,
 ) -> bool:
     """Run one script slot. Returns True when fail_fast should stop non-teardown work."""
-    begin_script_slot(ctx, script.stem, phase=phase, affects_suite_result=affects_suite_result)
+    slot_started = False
+    try:
+        begin_script_slot(
+            ctx, script.stem, phase=phase, affects_suite_result=affects_suite_result,
+        )
+        slot_started = True
+    except Exception as exc:  # noqa: BLE001 - continue suite; signals propagate
+        if ctx.logger is not None:
+            ctx.logger.exception("Script slot start failed for %s: %s", script, exc)
+        return _record_slot_failure(
+            suite,
+            ctx,
+            script,
+            phase=phase,
+            affects_suite_result=affects_suite_result,
+            reason="slot_start",
+        )
+
     ctx.slot_script_path = script
     ctx.slot_test_index = test_index
     ctx.slot_repeat_index = repeat_index
@@ -273,24 +336,89 @@ def _run_script_slot(
         resolve_parameters_path,
     )
 
-    entry_parameters = entry.parameters if entry is not None else None
-    resolved_parameters = resolve_parameters_path(
-        script_path=script if phase == "test" else None,
-        cli_path=ctx.run_options.parameters_path,
-        entry_path=entry_parameters if phase == "test" else None,
-    )
+    script_crash = False
+    stop_fail_fast = False
     try:
-        attach_parameters(
-            ctx,
-            resolved_parameters,
-            required=ctx.run_options.parameters_path is not None
-            or (phase == "test" and entry_parameters is not None),
+        entry_parameters = entry.parameters if entry is not None else None
+        resolved_parameters = resolve_parameters_path(
+            script_path=script if phase == "test" else None,
+            cli_path=ctx.run_options.parameters_path,
+            entry_path=entry_parameters if phase == "test" else None,
         )
-    except ParametersError as exc:
-        ctx.result_aggregator.mark_suite_error(str(exc))
+        params_ok = True
+        try:
+            attach_parameters(
+                ctx,
+                resolved_parameters,
+                required=ctx.run_options.parameters_path is not None
+                or (phase == "test" and entry_parameters is not None),
+            )
+        except ParametersError as exc:
+            params_ok = False
+            script_crash = True
+            ctx.result_aggregator.mark_suite_error(str(exc))
+            if ctx.logger is not None:
+                ctx.logger.error("Parameters load failed: %s", exc)
+
+        if params_ok:
+            if test_index is not None and repeat_index is not None and entry is not None:
+                repeat_meta = {
+                    "test_index": str(test_index),
+                    "test_repeat_index": str(repeat_index),
+                }
+                if cycle_index is not None:
+                    repeat_meta["cycle_index"] = str(cycle_index)
+                if entry.repeat_for is not None:
+                    repeat_meta.update(
+                        repeat_mode="duration",
+                        repeat_limit=str(int(entry.repeat_for.total_seconds())),
+                    )
+                elif entry.repeat_count > 1:
+                    repeat_meta.update(
+                        repeat_mode="count",
+                        repeat_limit=str(entry.repeat_count),
+                    )
+                for key, value in repeat_meta.items():
+                    ctx.db.insert_run_metadata(key, value)
+                ctx.db.insert_event(
+                    "INFO",
+                    "runner",
+                    f"test_repeat_start:{script}:test={test_index}:repeat={repeat_index}",
+                )
+
+            try:
+                runner.run(script)
+            except runner.error_type:
+                script_crash = True
+                ctx.result_aggregator.mark_suite_error(f"{phase} script failed")
+                if ctx.slot_finalized:
+                    _mark_post_endex_slot_failure(ctx, script, phase)
+
+        slot_has_failure = script_crash or not ctx.result_aggregator.overall_pass()
+        if slot_has_failure:
+            reason = "script_error" if script_crash else "required_failure"
+            stop_fail_fast = _record_slot_failure(
+                suite,
+                ctx,
+                script,
+                phase=phase,
+                affects_suite_result=affects_suite_result,
+                reason=reason,
+            )
+    except Exception as exc:  # noqa: BLE001 - finalize slot; signals propagate
         if ctx.logger is not None:
-            ctx.logger.error("Parameters load failed: %s", exc)
-        if not ctx.slot_finalized:
+            ctx.logger.exception("Script slot failed for %s: %s", script, exc)
+        ctx.result_aggregator.mark_suite_error(f"{phase} slot failed: {exc}")
+        stop_fail_fast = _record_slot_failure(
+            suite,
+            ctx,
+            script,
+            phase=phase,
+            affects_suite_result=affects_suite_result,
+            reason="slot_error",
+        )
+    finally:
+        if slot_started and not ctx.slot_finalized:
             finalize_script_slot(
                 ctx,
                 script_path=script,
@@ -298,56 +426,6 @@ def _run_script_slot(
                 repeat_index=repeat_index,
                 cycle_index=cycle_index,
             )
-        return bool(suite.fail_fast and phase != "teardown")
-
-    if test_index is not None and repeat_index is not None and entry is not None:
-        repeat_meta = {"test_index": str(test_index), "test_repeat_index": str(repeat_index)}
-        if cycle_index is not None:
-            repeat_meta["cycle_index"] = str(cycle_index)
-        if entry.repeat_for is not None:
-            repeat_meta.update(
-                repeat_mode="duration",
-                repeat_limit=str(int(entry.repeat_for.total_seconds())),
-            )
-        elif entry.repeat_count > 1:
-            repeat_meta.update(repeat_mode="count", repeat_limit=str(entry.repeat_count))
-        for key, value in repeat_meta.items():
-            ctx.db.insert_run_metadata(key, value)
-        ctx.db.insert_event(
-            "INFO",
-            "runner",
-            f"test_repeat_start:{script}:test={test_index}:repeat={repeat_index}",
-        )
-
-    script_crash = False
-    try:
-        runner.run(script)
-    except runner.error_type:
-        script_crash = True
-        ctx.result_aggregator.mark_suite_error(f"{phase} script failed")
-
-    slot_has_failure = script_crash or not ctx.result_aggregator.overall_pass()
-    stop_fail_fast = False
-    if suite.fail_fast and slot_has_failure:
-        reason = "script_error" if script_crash else "required_failure"
-        if phase == "teardown":
-            # Fail the suite but never skip remaining teardown scripts.
-            ctx.session.mark_suite_failed(f"teardown_failure:{script}:{reason}")
-        else:
-            # setup / between / test: abort remaining non-teardown work.
-            _stop_remaining_work(ctx, script, reason)
-            stop_fail_fast = True
-        if affects_suite_result:
-            ctx.session.mark_suite_failed(f"test_failure:{script}:{reason}")
-
-    if not ctx.slot_finalized:
-        finalize_script_slot(
-            ctx,
-            script_path=script,
-            test_index=test_index,
-            repeat_index=repeat_index,
-            cycle_index=cycle_index,
-        )
     return stop_fail_fast
 
 

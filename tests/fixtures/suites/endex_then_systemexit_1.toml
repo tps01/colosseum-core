@@ -1,0 +1,4 @@
+name = "endex_then_systemexit_1"
+fail_fast = false
+tests = ["../scripts/endex_then_systemexit_1.py", "../scripts/pass_test.py"]
+teardown = ["../scripts/teardown_ok.py"]

@@ -326,7 +326,14 @@ def finalize_script_slot(
     ctx.slot_finalized = True
     console_level = logging.DEBUG if ctx.debug_logging else logging.INFO
     # Never call start_logging here — that would reprint the identity header.
-    ctx.logger = ctx.session.reattach_console(ctx, console_level=console_level)
+    try:
+        ctx.logger = ctx.session.reattach_console(ctx, console_level=console_level)
+    except Exception as exc:  # noqa: BLE001 - slot result is already recorded
+        print(
+            f"Colosseum: failed to reattach suite console after {script_path}: {exc}",
+            file=sys.stderr,
+        )
+        ctx.logger = None
     if finalize_error is not None and ctx.logger is not None:
         ctx.logger.exception(
             "Script slot finalize failed for %s: %s", script_path, finalize_error,

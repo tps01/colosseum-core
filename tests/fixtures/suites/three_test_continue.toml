@@ -1,0 +1,8 @@
+name = "three_test_continue"
+fail_fast = false
+tests = [
+    "../scripts/pass_test.py",
+    "../scripts/pass_test_b.py",
+    "../scripts/crash_test.py",
+]
+teardown = ["../scripts/teardown_ok.py"]
