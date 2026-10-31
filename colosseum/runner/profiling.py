@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from types import ModuleType
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
-    from types import ModuleType
 
 _PROFILE_HTML_NAME = "profile.html"
 
@@ -28,7 +28,7 @@ def require_pyinstrument() -> ModuleType:
             "install with: pip install 'colosseum-core[profile]' "
             "or: pip install pyinstrument",
         ) from exc
-    return pyinstrument
+    return cast(ModuleType, pyinstrument)
 
 
 def _profile_destination() -> Path | None:
