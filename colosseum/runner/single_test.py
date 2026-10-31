@@ -71,10 +71,18 @@ def run_script(path: Path) -> None:
     except SystemExit as exc:
         if ctx.finalized:
             raise
-        # Suite slot already finalized via endex() — do not treat as script crash.
-        if ctx.session.kind == "suite" and ctx.slot_finalized:
-            return
         code = _system_exit_code(exc)
+        # Suite slot already finalized via endex(): SystemExit(0) is a no-op;
+        # a non-zero exit still fails the suite via ScriptRunError.
+        if ctx.session.kind == "suite" and ctx.slot_finalized:
+            if code == 0:
+                return
+            message = f"script_exit_after_endex:{resolved}: code={code}"
+            if ctx.logger is not None:
+                ctx.logger.error(
+                    "Script exited after col.endex(): %s (code=%s)", resolved, code,
+                )
+            raise ScriptRunError(message) from exc
         message = f"script_exit:{resolved}: code={code}"
         if ctx.db.is_initialized():
             ctx.db.insert_event("ERROR", "runner", message)
@@ -82,6 +90,7 @@ def run_script(path: Path) -> None:
             ctx.logger.error("Script exited before col.endex(): %s (code=%s)", resolved, code)
         raise ScriptRunError(message) from exc
     except Exception as exc:
+        # Slot DB may already be closed when endex() finalized the suite slot.
         if ctx.db.is_initialized():
             ctx.db.insert_event("ERROR", "runner", f"script_fail:{resolved}: {exc}")
         if ctx.logger is not None:

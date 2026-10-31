@@ -335,3 +335,232 @@ def test_cycle_fail_fast_stops_rest_of_cycle_and_later_cycles(
     assert len(slot_dirs_matching(container, "crash_test")) == 1
     assert slot_dirs_matching(container, "cycle_c") == []
     assert _slot_with_stem(container, "teardown_ok")
+
+
+def test_teardown_continues_when_later_slot_start_fails(
+    fixtures_dir, core_config, isolated_cwd, monkeypatch,
+) -> None:
+    """A teardown that never starts must not skip remaining teardown scripts."""
+    import colosseum.runner.suite as suite_mod
+
+    real_begin = suite_mod.begin_script_slot
+
+    def begin(ctx, logical_name, *, phase, affects_suite_result):  # noqa: ANN001
+        if phase == "teardown" and logical_name == "teardown_ok_b":
+            raise OSError("induced teardown slot start failure")
+        return real_begin(
+            ctx, logical_name, phase=phase, affects_suite_result=affects_suite_result,
+        )
+
+    monkeypatch.setattr(suite_mod, "begin_script_slot", begin)
+    suite = fixtures_dir / "suites" / "teardown_triple.toml"
+    _run_suite_expect_exit(suite, core_config, isolated_cwd, 0)
+    container = latest_suite_container(isolated_cwd)
+    assert _slot_with_stem(container, "teardown_ok")
+    assert slot_dirs_matching(container, "teardown_ok_b") == []
+    assert _slot_with_stem(container, "teardown_ok_c")
+    assert _container_summary(container)["overall_result"] == "PASS"
+
+
+def test_test_slot_start_failure_continues_later_tests(
+    fixtures_dir, core_config, isolated_cwd, monkeypatch,
+) -> None:
+    """fail_fast=false: a test that never starts fails the suite but later work runs."""
+    import colosseum.runner.suite as suite_mod
+
+    real_begin = suite_mod.begin_script_slot
+
+    def begin(ctx, logical_name, *, phase, affects_suite_result):  # noqa: ANN001
+        if phase == "test" and logical_name == "pass_test_b":
+            raise OSError("induced test slot start failure")
+        return real_begin(
+            ctx, logical_name, phase=phase, affects_suite_result=affects_suite_result,
+        )
+
+    monkeypatch.setattr(suite_mod, "begin_script_slot", begin)
+    suite = fixtures_dir / "suites" / "three_test_continue.toml"
+    _run_suite_expect_exit(suite, core_config, isolated_cwd, 1)
+    container = latest_suite_container(isolated_cwd)
+    assert _slot_with_stem(container, "pass_test")
+    assert slot_dirs_matching(container, "pass_test_b") == []
+    assert _slot_with_stem(container, "crash_test")
+    assert _slot_with_stem(container, "teardown_ok")
+    summary = _container_summary(container)
+    assert summary["overall_result"] == "FAIL"
+    assert summary["suite_failed"] is True
+
+
+def test_reattach_console_failure_continues_schedule(
+    fixtures_dir, core_config, isolated_cwd, monkeypatch,
+) -> None:
+    """Console reattach after a slot must not abort the rest of the suite."""
+    import colosseum.logging.setup as logging_setup
+
+    original = logging_setup.attach_console_logger
+    state = {"n": 0}
+
+    def boom(ctx, *, console_level=20):  # noqa: ANN001
+        state["n"] += 1
+        if state["n"] == 1:
+            raise OSError("induced console reattach failure")
+        return original(ctx, console_level=console_level)
+
+    monkeypatch.setattr(logging_setup, "attach_console_logger", boom)
+    suite = fixtures_dir / "suites" / "multi_test_continue.toml"
+    _run_suite_expect_exit(suite, core_config, isolated_cwd, 1)
+    container = latest_suite_container(isolated_cwd)
+    assert _slot_with_stem(container, "crash_test")
+    assert _slot_with_stem(container, "pass_test")
+    assert _slot_with_stem(container, "teardown_ok")
+    summary = _container_summary(container)
+    assert len(summary["test_slots"]) == 2
+
+
+def test_fail_fast_metadata_write_failure_still_finalizes_slot(
+    fixtures_dir, core_config, isolated_cwd, monkeypatch,
+) -> None:
+    """fail_fast DB metadata errors must not skip slot finalize or teardown."""
+    from colosseum.database.manager import DatabaseManager
+
+    original = DatabaseManager.insert_run_metadata
+
+    def wrapped(self, key, value):  # noqa: ANN001
+        if key == "fail_fast_stopped":
+            raise OSError("induced fail_fast metadata failure")
+        return original(self, key, value)
+
+    monkeypatch.setattr(DatabaseManager, "insert_run_metadata", wrapped)
+    suite = fixtures_dir / "suites" / "multi_test_fail_fast_crash.toml"
+    _run_suite_expect_exit(suite, core_config, isolated_cwd, 1)
+    container = latest_suite_container(isolated_cwd)
+    crash_slot = _slot_with_stem(container, "crash_test")
+    assert (crash_slot / "summary.json").is_file()
+    assert _slot_with_stem(container, "teardown_ok")
+    summary = _container_summary(container)
+    assert summary["overall_result"] == "FAIL"
+    assert summary["fail_fast_stopped"] is True
+    assert len(summary["test_slots"]) == 1
+
+
+def test_suite_summary_write_failure_still_exits_with_code(
+    fixtures_dir, core_config, isolated_cwd, monkeypatch,
+) -> None:
+    from colosseum.context import get_context
+    from colosseum.summary.writer import SuiteSummaryWriter
+
+    def boom(self, *args, **kwargs):  # noqa: ANN001
+        raise OSError("induced suite summary write failure")
+
+    monkeypatch.setattr(SuiteSummaryWriter, "write", boom)
+    suite = fixtures_dir / "suites" / "happy.toml"
+    _run_suite_expect_exit(suite, core_config, isolated_cwd, 0)
+    assert get_context().suite_finalized is True
+    container = latest_suite_container(isolated_cwd)
+    assert not (container / "summary.json").is_file()
+    assert _slot_with_stem(container, "teardown_ok")
+
+
+def test_suite_logger_close_failure_still_writes_summary(
+    fixtures_dir, core_config, isolated_cwd, monkeypatch,
+) -> None:
+    import colosseum.results.exit_policy as exit_policy
+
+    def boom(logger):  # noqa: ANN001
+        raise OSError("induced suite logger close failure")
+
+    monkeypatch.setattr(exit_policy, "close_logger_handlers", boom)
+    suite = fixtures_dir / "suites" / "happy.toml"
+    _run_suite_expect_exit(suite, core_config, isolated_cwd, 0)
+    container = latest_suite_container(isolated_cwd)
+    assert (container / "summary.json").is_file()
+    assert _container_summary(container)["overall_result"] == "PASS"
+
+
+def test_endex_then_raise_fails_suite_and_continues(
+    fixtures_dir, core_config, isolated_cwd,
+) -> None:
+    suite = fixtures_dir / "suites" / "endex_then_raise.toml"
+    _run_suite_expect_exit(suite, core_config, isolated_cwd, 1)
+    container = latest_suite_container(isolated_cwd)
+    first = _slot_with_stem(container, "endex_then_raise")
+    # endex() already renamed the folder as PASS; suite summary still fails.
+    assert first.name.endswith("-pass")
+    assert _slot_with_stem(container, "pass_test").name.endswith("-pass")
+    assert _slot_with_stem(container, "teardown_ok")
+    summary = _container_summary(container)
+    assert summary["overall_result"] == "FAIL"
+    assert summary["suite_failed"] is True
+    assert any(slot["exit_code"] == 1 for slot in summary["test_slots"])
+
+
+def test_endex_then_systemexit_1_fails_suite(
+    fixtures_dir, core_config, isolated_cwd,
+) -> None:
+    suite = fixtures_dir / "suites" / "endex_then_systemexit_1.toml"
+    _run_suite_expect_exit(suite, core_config, isolated_cwd, 1)
+    container = latest_suite_container(isolated_cwd)
+    assert _slot_with_stem(container, "pass_test")
+    assert _container_summary(container)["overall_result"] == "FAIL"
+
+
+def test_endex_then_systemexit_0_keeps_suite_pass(
+    fixtures_dir, core_config, isolated_cwd,
+) -> None:
+    suite = fixtures_dir / "suites" / "endex_then_systemexit_0.toml"
+    _run_suite_expect_exit(suite, core_config, isolated_cwd, 0)
+    container = latest_suite_container(isolated_cwd)
+    assert _container_summary(container)["overall_result"] == "PASS"
+
+
+def test_fail_fast_setup_missing_parameters_fails_suite(
+    fixtures_dir, core_config, isolated_cwd, tmp_path,
+) -> None:
+    from colosseum.runner.run_options import RunOptions
+
+    missing = tmp_path / "missing-parameters.toml"
+    suite_path = tmp_path / "ff_setup_params.toml"
+    setup = (fixtures_dir / "scripts" / "setup_ok.py").resolve().as_posix()
+    test = (fixtures_dir / "scripts" / "pass_test.py").resolve().as_posix()
+    teardown = (fixtures_dir / "scripts" / "teardown_ok.py").resolve().as_posix()
+    suite_path.write_text(
+        "\n".join(
+            [
+                'name = "ff_setup_params"',
+                "fail_fast = true",
+                f'setup = ["{setup}"]',
+                f'tests = ["{test}"]',
+                f'teardown = ["{teardown}"]',
+                "",
+            ],
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(SystemExit) as exc:
+        run_suite(
+            suite_path,
+            core_config,
+            run_options=RunOptions(parameters_path=missing),
+        )
+    assert exc.value.code == 1
+    container = latest_suite_container(isolated_cwd)
+    assert _slot_with_stem(container, "setup_ok")
+    assert slot_dirs_matching(container, "pass_test") == []
+    assert _slot_with_stem(container, "teardown_ok")
+    summary = _container_summary(container)
+    assert summary["overall_result"] == "FAIL"
+    assert summary["fail_fast_stopped"] is True
+
+
+def test_keyboard_interrupt_in_teardown_propagates(
+    fixtures_dir, core_config, isolated_cwd,
+) -> None:
+    """KeyboardInterrupt from teardown must not be turned into SystemExit."""
+    suite = fixtures_dir / "suites" / "teardown_kb_interrupt.toml"
+    with pytest.raises(KeyboardInterrupt, match="induced in teardown"):
+        run_suite(suite, core_config)
+    container = latest_suite_container(isolated_cwd)
+    assert _slot_with_stem(container, "pass_test")
+    assert _slot_with_stem(container, "teardown_keyboard_interrupt")
+    # Later teardown is skipped; suite summary is not written (Python default unwind).
+    assert slot_dirs_matching(container, "teardown_ok") == []
+    assert not (container / "summary.json").is_file()

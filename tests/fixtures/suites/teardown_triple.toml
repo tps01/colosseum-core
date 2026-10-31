@@ -1,0 +1,8 @@
+name = "teardown_triple"
+fail_fast = false
+tests = ["../scripts/pass_test.py"]
+teardown = [
+    "../scripts/teardown_ok.py",
+    "../scripts/teardown_ok_b.py",
+    "../scripts/teardown_ok_c.py",
+]
