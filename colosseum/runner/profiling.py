@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -21,14 +21,15 @@ def require_pyinstrument() -> ModuleType:
     :raises RuntimeError: When pyinstrument is not installed.
     """
     try:
-        import pyinstrument
+        import pyinstrument as pyinstrument_mod
     except ImportError as exc:  # pragma: no cover - exercised via mocked import
         raise RuntimeError(
             "colosseum --profile requires pyinstrument; "
             "install with: pip install 'colosseum-core[profile]' "
             "or: pip install pyinstrument",
         ) from exc
-    return cast(ModuleType, pyinstrument)
+    module: ModuleType = pyinstrument_mod  # type: ignore[assignment]
+    return module
 
 
 def _profile_destination() -> Path | None:
