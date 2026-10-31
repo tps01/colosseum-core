@@ -35,9 +35,9 @@ python scripts/ci/build_offline_wheelhouse.py --also-build ../colosseum-core --a
 Build on the same OS / CPU arch / Python minor as the install target. Archive
 names look like:
 
-- `colosseum-core-offline-windows-py{3.9,3.12}.zip`
-- `colosseum-core-offline-linux-x86_64-py{3.9,3.12}.tar.gz`
-- `colosseum-core-offline-linux-aarch64-py{3.9,3.12}.tar.gz`
+- `colosseum-core-offline-windows-py{3.9,3.12,3.14}.zip`
+- `colosseum-core-offline-linux-x86_64-py{3.9,3.12,3.14}.tar.gz`
+- `colosseum-core-offline-linux-aarch64-py{3.9,3.12,3.14}.tar.gz`
 
 Wheels live under `wheels/`; `install.*` / `start_cli.*` / `start_gui.*` sit at
 the archive root. Linux houses are **CPU-specific** — an `x86_64` archive will
@@ -49,12 +49,12 @@ not install on aarch64 (and vice versa).
 - `colosseum_core-<version>.tar.gz`
 - core PDF and HTML documentation
 - offline wheelhouses for **Windows**, **Linux x86_64**, and **Linux aarch64**
-  × Python 3.9 and 3.12
+  × Python 3.9, 3.12, and 3.14
 
 `workflow_dispatch` (or the Bamboo equivalent) can build artifacts without
 publishing.
 
-Plugins ship the same script set. Equipment uses Python **3.10** and **3.12**.
+Plugins ship the same script set. Equipment uses Python **3.10**, **3.12**, and **3.14**.
 
 ## Bamboo
 
