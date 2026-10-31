@@ -20,10 +20,9 @@ dependencies = [
   "vulture>=2.11",
   "ruff>=0.8",
   "mypy>=1.11",
+  "pyinstrument>=4.0",
+  "wakepy>=0.10",
 ]
-
-[project.optional-dependencies]
-profile = ["pyinstrument>=4.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests/unit", "tests/integration", "tests/e2e"]
@@ -80,6 +79,8 @@ module = [
   "yaml",
   "pyinstrument",
   "pyinstrument.*",
+  "wakepy",
+  "wakepy.*",
 ]
 ignore_missing_imports = true
 

@@ -31,6 +31,10 @@ Choose an execution mode
      - ``--use-previous-output PATH``
    * - Generate per-key parameters
      - ``--export parameters``
+   * - Keep the PC from sleeping during a long run
+     - ``--no-sleep``
+   * - Profile with pyinstrument
+     - ``--profile``
 
 Dry run still executes ordinary Python in ``main()``. It is not a sandbox for
 subprocess calls, file writes, or other undecorated code.
@@ -102,6 +106,10 @@ Shared path and config flags for ``colosseum run`` and ``colosseum run-suite``:
 - ``-m/--metadata PATH`` - metadata YAML (short form); likewise cwd-relative
 - ``-d/--debug`` - include DEBUG logs on stdout
 - ``--no-artifacts`` - in-memory SQLite and console logging only
+- ``--no-sleep`` - prevent system sleep until the run or suite completes
+  (screen may still blank or lock; uses wakepy ``keep.running``)
+- ``--profile`` - profile with pyinstrument; write ``profile.html`` under the
+  output directory (text only with ``--no-artifacts``)
 - ``--dry-run`` - walk each script and log every command, measurement, and
   verification. The default policy logs arguments and does not call the function.
   Omitted measurement keys fail the slot unless the script called

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 
 import colosseum.runner.profiling as profiling
 import pytest
@@ -31,21 +31,6 @@ class _FakePyinstrument:
     Profiler = _FakeProfiler
 
 
-def test_require_pyinstrument_missing(monkeypatch: pytest.MonkeyPatch) -> None:
-    import builtins
-
-    real_import = builtins.__import__
-
-    def _fake_import(name: str, *args: object, **kwargs: object) -> object:
-        if name == "pyinstrument" or name.startswith("pyinstrument."):
-            raise ImportError("nope")
-        return real_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "__import__", _fake_import)
-    with pytest.raises(RuntimeError, match="pyinstrument"):
-        profiling.require_pyinstrument()
-
-
 def test_run_with_profile_writes_html(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -53,7 +38,7 @@ def test_run_with_profile_writes_html(
 ) -> None:
     out = tmp_path / "run-pass"
     out.mkdir()
-    monkeypatch.setattr(profiling, "require_pyinstrument", lambda: _FakePyinstrument)
+    monkeypatch.setattr(profiling, "pyinstrument", _FakePyinstrument)
     monkeypatch.setattr(
         profiling,
         "_profile_destination",
@@ -74,7 +59,7 @@ def test_run_with_profile_text_only_when_no_artifacts(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    monkeypatch.setattr(profiling, "require_pyinstrument", lambda: _FakePyinstrument)
+    monkeypatch.setattr(profiling, "pyinstrument", _FakePyinstrument)
     monkeypatch.setattr(profiling, "_profile_destination", lambda: tmp_path)
 
     code = profiling.run_with_profile(lambda: 7, no_artifacts=True)
@@ -88,7 +73,7 @@ def test_run_with_profile_text_only_when_no_artifacts(
 def test_run_with_profile_coerces_system_exit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(profiling, "require_pyinstrument", lambda: _FakePyinstrument)
+    monkeypatch.setattr(profiling, "pyinstrument", _FakePyinstrument)
     monkeypatch.setattr(profiling, "_emit_profile", lambda *_a, **_k: None)
 
     def _boom() -> int:
@@ -119,9 +104,3 @@ def test_cli_profile_flag_registered() -> None:
     for command in ("run", "run-suite"):
         ns = parser.parse_args([command, "x.py" if command == "run" else "s.toml", "--profile"])
         assert ns.profile is True
-
-
-def test_require_pyinstrument_returns_module(monkeypatch: pytest.MonkeyPatch) -> None:
-    fake = ModuleType("pyinstrument")
-    monkeypatch.setitem(__import__("sys").modules, "pyinstrument", fake)
-    assert profiling.require_pyinstrument() is fake
