@@ -31,6 +31,11 @@ class DatabaseWriteQueue:
     Producers call :meth:`put` (non-blocking) or :meth:`put_and_wait`.
     The consumer owns applying jobs under ``lock`` so listeners never touch
     the SQLite connection directly.
+
+    Fire-and-forget jobs still batch up to ``batch_size`` or idle
+    ``batch_interval_s``. Jobs with a ``done`` event (``drain`` /
+    ``put_and_wait``) flush the current batch immediately so barriers do not
+    wait out the idle interval.
     """
 
     def __init__(
@@ -115,7 +120,7 @@ class DatabaseWriteQueue:
                     self._flush(batch)
                 return
             batch.append(item)
-            if len(batch) >= self._batch_size:
+            if len(batch) >= self._batch_size or item.done is not None:
                 self._flush(batch)
                 batch = []
 
