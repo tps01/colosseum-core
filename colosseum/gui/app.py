@@ -138,6 +138,7 @@ class ColosseumApp:
         self._parameters_path = ctk.StringVar(value="")
         self._metadata_path = ctk.StringVar(value=os.environ.get("COLOSSEUM_METADATA_PATH", ""))
         self._debug = ctk.BooleanVar(value=False)
+        self._no_sleep = ctk.BooleanVar(value=False)
         self._status = ctk.StringVar(value="Ready")
         self._run_widgets: dict[tuple[str, Path], Any] = {}
         self._browser_snapshot = RunBrowserSnapshot(rows=[])
@@ -194,6 +195,9 @@ class ColosseumApp:
         self._stop_btn = ctk.CTkButton(actions, text="Stop", state="disabled", command=self._stop_run)
         self._stop_btn.grid(row=0, column=2, padx=4)
         ctk.CTkCheckBox(actions, text="Debug", variable=self._debug).grid(row=0, column=3, padx=8)
+        ctk.CTkCheckBox(actions, text="No sleep", variable=self._no_sleep).grid(
+            row=0, column=4, padx=8,
+        )
 
         body = _make_paned(root, tk.HORIZONTAL, pane_bg)
         body.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
@@ -336,6 +340,7 @@ class ColosseumApp:
             self._start_run(RunRequest(
                 RunKind.TEST, path, self._config_value(), self._metadata_value(), self._debug.get(),
                 parameters_path=self._parameters_value(),
+                no_sleep=self._no_sleep.get(),
             ))
 
     def _run_suite(self) -> None:
@@ -347,6 +352,7 @@ class ColosseumApp:
             self._start_run(RunRequest(
                 RunKind.SUITE, path, self._config_value(), self._metadata_value(), self._debug.get(),
                 parameters_path=self._parameters_value(),
+                no_sleep=self._no_sleep.get(),
             ))
 
     def _start_run(self, request: RunRequest) -> None:

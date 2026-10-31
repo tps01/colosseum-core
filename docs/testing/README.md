@@ -37,12 +37,14 @@ protocol,
 simulation, and integration suites.
 
 Use `colosseum run` / `run-suite --profile` for a pyinstrument flame chart
-(`profile.html` in the output directory; text only with `--no-artifacts`;
-requires `pip install 'colosseum-core[profile]'`). Use `scripts/profile_tests.py`
-or `scripts/profile_run.py` for cProfile / call-count work.
+(`profile.html` in the output directory; text only with `--no-artifacts`).
+Use `--no-sleep` to inhibit system sleep for the run (screen may still lock).
+Use `scripts/profile_tests.py` or `scripts/profile_run.py` for cProfile /
+call-count work.
 
 ```sh
 pytest tests/e2e -v
 python scripts/profile_tests.py --tier e2e
 colosseum run-suite suite.toml -g config.toml --profile
+colosseum run-suite suite.toml -g config.toml --no-sleep
 ```
