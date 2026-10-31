@@ -38,6 +38,7 @@ _EPILOG = """examples:
   colosseum run my_test.py --dry-run -g config.toml
   colosseum run-suite suite.toml --dry-run -g config.toml
   colosseum run my_test.py --export parameters -g config.toml
+  colosseum run-suite suite.toml -g config.toml --profile
   colosseum --gui
 """
 
@@ -105,6 +106,14 @@ def _add_shared_run_options(parser: argparse.ArgumentParser) -> None:
         help=(
             "Walk each script, check procedure structure, and log decorated calls "
             "without running them unless their dry_run policy says so"
+        ),
+    )
+    parser.add_argument(
+        "--profile",
+        action="store_true",
+        help=(
+            "Profile the run with pyinstrument; write profile.html to the output "
+            "directory (text only with --no-artifacts). Requires: pip install pyinstrument"
         ),
     )
 
@@ -432,6 +441,60 @@ def _exit_with_message(message: str) -> None:
     raise SystemExit(1) from None
 
 
+def _dispatch_run(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
+    try:
+        run_options = _shared_run_options(
+            args,
+            command="run",
+            has_test_file=bool(args.test_file),
+        )
+    except RunOptionsError as exc:
+        _exit_with_message(str(exc))
+    _maybe_enable_faulthandler(show_faults=run_options.show_faults)
+    if not args.test_file and not run_options.plugin_commands:
+        parser.error("run requires a test_file and/or at least one -c/--command")
+    test_path = None
+    if args.test_file:
+        test_path = resolve_input_path(run_options.input_dir, args.test_file)
+        if not test_path.exists():
+            _exit_with_message(f"Test file not found: {test_path}")
+    try:
+        _run_single_test(
+            test_path,
+            args.config_path,
+            getattr(args, "metadata_path", None),
+            debug=bool(args.debug),
+            no_artifacts=bool(getattr(args, "no_artifacts", False)),
+            run_options=run_options,
+        )
+    except (ConfigError, OutputNotWritableError) as exc:
+        _exit_with_message(str(exc))
+    return 0
+
+
+def _dispatch_run_suite(args: argparse.Namespace) -> int:
+    try:
+        run_options = _shared_run_options(args, command="run-suite")
+    except RunOptionsError as exc:
+        _exit_with_message(str(exc))
+    suite_path = resolve_input_path(run_options.input_dir, args.suite_file)
+    if not suite_path.exists():
+        _exit_with_message(f"Suite file not found: {suite_path}")
+    try:
+        config = Path(args.config_path).resolve() if args.config_path else None
+        run_suite(
+            suite_path,
+            config,
+            metadata_path=Path(args.metadata_path).resolve() if args.metadata_path else None,
+            debug=bool(args.debug),
+            no_artifacts=bool(getattr(args, "no_artifacts", False)),
+            run_options=run_options,
+        )
+    except (ConfigError, SuiteError, OutputNotWritableError) as exc:
+        _exit_with_message(str(exc))
+    return 0
+
+
 def run_cli(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -450,57 +513,34 @@ def run_cli(argv: list[str] | None = None) -> int:
         _print_help(parser, getattr(args, "topic", None))
         return 0
 
+    profile = bool(getattr(args, "profile", False))
+    no_artifacts = bool(getattr(args, "no_artifacts", False))
+
     if args.command == "run":
-        try:
-            run_options = _shared_run_options(
-                args,
-                command="run",
-                has_test_file=bool(args.test_file),
-            )
-        except RunOptionsError as exc:
-            _exit_with_message(str(exc))
-        _maybe_enable_faulthandler(show_faults=run_options.show_faults)
-        if not args.test_file and not run_options.plugin_commands:
-            parser.error("run requires a test_file and/or at least one -c/--command")
-        test_path = None
-        if args.test_file:
-            test_path = resolve_input_path(run_options.input_dir, args.test_file)
-            if not test_path.exists():
-                _exit_with_message(f"Test file not found: {test_path}")
-        try:
-            _run_single_test(
-                test_path,
-                args.config_path,
-                getattr(args, "metadata_path", None),
-                debug=bool(args.debug),
-                no_artifacts=bool(getattr(args, "no_artifacts", False)),
-                run_options=run_options,
-            )
-        except (ConfigError, OutputNotWritableError) as exc:
-            _exit_with_message(str(exc))
-        return 0
+        if profile:
+            from colosseum.runner.profiling import run_with_profile
+
+            try:
+                return run_with_profile(
+                    lambda: _dispatch_run(parser, args),
+                    no_artifacts=no_artifacts,
+                )
+            except RuntimeError as exc:
+                _exit_with_message(str(exc))
+        return _dispatch_run(parser, args)
 
     if args.command == "run-suite":
-        try:
-            run_options = _shared_run_options(args, command="run-suite")
-        except RunOptionsError as exc:
-            _exit_with_message(str(exc))
-        suite_path = resolve_input_path(run_options.input_dir, args.suite_file)
-        if not suite_path.exists():
-            _exit_with_message(f"Suite file not found: {suite_path}")
-        try:
-            config = Path(args.config_path).resolve() if args.config_path else None
-            run_suite(
-                suite_path,
-                config,
-                metadata_path=Path(args.metadata_path).resolve() if args.metadata_path else None,
-                debug=bool(args.debug),
-                no_artifacts=bool(getattr(args, "no_artifacts", False)),
-                run_options=run_options,
-            )
-        except (ConfigError, SuiteError, OutputNotWritableError) as exc:
-            _exit_with_message(str(exc))
-        return 0
+        if profile:
+            from colosseum.runner.profiling import run_with_profile
+
+            try:
+                return run_with_profile(
+                    lambda: _dispatch_run_suite(args),
+                    no_artifacts=no_artifacts,
+                )
+            except RuntimeError as exc:
+                _exit_with_message(str(exc))
+        return _dispatch_run_suite(args)
 
     parser.error(f"Unknown command: {args.command}")
     return 1

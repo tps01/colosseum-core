@@ -27,7 +27,12 @@ def _finalize_context(ctx: RuntimeContext) -> int:
 
 
 def finalize_suite(ctx: RuntimeContext) -> int:
-    """Finalize a suite container after all script slots have completed."""
+    """Finalize a suite container after all script slots have completed.
+
+    Each side effect is isolated so a logger-close or summary-write failure still
+    returns the suite exit code. KeyboardInterrupt and other signals are not
+    caught here.
+    """
     from colosseum.summary.writer import SuiteSummaryWriter
 
     writer = SuiteSummaryWriter()
@@ -35,18 +40,40 @@ def finalize_suite(ctx: RuntimeContext) -> int:
     overall = "PASS" if code == 0 else "FAIL"
 
     if ctx.logger is not None:
-        ctx.logger.info("Suite overall result: %s (exit %s)", overall, code)
+        with suppress(Exception):
+            ctx.logger.info("Suite overall result: %s (exit %s)", overall, code)
 
-    ctx.plugin_registry.run_shutdown()
-    close_resource_cache(ctx.resource_cache, logger=ctx.logger)
+    with suppress(Exception):
+        ctx.plugin_registry.run_shutdown()
+
+    with suppress(Exception):
+        close_resource_cache(ctx.resource_cache, logger=ctx.logger)
 
     if ctx.logger is not None:
-        close_logger_handlers(ctx.logger)
+        try:
+            close_logger_handlers(ctx.logger)
+        except Exception as exc:  # noqa: BLE001 - still rename and write summary
+            print(f"Colosseum: failed to close suite logger: {exc}", file=sys.stderr)
+        ctx.logger = None
 
     if ctx.suite_output_dir is not None and not ctx.no_artifacts:
         # Rename is resilient; write afterward so summary paths match the final dir.
-        ctx.suite_output_dir = rename_run_directory_for_result(ctx.suite_output_dir, overall)
-        writer.write(ctx.suite_output_dir, ctx, exit_code=code, overall=overall)
+        try:
+            ctx.suite_output_dir = rename_run_directory_for_result(
+                ctx.suite_output_dir, overall,
+            )
+        except Exception as exc:  # noqa: BLE001 - keep original path for summary
+            print(
+                f"Colosseum: failed to rename suite container: {exc}",
+                file=sys.stderr,
+            )
+        try:
+            writer.write(ctx.suite_output_dir, ctx, exit_code=code, overall=overall)
+        except Exception as exc:  # noqa: BLE001 - suite exit code still returned
+            print(
+                f"Colosseum: failed to write suite summary: {exc}",
+                file=sys.stderr,
+            )
 
     ctx.suite_finalized = True
     ctx.finalized = True

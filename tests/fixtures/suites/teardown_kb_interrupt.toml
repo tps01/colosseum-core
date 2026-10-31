@@ -1,0 +1,4 @@
+name = "teardown_kb_interrupt"
+fail_fast = false
+tests = ["../scripts/pass_test.py"]
+teardown = ["../scripts/teardown_keyboard_interrupt.py", "../scripts/teardown_ok.py"]

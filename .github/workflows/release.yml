@@ -42,7 +42,8 @@ jobs:
       fail-fast: false
       matrix:
         # Pin Ubuntu 24.04: ubuntu-latest (26.04) has no Python 3.9 builds.
-        os: [ubuntu-24.04, windows-latest]
+        # ubuntu-24.04-arm produces linux-aarch64 offline houses.
+        os: [ubuntu-24.04, ubuntu-24.04-arm, windows-latest]
         python-version: ["3.9", "3.12", "3.14"]
     steps:
       - uses: actions/checkout@v7
@@ -143,15 +144,16 @@ jobs:
 
             ## Offline wheelhouses
 
-            Use the archive matching your OS and Python (3.9, 3.12, or 3.14).
+            Use the archive matching your OS, **CPU arch**, and Python (3.9, 3.12, or 3.14).
             Wheels live under `wheels/`; operator scripts are at the archive root.
 
             - Windows: `colosseum-core-offline-windows-py*.zip` → `install.bat`, then `start_cli.bat` / `start_gui.bat`
-            - Linux: `colosseum-core-offline-linux-py*.tar.gz` → `./install.sh`, then `./start_cli.sh` / `./start_gui.sh`
+            - Linux x86_64: `colosseum-core-offline-linux-x86_64-py*.tar.gz` → `./install.sh`
+            - Linux aarch64: `colosseum-core-offline-linux-aarch64-py*.tar.gz` → `./install.sh`
 
             ```bash
-            # Linux example
-            tar -xzf colosseum-core-offline-linux-py<ver>.tar.gz -C wheelhouse
+            # Linux aarch64 example
+            tar -xzf colosseum-core-offline-linux-aarch64-py<ver>.tar.gz -C wheelhouse
             cd wheelhouse && chmod +x install.sh start_*.sh && ./install.sh
             ```
 
