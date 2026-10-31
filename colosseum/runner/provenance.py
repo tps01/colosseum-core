@@ -24,6 +24,9 @@ if TYPE_CHECKING:
 
 _LOG_FORMATTER = logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
 _PROVENANCE_SECTIONS = ("platform", "packages", "inputs", "repositories")
+# Cache git probes by resolved path (including misses) so editable installs and
+# ``_repositories`` do not re-run the same three subprocesses.
+_git_repository_cache: dict[str, dict[str, object] | None] = {}
 
 
 @dataclass(frozen=True)
@@ -92,30 +95,106 @@ def _read_json(dist: Distribution, name: str) -> dict[str, object] | None:
     return None
 
 
-def _git_repository(start: Path) -> dict[str, object] | None:
-    """Return commit and dirty flag when ``start`` is inside a git work tree."""
+def _resolve_git_dir(work_tree: Path, git_entry: Path) -> Path | None:
+    """Resolve ``work_tree/.git`` (dir or ``gitdir:`` file) to the git directory."""
+    if git_entry.is_dir():
+        return git_entry
+    if not git_entry.is_file():
+        return None
     try:
-        top = subprocess.run(
-            ["git", "-C", str(start), "rev-parse", "--show-toplevel"],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if top.returncode != 0:
+        text = git_entry.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    if not text.startswith("gitdir:"):
+        return None
+    target = text.split(":", 1)[1].strip()
+    git_dir = Path(target)
+    if not git_dir.is_absolute():
+        git_dir = (work_tree / git_dir)
+    try:
+        return git_dir.resolve()
+    except OSError:
+        return None
+
+
+def _git_common_dir(git_dir: Path) -> Path:
+    """Return the object/ref store directory (handles linked worktrees)."""
+    marker = git_dir / "commondir"
+    if not marker.is_file():
+        return git_dir
+    try:
+        raw = marker.read_text(encoding="utf-8").strip()
+    except OSError:
+        return git_dir
+    common = Path(raw)
+    if not common.is_absolute():
+        common = git_dir / common
+    try:
+        return common.resolve()
+    except OSError:
+        return git_dir
+
+
+def _discover_git(start: Path) -> tuple[Path, Path, Path] | None:
+    """Return ``(work_tree, git_dir, common_dir)`` by walking parents for ``.git``."""
+    try:
+        probe = start.resolve()
+    except OSError:
+        return None
+    if probe.is_file():
+        probe = probe.parent
+    for directory in (probe, *probe.parents):
+        git_entry = directory / ".git"
+        git_dir = _resolve_git_dir(directory, git_entry)
+        if git_dir is None:
+            continue
+        return directory, git_dir, _git_common_dir(git_dir)
+    return None
+
+
+def _read_git_ref(common_dir: Path, ref_name: str) -> str | None:
+    ref_path = common_dir / ref_name
+    try:
+        if ref_path.is_file():
+            return ref_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    packed = common_dir / "packed-refs"
+    try:
+        if not packed.is_file():
             return None
-        root = Path(top.stdout.strip())
-        commit = subprocess.run(
-            ["git", "-C", str(root), "rev-parse", "HEAD"],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if commit.returncode != 0:
-            return None
+        for line in packed.read_text(encoding="utf-8").splitlines():
+            if not line or line.startswith("#") or line.startswith("^"):
+                continue
+            parts = line.split(" ", 1)
+            if len(parts) == 2 and parts[1] == ref_name:
+                return parts[0].strip()
+    except OSError:
+        return None
+    return None
+
+
+def _read_git_commit(git_dir: Path, common_dir: Path) -> str | None:
+    """Read HEAD's commit SHA from git metadata (no subprocess)."""
+    head_path = git_dir / "HEAD"
+    try:
+        if not head_path.is_file():
+            head_path = common_dir / "HEAD"
+        head = head_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    if head.startswith("ref:"):
+        return _read_git_ref(common_dir, head[4:].strip())
+    if len(head) >= 40:
+        return head.split()[0]
+    return None
+
+
+def _git_worktree_dirty(work_tree: Path) -> bool | None:
+    """Return whether the work tree is dirty, or ``None`` if git is unavailable."""
+    try:
         status = subprocess.run(
-            ["git", "-C", str(root), "status", "--porcelain"],
+            ["git", "-C", str(work_tree), "status", "--porcelain"],
             check=False,
             capture_output=True,
             text=True,
@@ -125,11 +204,52 @@ def _git_repository(start: Path) -> dict[str, object] | None:
         return None
     if status.returncode != 0:
         return None
-    return {
-        "path": str(root),
-        "commit": commit.stdout.strip(),
-        "dirty": bool(status.stdout.strip()),
-    }
+    return bool(status.stdout.strip())
+
+
+def _git_repository(start: Path) -> dict[str, object] | None:
+    """Return commit and dirty flag when ``start`` is inside a git work tree.
+
+    Work-tree root and HEAD commit are read from ``.git`` metadata (no
+    subprocess). Dirty detection still uses one ``git status --porcelain`` call.
+    """
+    try:
+        probe = start.resolve()
+    except OSError:
+        return None
+    if probe.is_file():
+        probe = probe.parent
+    cache_key = str(probe)
+    if cache_key in _git_repository_cache:
+        cached = _git_repository_cache[cache_key]
+        return None if cached is None else dict(cached)
+    if not probe.exists():
+        _git_repository_cache[cache_key] = None
+        return None
+
+    discovered = _discover_git(probe)
+    if discovered is None:
+        _git_repository_cache[cache_key] = None
+        return None
+    root, git_dir, common_dir = discovered
+    root_key = str(root)
+    if root_key in _git_repository_cache and root_key != cache_key:
+        cached = _git_repository_cache[root_key]
+        _git_repository_cache[cache_key] = None if cached is None else dict(cached)
+        return None if cached is None else dict(cached)
+
+    commit = _read_git_commit(git_dir, common_dir)
+    if commit is None:
+        _git_repository_cache[cache_key] = None
+        return None
+    dirty = _git_worktree_dirty(root)
+    if dirty is None:
+        _git_repository_cache[cache_key] = None
+        return None
+    result = {"path": root_key, "commit": commit, "dirty": dirty}
+    _git_repository_cache[root_key] = dict(result)
+    _git_repository_cache[cache_key] = dict(result)
+    return dict(result)
 
 
 def _editable_checkout(dist: Distribution) -> dict[str, object] | None:
@@ -146,6 +266,11 @@ def _editable_checkout(dist: Distribution) -> dict[str, object] | None:
     if path is None:
         return None
     checkout: dict[str, object] = {"path": str(path)}
+    try:
+        if not path.exists():
+            return checkout
+    except OSError:
+        return checkout
     repository = _git_repository(path)
     if repository is not None:
         checkout["commit"] = repository["commit"]
@@ -307,10 +432,21 @@ def suite_input_files(
 
 def _repositories(paths: Sequence[Path]) -> list[dict[str, object]]:
     found: dict[str, dict[str, object]] = {}
+    seen_starts: set[str] = set()
     for path in paths:
-        if not path.exists():
+        try:
+            start = path.resolve()
+        except OSError:
             continue
-        record = _git_repository(path)
+        if start.is_file():
+            start = start.parent
+        start_key = str(start)
+        if start_key in seen_starts:
+            continue
+        seen_starts.add(start_key)
+        if not start.exists():
+            continue
+        record = _git_repository(start)
         if record is None:
             continue
         found[str(record["path"])] = record
@@ -321,16 +457,32 @@ def collect_provenance(files: Sequence[InputFile]) -> dict[str, object]:
     """Build the snapshot stored in the log, database, and summary."""
     versions, plugins, installs = installed_packages()
     hashed = hash_inputs(files)
-    repo_paths = [Path(str(row["path"])) for row in hashed]
+    found: dict[str, dict[str, object]] = {}
+    # Prefer git facts already gathered while scanning editable installs.
     for install in installs:
         checkout = install.get("editable")
-        if isinstance(checkout, dict) and isinstance(checkout.get("path"), str):
-            repo_paths.append(Path(checkout["path"]))
+        if not isinstance(checkout, dict):
+            continue
+        commit = checkout.get("commit")
+        path_raw = checkout.get("path")
+        if not isinstance(commit, str) or not isinstance(path_raw, str):
+            continue
+        repo = _git_repository(Path(path_raw))
+        if repo is not None:
+            found[str(repo["path"])] = repo
+            continue
+        found[path_raw] = {
+            "path": path_raw,
+            "commit": commit,
+            "dirty": bool(checkout.get("dirty")),
+        }
+    for record in _repositories([Path(str(row["path"])) for row in hashed]):
+        found[str(record["path"])] = record
     return {
         "platform": platform_info(),
         "packages": {"versions": versions, "plugins": plugins, "installs": installs},
         "inputs": hashed,
-        "repositories": _repositories(repo_paths),
+        "repositories": [found[key] for key in sorted(found, key=str.casefold)],
     }
 
 

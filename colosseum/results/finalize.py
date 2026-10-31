@@ -171,7 +171,6 @@ def finalize_run(
         verifications = ctx.db.fetch_all_verifications()
         measurements = ctx.db.fetch_all_measurements()
         commands = ctx.db.fetch_all_commands()
-        ctx.db.drain()
         ctx.db.flush()
 
     if policy.run_shutdown:
