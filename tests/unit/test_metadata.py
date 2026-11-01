@@ -71,16 +71,16 @@ def test_wats_export_disabled_without_output_dir(unit_runtime_context) -> None:
     assert wats_export_enabled(unit_runtime_context) is False
 
 
-def test_playground_metadata_example_still_valid() -> None:
-    playground = (
-        Path(__file__).resolve().parents[3]
-        / "playground"
-        / "wats_examples"
-        / "metadata_example1.yaml"
+def test_shipped_metadata_example_still_valid() -> None:
+    """Keep the in-repo WATS metadata fixture parseable (no playground dependency)."""
+    example = (
+        Path(__file__).resolve().parents[2]
+        / "tests"
+        / "fixtures"
+        / "metadata_example.yaml"
     )
-    if not playground.exists():
-        pytest.skip("playground metadata example not available")
-    parsed = load_metadata_yaml(playground)
+    assert example.is_file(), f"missing shipped fixture: {example}"
+    parsed = load_metadata_yaml(example)
     assert parsed["uut"] == "PARTNUMBER"
     assert parsed["process_code"] == "1234"
     assert "process_name" not in parsed

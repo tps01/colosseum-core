@@ -8,13 +8,21 @@ from colosseum.results.finalize_policy import (
 )
 
 
-def test_single_policy_runs_shutdown_and_writes() -> None:
-    policy = policy_for_single(run_shutdown=True)
+def test_single_policy_defaults_run_shutdown_and_log_overall() -> None:
+    policy = policy_for_single()
     assert policy.kind == "single"
     assert policy.write_summary is True
     assert policy.rename_dir is True
     assert policy.scores_suite is True
     assert policy.run_shutdown is True
+    assert policy.close_resources is True
+    assert policy.log_overall is True
+
+
+def test_single_policy_can_skip_shutdown_but_still_logs_overall() -> None:
+    policy = policy_for_single(run_shutdown=False)
+    assert policy.run_shutdown is False
+    assert policy.log_overall is True
     assert policy.close_resources is True
 
 
@@ -26,6 +34,7 @@ def test_scoring_slot_writes_summary_without_shutdown() -> None:
     assert policy.scores_suite is True
     assert policy.run_shutdown is False
     assert policy.close_resources is True
+    assert policy.log_overall is True
 
 
 def test_supporting_slot_skips_summary_and_rename() -> None:
@@ -35,3 +44,4 @@ def test_supporting_slot_skips_summary_and_rename() -> None:
     assert policy.scores_suite is False
     assert policy.run_shutdown is False
     assert policy.close_resources is True
+    assert policy.log_overall is False

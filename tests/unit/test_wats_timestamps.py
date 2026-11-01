@@ -24,7 +24,6 @@ def test_format_wats_start_positive_offset() -> None:
 def test_format_wats_start_utc_uses_plus_zero_zero() -> None:
     dt = datetime(2020, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
     assert format_wats_start(dt) == "2020-01-01T12:00:00+00:00"
-    assert "Z" not in format_wats_start(dt)
 
 
 def test_format_wats_start_rejects_naive_datetime() -> None:
@@ -35,14 +34,4 @@ def test_format_wats_start_rejects_naive_datetime() -> None:
 def test_format_wats_start_has_no_fractional_seconds() -> None:
     eastern = timezone(timedelta(hours=-4))
     dt = datetime(2026, 8, 7, 8, 40, 48, 123456, tzinfo=eastern)
-    formatted = format_wats_start(dt)
-    assert formatted == "2026-08-07T08:40:48-04:00"
-    assert "." not in formatted
-
-
-def test_format_wats_start_offset_has_colon_not_percent_z_style() -> None:
-    eastern = timezone(timedelta(hours=-4))
-    dt = datetime(2026, 8, 7, 8, 40, 48, tzinfo=eastern)
-    formatted = format_wats_start(dt)
-    assert formatted.endswith("-04:00")
-    assert not formatted.endswith("-0400")
+    assert format_wats_start(dt) == "2026-08-07T08:40:48-04:00"
