@@ -45,7 +45,7 @@ keyword arguments inline. See [examples/](../examples/).
 
 Browsed docs live on GitHub Pages:
 
-- **Hub (this repo):** https://tps01.github.io/colosseum-core/
+- **Hub (this repo):** <https://tps01.github.io/colosseum-core/>
 - **Plugins (separate sites):** equipment, gui, host, messaging, shared — each
   under `https://tps01.github.io/colosseum-<name>/`. Those sites lead with
   practical guides and configuration, followed by the autodoc API reference. Linked

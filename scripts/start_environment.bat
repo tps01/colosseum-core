@@ -61,8 +61,8 @@ echo Installing editable project: .
 if errorlevel 1 goto fail_project
 
 if not "%SKIP_DEV%"=="1" (
-    echo Installing dev requirements: requirements-dev.txt
-    "%COLOSSEUM_VENV_PYTHON%" -m pip install -r "%COLOSSEUM_REPO_ROOT%\requirements-dev.txt"
+    echo Installing requirements: requirements.txt
+    "%COLOSSEUM_VENV_PYTHON%" -m pip install -r "%COLOSSEUM_REPO_ROOT%\requirements.txt"
     if errorlevel 1 goto fail_dev
 )
 
