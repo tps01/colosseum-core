@@ -9,6 +9,7 @@ git probes may still use ``resolve``.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Union
 
@@ -16,8 +17,12 @@ PathLike = Union[str, Path]
 
 
 def absolute_path(path: PathLike) -> Path:
-    """Return an absolute path without resolving symlinks or mapped drives."""
-    return Path(path).expanduser().absolute()
+    """Return an absolute path with ``.`` / ``..`` normalized, no symlink resolve.
+
+    Uses :func:`os.path.abspath` so mapped drive letters are preserved on Windows.
+    """
+    # os.path.abspath (not Path.resolve) keeps mapped drive letters on Windows.
+    return Path(os.path.abspath(str(Path(path).expanduser())))  # noqa: PTH100
 
 
 def sqlite_readonly_uri(path: PathLike) -> str:

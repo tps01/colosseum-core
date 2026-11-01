@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .database import DatabaseManager
@@ -13,6 +12,7 @@ from .runner.session import RunKind, RunSession
 
 if TYPE_CHECKING:
     import logging
+    from pathlib import Path
 
     from .config.loader import ConfigStore
     from .plugins.registry import PluginRegistry

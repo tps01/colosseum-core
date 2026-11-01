@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 from colosseum.context import get_context
 from colosseum.summary.wats import (
