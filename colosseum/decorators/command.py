@@ -46,6 +46,11 @@ class CommandResult:
     message: str = ""
     optional: bool = False
 
+    def __post_init__(self) -> None:
+        from colosseum.decorators._common import normalize_outcome_status
+
+        self.status = normalize_outcome_status(self.status)
+
 
 def _command_cause(exc: BaseException) -> str:
     return "procedural" if isinstance(exc, ProceduralFault) else "unit"

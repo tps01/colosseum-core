@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import threading
 from dataclasses import dataclass
@@ -12,6 +13,8 @@ if TYPE_CHECKING:
     from colosseum.context import RuntimeContext
 from .schema import SCHEMA_SQL
 from .write_queue import DatabaseWriteQueue, WriteJob
+
+_PLUGIN_TABLE_NAME = re.compile(r"^plugin_[A-Za-z0-9_]+$")
 
 _TABLE_SELECT_SQL = {
     "run_metadata": "SELECT * FROM run_metadata",
@@ -112,7 +115,7 @@ _ALLOWED_TABLES = frozenset(
 
 
 def is_allowed_table(name: str) -> bool:
-    return name in _ALLOWED_TABLES or name.startswith("plugin_")
+    return name in _ALLOWED_TABLES or bool(_PLUGIN_TABLE_NAME.fullmatch(name))
 
 
 def _utc_now() -> str:
@@ -572,10 +575,19 @@ class DatabaseManager:
 
     def fetch_table_rows(self, name: str) -> list[dict[str, object]]:
         query = _TABLE_SELECT_SQL.get(name)
-        if query is None:
-            raise ValueError(f"Invalid table name: {name}")
         with self._lock:
             conn = self._require_conn()
+            if query is None:
+                if not _PLUGIN_TABLE_NAME.fullmatch(name):
+                    raise ValueError(f"Invalid table name: {name}")
+                exists = conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                    (name,),
+                ).fetchone()
+                if exists is None:
+                    raise ValueError(f"Unknown plugin table: {name}")
+                # name matched _PLUGIN_TABLE_NAME; quote as identifier only.
+                query = f'SELECT * FROM "{name}"'  # nosec B608
             cur = conn.execute(query)
             columns = [desc[0] for desc in cur.description]
             return [dict(zip(columns, row)) for row in cur.fetchall()]

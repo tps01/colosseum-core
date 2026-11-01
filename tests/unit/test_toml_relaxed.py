@@ -59,10 +59,18 @@ wats = True
 junit = F
 custom = yes
 other = "no"
+label = "yes"
 """
     )
     reports = raw["colosseum"]["reports"]
-    assert reports == {"wats": True, "junit": False, "custom": True, "other": False}
+    # Bare spellings become TOML bools; quoted strings stay strings.
+    assert reports == {
+        "wats": True,
+        "junit": False,
+        "custom": True,
+        "other": "no",
+        "label": "yes",
+    }
 
 
 def test_numeric_ids_stay_integers() -> None:

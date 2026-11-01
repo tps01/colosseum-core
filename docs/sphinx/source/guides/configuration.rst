@@ -12,7 +12,10 @@ TOML shape
 ----------
 
 Write either a single table (one row) or an array of tables (several rows).
-Do not mix both for the same dotted path. Both forms are accepted by the configuration loader.
+Do not mix both for the same dotted path. Both forms are accepted by the
+configuration loader. Prefer a single ``[section]`` when you have one row.
+Raw ``config.get(...)`` returns a ``dict`` for ``[section]`` and a ``list`` for
+``[[section]]``; use ``list_items`` / ``get_item`` so either syntax works.
 
 Single row::
 
@@ -57,7 +60,7 @@ Load configuration before calling plugin APIs::
 
    col.config.load_config("config.toml")
 
-or ``colosseum run my_test.py -g config.toml`` (``-g`` is the legacy short form of
+or ``colosseum run my_test.py -g config.toml`` (``-g`` is the short form of
 ``--config``). That discovers plugins, normalizes registered sections, then attaches a
 config store to the run. CLI ``-g`` **pins** that store: a later script
 ``load_config`` is ignored unless you pass ``force=True``.
@@ -105,14 +108,14 @@ Plain string tokens may omit quotes when they contain only supported path/token
 characters. Standard TOML quoting remains recommended for portable configuration.
 
 Standard TOML uses lowercase ``true`` and ``false``. Use those spellings in
-portable configuration files. Colosseum also accepts extensions for recognized
-boolean fields; these spellings are not standard TOML syntax.
+portable configuration files. Colosseum also accepts bare boolean *spellings*
+(``yes``, ``True``, ``F``, …) by rewriting them to TOML ``true`` / ``false``
+before parse. Quoted strings stay strings: ``label = "no"`` remains the text
+``"no"``, not a boolean. Unquoted ``1`` and ``0`` stay numbers.
 
-Boolean fields accept ``true``, ``t``, ``yes``, ``y``, and ``1``, and ``false``,
-``f``, ``no``, ``n``, and ``0``, in any case. Bare words such as ``True`` and
-``T`` are included. The same spellings apply in suite files and parameters
-files. Unquoted ``1`` and ``0`` stay numbers. Boolean fields such as
-``[colosseum.reports]`` and ``fail_fast`` also accept those numbers.
+API helpers such as ``coerce_config_bool`` / parameter ``optional`` still accept
+the common spellings (including string ``"yes"`` / ``"no"``) when a value is
+known to be boolean.
 
 Suite TOML (``colosseum run-suite``) lists scripts. It is not a plugin section
 file; pass config separately with ``--config``.

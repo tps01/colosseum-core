@@ -175,7 +175,7 @@ _MEASUREMENT_COLUMNS = (
 
 
 def _read_rows(connection: sqlite3.Connection) -> list[EvidenceRow]:
-    """Read result tables, skipping columns that older databases never stored."""
+    """Read result tables using the current schema column lists."""
     verifications = _fetch_table(connection, "verifications", _VERIFICATION_COLUMNS)
     commands = _fetch_table(connection, "commands", _COMMAND_COLUMNS)
     measurements = _fetch_table(connection, "measurements", _MEASUREMENT_COLUMNS)
@@ -265,19 +265,25 @@ def _fetch_table(
     table: str,
     wanted: tuple[str, ...],
 ) -> list[sqlite3.Row] | None:
-    """Return rows, or None when the table itself is absent."""
+    """Return rows, or None when the table itself is absent.
+
+    Selects only columns that exist so older ``execution.sqlite`` files without
+    newer fields (for example ``tolerance_json``) still load.
+    """
     exists = connection.execute(
         "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
         (table,),
     ).fetchone()
     if exists is None:
         return None
-    present_columns = {str(row[1]) for row in connection.execute(f"PRAGMA table_info({table})")}
-    selected = [name for name in wanted if name in present_columns]
-    if "id" not in selected:
+    present = {
+        str(row["name"])
+        for row in connection.execute(f"PRAGMA table_info({table})")  # nosec B608
+    }
+    columns = [name for name in wanted if name in present]
+    if "id" not in columns:
         raise sqlite3.OperationalError(f"{table} has no id column")
-    # Callers pass fixed table names; selected columns come from that table's pragma.
-    sql = f"SELECT {', '.join(selected)} FROM {table} ORDER BY id ASC"  # nosec B608
+    sql = f"SELECT {', '.join(columns)} FROM {table} ORDER BY id ASC"  # nosec B608
     return list(connection.execute(sql))
 
 

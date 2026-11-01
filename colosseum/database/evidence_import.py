@@ -34,6 +34,7 @@ _COMMAND_COLUMNS = (
     "status",
     "optional",
     "message",
+    "cause",
     "timestamp",
 )
 _MEASUREMENT_SELECT = (
@@ -41,8 +42,8 @@ _MEASUREMENT_SELECT = (
     "status, timestamp FROM measurements ORDER BY id ASC"
 )
 _COMMAND_SELECT = (
-    "SELECT domain, command, key, result_json, status, optional, message, timestamp "
-    "FROM commands ORDER BY id ASC"
+    "SELECT domain, command, key, result_json, status, optional, message, cause, "
+    "timestamp FROM commands ORDER BY id ASC"
 )
 
 
@@ -146,6 +147,7 @@ def _insert_command_row(ctx: RuntimeContext, row: dict[str, object]) -> None:
             status=str(row["status"]),
             optional=bool(row["optional"]),
             message=str(row["message"] or ""),
+            cause=str(row["cause"] or ""),
             timestamp=str(row["timestamp"]),
         ),
     )

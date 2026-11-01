@@ -16,6 +16,14 @@ except ModuleNotFoundError:  # pragma: no cover
 _KEY_VALUE = re.compile(r"^(?P<indent>\s*)(?P<key>[\w.-]+)\s*=\s*(?P<value>.+?)\s*$")
 _TRUE_TOKENS = frozenset({"true", "t", "yes", "y", "1"})
 _FALSE_TOKENS = frozenset({"false", "f", "no", "n", "0"})
+# Bare RHS spellings rewritten to TOML bool literals before parse (not quoted).
+_BARE_BOOL_LITERALS = {
+    token: ("true" if token.lower() in _TRUE_TOKENS else "false")
+    for token in (
+        "true", "True", "TRUE", "t", "T", "yes", "Yes", "YES", "y", "Y",
+        "false", "False", "FALSE", "f", "F", "no", "No", "NO", "n", "N",
+    )
+}
 
 
 def _split_inline_comment(value_part: str) -> tuple[str, str]:
@@ -52,15 +60,20 @@ def _needs_quoting(value: str) -> bool:
         return False
     if value[0] in "\"'[{:":
         return False
-    # Only the lowercase TOML literals parse as bools. ``True`` and ``T`` are
-    # quoted here and turned into bools after the file loads.
     if value in ("true", "false"):
+        return False
+    if value in _BARE_BOOL_LITERALS:
         return False
     return not _is_numeric_literal(value)
 
 
 def prepare_toml_text(text: str) -> str:
-    """Quote bare-word RHS values so ``model = keysight-e4407b`` is valid TOML."""
+    """Quote bare-word RHS values so ``model = keysight-e4407b`` is valid TOML.
+
+    Bare boolean spellings (``yes``, ``True``, ``F``, …) are rewritten to TOML
+    ``true`` / ``false`` literals. Quoted strings such as ``"no"`` are left alone
+    so intentional string values are preserved after parse.
+    """
     lines: list[str] = []
     for line in text.splitlines():
         stripped = line.strip()
@@ -74,6 +87,13 @@ def prepare_toml_text(text: str) -> str:
             continue
 
         raw_value, comment_suffix = _split_inline_comment(match.group("value"))
+        bool_literal = _BARE_BOOL_LITERALS.get(raw_value)
+        if bool_literal is not None:
+            lines.append(
+                f"{match.group('indent')}{match.group('key')} = "
+                f"{bool_literal}{comment_suffix}",
+            )
+            continue
         if not _needs_quoting(raw_value):
             lines.append(line)
             continue
@@ -106,25 +126,11 @@ def coerce_config_bool(value: object) -> bool | None:
     return None
 
 
-def _coerce_bool_strings(value: object) -> object:
-    """Turn boolean spellings into bools. Integers stay integers."""
-    if isinstance(value, dict):
-        return {key: _coerce_bool_strings(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return [_coerce_bool_strings(item) for item in value]
-    if isinstance(value, str):
-        coerced = coerce_config_bool(value)
-        if coerced is not None:
-            return coerced
-    return value
-
-
 def loads_relaxed(text: str) -> dict[str, Any]:
     parsed = tomllib.loads(prepare_toml_text(text))
-    coerced = _coerce_bool_strings(parsed)
-    if isinstance(coerced, dict):
-        return coerced
-    return parsed
+    if isinstance(parsed, dict):
+        return parsed
+    return {}
 
 
 def read_relaxed_toml(path: Path) -> dict[str, Any]:
