@@ -8,7 +8,7 @@ Hand-written guides: `source/guides/`
 Build from the repository root (`latexmk` required for PDF):
 
 ```bash
-pip install -e .
+pip install -r requirements.txt
 python scripts/docgen/build_all.py
 ```
 

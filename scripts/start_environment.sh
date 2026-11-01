@@ -64,9 +64,9 @@ if ! "$VENV_PYTHON" -m pip install --editable .; then
 fi
 
 if [ "$SKIP_DEV" != "1" ]; then
-    echo "Installing dev requirements: requirements-dev.txt"
-    if ! "$VENV_PYTHON" -m pip install -r "$REPO_ROOT/requirements-dev.txt"; then
-        echo "Failed to install dev requirements." >&2
+    echo "Installing requirements: requirements.txt"
+    if ! "$VENV_PYTHON" -m pip install -r "$REPO_ROOT/requirements.txt"; then
+        echo "Failed to install requirements." >&2
         return 1 2>/dev/null || exit 1
     fi
 fi

@@ -2,7 +2,7 @@
 
 ## Documentation
 
-HTML hub (GitHub Pages): https://tps01.github.io/colosseum-core/
+HTML hub (GitHub Pages): <https://tps01.github.io/colosseum-core/>
 
 First-party plugins publish API-reference Pages sites; they are linked from
 that hub. See [docs/README.md](docs/README.md).
@@ -23,7 +23,8 @@ Choose plugins by task in the [feature directory](https://tps01.github.io/coloss
 
 Download the wheel from [GitHub Releases](https://github.com/tps01/colosseum-core/releases)
 and install it in a virtual environment. Replace `<version>` with
-the downloaded filename. For development, use `python -m pip install -e .`.
+the downloaded filename. For development, use
+`python -m pip install -r requirements.txt`.
 
 ```sh
 python -m pip install "./colosseum_core-<version>-py3-none-any.whl"
@@ -33,7 +34,7 @@ python -m pip install "./colosseum_core-<version>-py3-none-any.whl"
 
 ```sh
 python -m venv .venv
-python -m pip install -e .
+python -m pip install -r requirements.txt
 python scripts/run_tests.py
 python scripts/run_static.py
 python tests/regression/run_docgen_check.py --skip-pdf

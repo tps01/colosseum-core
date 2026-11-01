@@ -93,8 +93,9 @@ that checkout's ``offline/README.md``::
 Editable install (developers)
 -----------------------------
 
-Clone the repository and install in editable mode when you are changing core
-itself. One install covers runtime, tests, static analysis, and docs tooling::
+Clone the repository and install from ``requirements.txt`` when you are changing
+core itself. That file editable-installs the package and adds test, static
+analysis, and docs tooling. A release wheel installs runtime dependencies only::
 
    git clone https://github.com/tps01/colosseum-core.git
    cd colosseum-core
@@ -102,10 +103,11 @@ itself. One install covers runtime, tests, static analysis, and docs tooling::
    .venv\Scripts\activate          # Windows
    # source .venv/bin/activate     # Linux / macOS
    pip install -U pip setuptools wheel
-   pip install -e .
+   pip install -r requirements.txt
 
-Install sibling plugin checkouts the same way (``pip install -e .`` in each
-plugin repo) into that venv when you need their APIs.
+Install sibling plugin checkouts into that venv when you need their APIs
+(``pip install -e .`` for runtime only, or ``pip install -r requirements.txt``
+in each plugin repo for development).
 
 Walkthrough plugins
 -------------------
