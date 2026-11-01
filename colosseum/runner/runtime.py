@@ -76,6 +76,14 @@ def allocate_run_directory(
     return candidate
 
 
+def _strip_result_suffix(name: str) -> str:
+    """Remove a trailing ``-pass`` / ``-fail`` suffix if present."""
+    for result_suffix in ("-pass", "-fail"):
+        if name.endswith(result_suffix):
+            return name[: -len(result_suffix)]
+    return name
+
+
 def rename_run_directory_for_result(
     output_dir: Path,
     overall: str,
@@ -85,14 +93,17 @@ def rename_run_directory_for_result(
 ) -> Path:
     """Rename ``output_dir`` with a ``-pass`` / ``-fail`` suffix.
 
-    Retries briefly on ``OSError`` (common on Windows when a handle is briefly
-    held). On persistent failure, logs to stderr and returns ``output_dir``
-    unchanged so callers can still write summaries into the original path.
+    An existing ``-pass`` / ``-fail`` suffix is replaced so a slot can be
+    re-stamped after post-``endex`` failure. Retries briefly on ``OSError``
+    (common on Windows when a handle is briefly held). On persistent failure,
+    logs to stderr and returns ``output_dir`` unchanged so callers can still
+    write summaries into the original path.
     """
     normalized = overall.lower()
     if normalized not in {"pass", "fail"}:
         raise ValueError(f"Unsupported run result: {overall}")
-    target_base = output_dir.with_name(f"{output_dir.name}-{normalized}")
+    base_name = _strip_result_suffix(output_dir.name)
+    target_base = output_dir.with_name(f"{base_name}-{normalized}")
     candidate = target_base
     suffix = 1
     while candidate.exists() and candidate != output_dir:

@@ -129,18 +129,18 @@ def resolve_auto_key(
     kwargs: dict[str, Any],
     *,
     family: str,
+    command: str = "",
 ) -> tuple[Any, bool]:
     """Return ``(key, injected)`` for a measurement or verification call.
 
-    An explicit key is returned unchanged. When ``key`` is omitted and
-    ``auto_key()`` is enabled, the next integer for ``family`` is written back
-    into ``kwargs`` as a decimal string. The first assignment in the procedure
-    logs one warning.
+    An explicit key is returned unchanged. Measurements auto-number only when
+    ``auto_key()`` is enabled. Verifications always auto-number an omitted key
+    (never persist an empty key). The first assignment logs a warning.
     """
     raw = kwargs.get("key")
     if raw:
         return raw, False
-    if not ctx.auto_key_enabled:
+    if family == "measurement" and not ctx.auto_key_enabled:
         return None, False
     if family == "measurement":
         ctx.next_measurement_key += 1
@@ -150,6 +150,16 @@ def resolve_auto_key(
         assigned = ctx.next_verification_key
     key = str(assigned)
     kwargs["key"] = key
+    if family == "verification" and not ctx.auto_key_enabled:
+        if ctx.logger is not None:
+            ctx.logger.warning(
+                "%s",
+                missing_key_guidance(
+                    kind="verification",
+                    command=command or "verification",
+                ),
+            )
+        return key, True
     if not ctx.auto_key_warned:
         ctx.auto_key_warned = True
         if ctx.logger is not None:
@@ -170,8 +180,8 @@ def missing_key_guidance(*, kind: str, command: str) -> str:
     if kind == "verification":
         return (
             f"`{command}` verification omitted key=; "
-            "spot-checks are fine without a key, or pass key=... / call "
-            "col.auto_key() if this should bind to a measurement"
+            "assigned an auto key — prefer an explicit key= or call "
+            "col.auto_key() when pairing with measurements"
         )
     return (
         f"`{command}` {kind} was missing a key; "
@@ -256,6 +266,26 @@ def publish_optional_parameter(wrapper: Callable[..., Any], func: Callable[..., 
 
 DRY_RUN_ATTR = "__colosseum_dry_run__"
 _EXPORT_OMIT = frozenset({"key", "row_index"})
+_OUTCOME_STATUSES = frozenset({"PASS", "FAIL", "ERROR", "BLOCKED", "DRY"})
+_OUTCOME_STATUS_ALIASES = {
+    "PASSED": "PASS",
+    "FAILED": "FAIL",
+    "FAILURE": "FAIL",
+    "OK": "PASS",
+}
+
+
+def normalize_outcome_status(status: str) -> str:
+    """Return a canonical outcome status or raise ``ValueError``."""
+    text = str(status).strip()
+    if not text:
+        raise ValueError("outcome status must be non-empty")
+    canonical = _OUTCOME_STATUS_ALIASES.get(text.upper(), text.upper())
+    if canonical not in _OUTCOME_STATUSES:
+        allowed = ", ".join(sorted(_OUTCOME_STATUSES))
+        raise ValueError(f"invalid outcome status {status!r}; expected one of: {allowed}")
+    return canonical
+
 
 
 class _Outcome:
@@ -697,9 +727,7 @@ def finish_dry_run_log(
             kwargs=resolved,
         )
         return True
-    if kind == "verification" and not key:
-        note_dry_run_tip(ctx, missing_key_guidance(kind="verification", command=command))
-    elif (
+    if (
         kind == "verification"
         and key
         and not _evidence_key_measured(ctx, key)
@@ -708,8 +736,8 @@ def finish_dry_run_log(
         note_dry_run_tip(
             ctx,
             f"`{command}` verification key={key!r} has no measurement in this "
-            "walk yet; measure first, or keep as a spot-check / use "
-            "missing_measurement_result in the body for live",
+            "walk yet; measure first, or use missing_measurement_result in the "
+            "body for live",
         )
     _record_outcome(
         ctx,
@@ -759,11 +787,11 @@ def invoke_dry_run_substitute(
     substitute = cast("Callable[..., Any]", policy)
     try:
         value = substitute(*call_args, **call_kwargs)
-    except Exception as exc:  # noqa: BLE001 — substitute failures are recorded, then re-raised
+    except Exception as exc:  # noqa: BLE001 — match live optional / verification policy
         _record_outcome(
             ctx,
             kind=kind,
-            result=_Outcome("ERROR", str(exc)),
+            result=_Outcome("ERROR", str(exc), optional=optional),
             key=key,
             command=command,
             domain=domain,
@@ -778,6 +806,14 @@ def invoke_dry_run_substitute(
             call_args=call_args,
             kwargs=logged_kwargs,
         )
+        if kind == "verification":
+            from colosseum.decorators.verification import VerificationResult
+
+            return True, VerificationResult(
+                status="ERROR", message=str(exc), optional=optional,
+            )
+        if optional:
+            return True, None
         raise
     _record_outcome(
         ctx,

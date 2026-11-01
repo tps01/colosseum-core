@@ -23,8 +23,8 @@ from ._common import (
     ensure_runtime_context,
     finish_dry_run_log,
     invoke_dry_run_substitute,
-    missing_key_guidance,
     publish_description_parameter,
+    publish_optional_parameter,
     resolve_auto_key,
     resolve_command,
     resolve_domain,
@@ -47,6 +47,11 @@ class VerificationResult:
     message: str = ""
     optional: bool = False
     actual: Any = None
+
+    def __post_init__(self) -> None:
+        from colosseum.decorators._common import normalize_outcome_status
+
+        self.status = normalize_outcome_status(self.status)
 
 
 _OPERATOR_ALIASES: dict[str, str] = {
@@ -438,19 +443,17 @@ def verification(
         parameters = signature(func).parameters
         accepts_description = "description" in parameters
         accepts_key = "key" in parameters
+        accepts_optional = "optional" in parameters
 
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
             ctx = ensure_runtime_context()
             if should_skip_verification(ctx):
                 return None
-            key, injected = resolve_auto_key(ctx, kwargs, family="verification")
+            key, injected = resolve_auto_key(
+                ctx, kwargs, family="verification", command=command,
+            )
             key_text = "" if not key else str(key)
-            if not key and ctx.logger is not None:
-                ctx.logger.debug(
-                    "%s",
-                    missing_key_guidance(kind="verification", command=command),
-                )
             if capture_parameter_export(
                 ctx, kind="verification", command=command, key=key_text, kwargs=kwargs,
             ):
@@ -470,6 +473,7 @@ def verification(
                 injected=injected,
                 apply_parameters=bool(key) and not injected,
                 pop_key=not accepts_key,
+                pop_optional=not accepts_optional,
                 pop_description=not accepts_description,
                 require_prior_measurement=False,
             ):
@@ -534,12 +538,12 @@ def verification(
 
             description = _clean_description(call_kwargs.get("description"))
             logged_kwargs = dict(call_kwargs)
+            if not accepts_optional:
+                call_kwargs.pop("optional", None)
             if not accepts_description:
                 call_kwargs.pop("description", None)
             if not accepts_key:
                 call_kwargs.pop("key", None)
-            elif not key:
-                call_kwargs["key"] = ""
             handled, value = invoke_dry_run_substitute(
                 ctx,
                 kind="verification",
@@ -616,6 +620,7 @@ def verification(
 
         setattr(wrapper, COLOSSEUM_DECORATOR, "verification")
         bind_dry_run_policy(wrapper, dry_run)
+        publish_optional_parameter(wrapper, func)
         publish_description_parameter(wrapper, func)
         return wrapper
 

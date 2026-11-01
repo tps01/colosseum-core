@@ -86,10 +86,15 @@ automatically if the script returns without calling ``endex()``.
 
 For shared helpers and module-name collisions, see :doc:`python_imports`.
 
-Relative filesystem paths inside a script (``open("data.csv")``, relative
-``load_config``) still use the process working directory, not the script
-directory. Prefer paths relative to ``Path(__file__).resolve().parent`` when
-assets sit next to the script.
+Relative ``load_config`` / ``load_metadata`` paths try the process working
+directory first, then the directory of the executing script. Prefer paths
+relative to ``Path(__file__).resolve().parent`` for other assets (for example
+``open("data.csv")``), which still use the process working directory unless you
+resolve them yourself.
+
+``colosseum run`` can start without an in-script ``load_config`` (CLI ``-g``).
+Direct ``python script.py`` needs ``load_config`` (or equivalent) before
+decorators / ``endex``.
 
 Configuration
 -------------

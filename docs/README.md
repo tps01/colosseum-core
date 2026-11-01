@@ -1,7 +1,6 @@
 # Colosseum Documentation
 
-This directory contains current project documentation. Historical planning notes
-can be recovered from git history (see [archive/README.md](archive/README.md)).
+This directory contains current project documentation.
 
 ## Start here
 
@@ -36,7 +35,6 @@ of first-party plugins.
 | [sphinx/README.md](sphinx/README.md) | Sphinx/docgen build notes |
 | [testing/README.md](testing/README.md) | Test tiers and profiling |
 | [releasing.md](releasing.md) | Release workflow |
-| [archive/README.md](archive/README.md) | Recover historical notes from Git |
 
 ## Example style
 
@@ -66,9 +64,6 @@ There is no separate umbrella `tps01/colosseum` docs repo.
   deploys Pages on `workflow_dispatch` and on pushes that touch docs sources.
 
 ## Documentation standards
-
-See the [October 2026 review remediation](documentation-review-2026-10.md)
-for the cross-package changes, verified behavior, and validation limits.
 
 Lead with the task and its observable result. Define evidence keys and failure
 conditions before implementation details. Keep release history out of current

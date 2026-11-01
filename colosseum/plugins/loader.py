@@ -69,12 +69,15 @@ def ensure_plugins_loaded(registry: PluginRegistry) -> None:
             raise
         except Exception as exc:
             _logger.exception("Failed to load plugin entry point `%s`", ep.name)
+            ep_target = getattr(ep, "value", None) or getattr(ep, "module", "?")
             raise PluginRegistrationError(
-                f"Failed to load plugin entry point `{ep.name}`: {exc}",
+                f"Failed to load plugin entry point `{ep.name}` "
+                f"({ep_target}): {exc}",
             ) from exc
 
     registry.loaded = True
     _logger.debug(
-        "Plugin registry ready: %d config section(s)",
+        "Plugin registry ready: %d entry point(s), %d config section(s)",
+        len(eps),
         len(registry.config_section_specs()),
     )

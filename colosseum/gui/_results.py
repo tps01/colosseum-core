@@ -175,7 +175,7 @@ _MEASUREMENT_COLUMNS = (
 
 
 def _read_rows(connection: sqlite3.Connection) -> list[EvidenceRow]:
-    """Read result tables, skipping columns that older databases never stored."""
+    """Read result tables using the current schema column lists."""
     verifications = _fetch_table(connection, "verifications", _VERIFICATION_COLUMNS)
     commands = _fetch_table(connection, "commands", _COMMAND_COLUMNS)
     measurements = _fetch_table(connection, "measurements", _MEASUREMENT_COLUMNS)
@@ -272,12 +272,10 @@ def _fetch_table(
     ).fetchone()
     if exists is None:
         return None
-    present_columns = {str(row[1]) for row in connection.execute(f"PRAGMA table_info({table})")}
-    selected = [name for name in wanted if name in present_columns]
-    if "id" not in selected:
+    if "id" not in wanted:
         raise sqlite3.OperationalError(f"{table} has no id column")
-    # Callers pass fixed table names; selected columns come from that table's pragma.
-    sql = f"SELECT {', '.join(selected)} FROM {table} ORDER BY id ASC"  # nosec B608
+    # Callers pass fixed table/column names for the current schema.
+    sql = f"SELECT {', '.join(wanted)} FROM {table} ORDER BY id ASC"  # nosec B608
     return list(connection.execute(sql))
 
 

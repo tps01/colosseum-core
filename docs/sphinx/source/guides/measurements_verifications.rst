@@ -75,9 +75,10 @@ Outcomes and continuation
 A required verification with FAIL, ERROR, or BLOCKED fails the overall run.
 Verification failures and exceptions are recorded without aborting later test
 steps. A required command exception records ERROR and re-raises, so later steps
-are skipped unless the script catches it. A measurement exception also
-re-raises; measurements themselves do not contribute an aggregate verdict.
-An uncaught exception still fails the CLI slot.
+are skipped unless the script catches it. A required measurement exception
+records ERROR (null value) and re-raises; that ERROR **does** fail the aggregate
+verdict even if the script catches the exception. An uncaught exception still
+fails the CLI slot.
 
 If a run ends without measuring a key with configured limits, finalization
 records a BLOCKED verification. The parameter system calls these outstanding
@@ -85,13 +86,11 @@ checks *owed limits*. A missing-value verifier may also produce BLOCKED after
 a required command with a unit fault; otherwise missing evidence normally
 produces ERROR. See :doc:`using_parameters` and :doc:`exit_codes`.
 
-An omitted or blank verification ``key=`` is not an ERROR. The decorator logs a
-debug line (``verification omitted key=``), runs the body, and stores the row
-under an empty key. File and log spot checks can omit ``key`` entirely.
-Measurement-backed verifiers that require a key opt in from the body::
-
-   if not key:
-       return missing_measurement_result(key=key, optional=optional)
+An omitted or blank verification ``key=`` is not an ERROR. The decorator assigns
+the next verification auto-key (``"1"``, ``"2"``, …), logs a warning, and stores
+the row under that key — never an empty key. Prefer an explicit ``key=`` when
+pairing with a measurement. Calling ``col.auto_key()`` is still required only
+when measurements also omit ``key=``.
 
 The domain string passed to ``get_measurement(domain, command, key, ...)`` must
 match the domain under which the measurement was recorded (the API module's
@@ -99,6 +98,12 @@ match the domain under which the measurement was recorded (the API module's
 returns ``None`` and produces a verification ERROR with
 ``no measurement for key=…`` when the body returns
 ``missing_measurement_result``.
+
+Measurement identity for a run is ``(domain, command, key, row_index)``. The
+decorator rejects duplicates in the same run (unless ``multi_row=True``). The
+SQLite ``measurements`` table is append-oriented without a UNIQUE constraint;
+lookups return the newest matching row when multiple rows exist (for example
+after import or direct writes).
 
 Required and optional operations
 --------------------------------

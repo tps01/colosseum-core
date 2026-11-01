@@ -62,23 +62,28 @@ def test_setup_failure_does_not_skip_tests_without_fail_fast(
     fixtures_dir, core_config, isolated_cwd
 ) -> None:
     suite = fixtures_dir / "suites" / "setup_fail.toml"
-    _run_suite_expect_exit(suite, core_config, isolated_cwd, 0)
+    _run_suite_expect_exit(suite, core_config, isolated_cwd, 1)
     container = latest_suite_container(isolated_cwd)
     assert _slot_with_stem(container, "setup_fail")
     assert _slot_with_stem(container, "pass_test").name.endswith("-pass")
     assert _slot_with_stem(container, "teardown_ok")
-    summary = (container / "summary.txt").read_text(encoding="utf-8")
-    assert "Overall result: PASS" in summary
+    summary = _container_summary(container)
+    assert summary["overall_result"] == "FAIL"
+    assert summary["suite_failed"] is True
+    assert summary["fail_fast_stopped"] is False
 
 
-def test_teardown_failure_does_not_fail_suite_when_tests_pass(
+def test_teardown_failure_fails_suite_when_tests_pass(
     fixtures_dir, core_config, isolated_cwd
 ) -> None:
     suite = fixtures_dir / "suites" / "teardown_fail.toml"
-    _run_suite_expect_exit(suite, core_config, isolated_cwd, 0)
+    _run_suite_expect_exit(suite, core_config, isolated_cwd, 1)
     container = latest_suite_container(isolated_cwd)
-    assert container.name.endswith("-pass")
+    assert container.name.endswith("-fail")
     assert _slot_with_stem(container, "teardown_fail")
+    summary = _container_summary(container)
+    assert summary["overall_result"] == "FAIL"
+    assert summary["suite_failed"] is True
 
 
 def test_test_script_exception_fails_suite_without_verification(
@@ -210,10 +215,14 @@ def test_between_tests_crash_continues_when_fail_fast_false(
     fixtures_dir, core_config, isolated_cwd
 ) -> None:
     suite = fixtures_dir / "suites" / "between_crash_continue.toml"
-    _run_suite_expect_exit(suite, core_config, isolated_cwd, 0)
+    _run_suite_expect_exit(suite, core_config, isolated_cwd, 1)
     container = latest_suite_container(isolated_cwd)
     assert len(slot_dirs_matching(container, "pass_test")) == 2
     assert _slot_with_stem(container, "crash_test")
+    summary = _container_summary(container)
+    assert summary["overall_result"] == "FAIL"
+    assert summary["suite_failed"] is True
+    assert summary["fail_fast_stopped"] is False
 
 
 def test_fail_fast_aborts_on_setup_failure(fixtures_dir, core_config, isolated_cwd) -> None:
@@ -354,12 +363,15 @@ def test_teardown_continues_when_later_slot_start_fails(
 
     monkeypatch.setattr(suite_mod, "begin_script_slot", begin)
     suite = fixtures_dir / "suites" / "teardown_triple.toml"
-    _run_suite_expect_exit(suite, core_config, isolated_cwd, 0)
+    _run_suite_expect_exit(suite, core_config, isolated_cwd, 1)
     container = latest_suite_container(isolated_cwd)
     assert _slot_with_stem(container, "teardown_ok")
     assert slot_dirs_matching(container, "teardown_ok_b") == []
     assert _slot_with_stem(container, "teardown_ok_c")
-    assert _container_summary(container)["overall_result"] == "PASS"
+    summary = _container_summary(container)
+    assert summary["overall_result"] == "FAIL"
+    assert summary["suite_failed"] is True
+
 
 
 def test_test_slot_start_failure_continues_later_tests(
@@ -483,14 +495,19 @@ def test_endex_then_raise_fails_suite_and_continues(
     _run_suite_expect_exit(suite, core_config, isolated_cwd, 1)
     container = latest_suite_container(isolated_cwd)
     first = _slot_with_stem(container, "endex_then_raise")
-    # endex() already renamed the folder as PASS; suite summary still fails.
-    assert first.name.endswith("-pass")
+    # Post-endex failure re-stamps the slot folder to match suite FAIL.
+    assert first.name.endswith("-fail")
     assert _slot_with_stem(container, "pass_test").name.endswith("-pass")
     assert _slot_with_stem(container, "teardown_ok")
     summary = _container_summary(container)
     assert summary["overall_result"] == "FAIL"
     assert summary["suite_failed"] is True
     assert any(slot["exit_code"] == 1 for slot in summary["test_slots"])
+    assert any(
+        str(slot["script"]).endswith("endex_then_raise.py")
+        and slot["overall_result"] == "FAIL"
+        for slot in summary["test_slots"]
+    )
 
 
 def test_endex_then_systemexit_1_fails_suite(

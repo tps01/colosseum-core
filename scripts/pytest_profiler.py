@@ -187,25 +187,3 @@ def profile_pytest(
         summary_text="\n".join(sections),
     )
 
-
-def profile_pytest_unit_tests(
-    repo_root: Path,
-    *,
-    pytest_args: Iterable[str] | None = None,
-    sort: str = "cumulative",
-    limit: int = 40,
-    project_only: bool = True,
-    strip_dirs: bool = False,
-    save_stats: Path | None = None,
-) -> ProfileReport:
-    """Backward-compatible wrapper for ``tests/unit`` only."""
-    return profile_pytest(
-        repo_root,
-        ("tests/unit",),
-        pytest_args=pytest_args,
-        sort=sort,
-        limit=limit,
-        project_only=project_only,
-        strip_dirs=strip_dirs,
-        save_stats=save_stats,
-    )
