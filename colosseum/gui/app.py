@@ -331,7 +331,9 @@ class ColosseumApp:
         p = self._test_path.get().strip()
         if not p:
             return
-        path = Path(p).resolve()
+        from colosseum.paths import absolute_path
+
+        path = absolute_path(p)
         if path.is_file():
             self._start_run(RunRequest(
                 RunKind.TEST, path, self._config_value(), self._metadata_value(), self._debug.get(),
@@ -342,7 +344,9 @@ class ColosseumApp:
         p = self._suite_path.get().strip()
         if not p:
             return
-        path = Path(p).resolve()
+        from colosseum.paths import absolute_path
+
+        path = absolute_path(p)
         if path.is_file():
             self._start_run(RunRequest(
                 RunKind.SUITE, path, self._config_value(), self._metadata_value(), self._debug.get(),

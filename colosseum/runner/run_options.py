@@ -34,10 +34,12 @@ class RunOptions:
 
 def resolve_input_path(input_dir: Path | None, positional: str) -> Path:
     """Resolve a positional test/suite path against an optional input directory."""
+    from colosseum.paths import absolute_path
+
     path = Path(positional)
     if input_dir is not None:
         path = input_dir / path
-    return path.resolve()
+    return absolute_path(path)
 
 
 def resolve_outputs_root(options: RunOptions) -> Path:

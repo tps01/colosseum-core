@@ -47,12 +47,14 @@ def resolve_parameters_path(
     Order: CLI ``--parameters``, suite entry ``parameters``, sibling
     ``parameters.toml`` beside the script.
     """
+    from colosseum.paths import absolute_path
+
     if cli_path is not None:
-        return cli_path.resolve()
+        return absolute_path(cli_path)
     if entry_path is not None:
-        return entry_path.resolve()
+        return absolute_path(entry_path)
     if script_path is not None:
-        sibling = script_path.resolve().with_name("parameters.toml")
+        sibling = absolute_path(script_path).with_name("parameters.toml")
         if sibling.is_file():
             return sibling
     return None
@@ -60,7 +62,9 @@ def resolve_parameters_path(
 
 def load_parameters_file(path: Path) -> dict[str, dict[str, Any]]:
     """Load a parameters TOML file. Tables are keys; values are kwargs."""
-    resolved = path.resolve()
+    from colosseum.paths import absolute_path
+
+    resolved = absolute_path(path)
     if not resolved.is_file():
         raise ParametersError(f"Parameters file not found: {resolved}")
     try:
@@ -231,11 +235,13 @@ def attach_parameters(
     required: bool = False,
 ) -> None:
     """Load parameters onto the runtime context and record the path in metadata."""
+    from colosseum.paths import absolute_path
+
     ctx.parameters_map = None
     ctx.parameters_path = None
     if path is None:
         return
-    resolved = path.resolve()
+    resolved = absolute_path(path)
     if not resolved.is_file():
         if required:
             raise ParametersError(f"Parameters file not found: {resolved}")

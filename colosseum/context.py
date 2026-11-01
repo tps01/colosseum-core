@@ -142,6 +142,7 @@ def init_context(
     from datetime import timezone
 
     from . import __version__
+    from .paths import absolute_path
     from .plugins.registry import PluginRegistry, register_builtin_listeners
 
     options = run_options if run_options is not None else RunOptions()
@@ -161,7 +162,7 @@ def init_context(
         framework_version=__version__,
         no_artifacts=no_artifacts or _env_no_artifacts(),
         auto_finalize=auto_finalize,
-        metadata_path=str(Path(metadata_path).resolve()) if metadata_path else None,
+        metadata_path=str(absolute_path(metadata_path)) if metadata_path else None,
         started_at=datetime.now(timezone.utc).astimezone(),
         run_options=options,
         active_execution_mode=options.execution_mode,

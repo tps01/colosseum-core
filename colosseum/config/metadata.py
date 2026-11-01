@@ -47,9 +47,11 @@ def validate_colosseum_metadata_table(raw: dict[str, Any]) -> list[str]:
 
 
 def load_metadata_yaml(path: str | Path) -> dict[str, Any]:
+    from colosseum.paths import absolute_path
+
     from .loader import ConfigError
 
-    metadata_path = Path(path).resolve()
+    metadata_path = absolute_path(path)
     if not metadata_path.exists():
         raise ConfigError(f"Metadata file not found: {metadata_path}")
     try:

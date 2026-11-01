@@ -57,6 +57,15 @@ the quote and produce ``unrecognized arguments``. Use either form::
    colosseum run my_test.py -g config.toml -u "D:\runs\prior run"
    colosseum run my_test.py -g config.toml -u "D:/runs/prior run/"
 
+Mapped network drives
+---------------------
+
+Config, output, and database paths stay in drive-letter form when you run from
+a mapped drive (for example ``B:\\lab\\…``). Colosseum does not expand those
+paths to UNC (``\\\\server\\share\\…``) when making them absolute, so relative
+artifact paths and SQLite open stay consistent with the working directory you
+started from.
+
 Plugin-specific diagnostics
 ---------------------------
 

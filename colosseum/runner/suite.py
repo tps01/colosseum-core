@@ -7,6 +7,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any, Callable
 
 from colosseum.config.toml_relaxed import coerce_config_bool, read_relaxed_toml
+from colosseum.paths import absolute_path
 from colosseum.runner.provenance import record_suite_provenance
 from colosseum.runner.runtime import (
     begin_script_slot,
@@ -87,7 +88,7 @@ def _as_path_list(value: object, field: str, base_dir: Path) -> list[Path]:
     for item in value:
         if not isinstance(item, str):
             raise SuiteError(f"Suite field `{field}` entries must be strings")
-        paths.append((base_dir / item).resolve())
+        paths.append(absolute_path(base_dir / item))
     return paths
 
 
@@ -97,18 +98,18 @@ def _parse_parameters_field(item: dict[str, object], base_dir: Path, *, index: i
         return None
     if not isinstance(raw, str) or not raw.strip():
         raise SuiteError(f"Suite tests[{index}] parameters must be a non-empty string path")
-    return (base_dir / raw).resolve()
+    return absolute_path(base_dir / raw)
 
 
 def _parse_test_entry(item: object, base_dir: Path, *, index: int) -> SuiteTestEntry:
     if isinstance(item, str):
-        return SuiteTestEntry(path=(base_dir / item).resolve())
+        return SuiteTestEntry(path=absolute_path(base_dir / item))
     if not isinstance(item, dict):
         raise SuiteError(f"Suite tests[{index}] must be a path string or inline table")
     path = item.get("path")
     if not path or not isinstance(path, str):
         raise SuiteError(f"Suite tests[{index}] table requires string field `path`")
-    resolved = (base_dir / path).resolve()
+    resolved = absolute_path(base_dir / path)
     parameters = _parse_parameters_field(item, base_dir, index=index)
     repeat_count = item.get("repeat_count")
     repeat_for = item.get("repeat_for")
@@ -167,7 +168,7 @@ def _as_bool(value: object, field: str) -> bool:
 
 
 def load_suite_toml(path: Path) -> SuiteDefinition:
-    suite_path = path.resolve()
+    suite_path = absolute_path(path)
     if not suite_path.exists():
         raise SuiteError(f"Suite file not found: {suite_path}")
     try:
@@ -543,8 +544,8 @@ def run_suite(
     init_context(
         test_case_name=suite.name,
         suite_name=suite.name,
-        config_path=config_path.resolve() if config_path else None,
-        metadata_path=metadata_path.resolve() if metadata_path else None,
+        config_path=absolute_path(config_path) if config_path else None,
+        metadata_path=absolute_path(metadata_path) if metadata_path else None,
         no_artifacts=no_artifacts,
         run_options=options,
     )
