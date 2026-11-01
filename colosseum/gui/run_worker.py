@@ -27,6 +27,7 @@ class RunRequest:
     metadata_path: str | None
     debug: bool
     parameters_path: str | None = None
+    no_sleep: bool = False
 
 
 @dataclass
@@ -90,6 +91,8 @@ class RunWorker:
             argv.extend(["--parameters", request.parameters_path])
         if request.debug:
             argv.append("--debug")
+        if request.no_sleep:
+            argv.append("--no-sleep")
         return argv
 
     def _stream_stdout(self, pipe: Any) -> None:  # noqa: ANN401

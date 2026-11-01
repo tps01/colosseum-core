@@ -4,6 +4,10 @@ import argparse
 import faulthandler
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 from colosseum.config import ConfigError, load_config
 from colosseum.context import RuntimeContext, init_context
@@ -40,6 +44,7 @@ _EPILOG = """examples:
   colosseum run-suite suite.toml --dry-run -g config.toml
   colosseum run my_test.py --export parameters -g config.toml
   colosseum run-suite suite.toml -g config.toml --profile
+  colosseum run-suite suite.toml -g config.toml --no-sleep
   colosseum --gui
 """
 
@@ -114,7 +119,15 @@ def _add_shared_run_options(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help=(
             "Profile the run with pyinstrument; write profile.html to the output "
-            "directory (text only with --no-artifacts). Requires: pip install pyinstrument"
+            "directory (text only with --no-artifacts)"
+        ),
+    )
+    parser.add_argument(
+        "--no-sleep",
+        action="store_true",
+        help=(
+            "Prevent system sleep until the run or suite completes "
+            "(screen may still blank or lock)"
         ),
     )
 
@@ -496,6 +509,34 @@ def _dispatch_run_suite(args: argparse.Namespace) -> int:
     return 0
 
 
+def _wrap_dispatch(
+    action: Callable[[], int],
+    *,
+    profile: bool,
+    no_sleep: bool,
+    no_artifacts: bool,
+) -> int:
+    """Apply optional ``--profile`` / ``--no-sleep`` wraps around a dispatch call."""
+    wrapped = action
+    if profile:
+        from colosseum.runner.profiling import run_with_profile
+
+        inner = wrapped
+
+        def wrapped() -> int:
+            return run_with_profile(inner, no_artifacts=no_artifacts)
+
+    if no_sleep:
+        from colosseum.runner.keep_awake import run_with_no_sleep
+
+        inner = wrapped
+
+        def wrapped() -> int:
+            return run_with_no_sleep(inner)
+
+    return wrapped()
+
+
 def run_cli(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -515,33 +556,24 @@ def run_cli(argv: list[str] | None = None) -> int:
         return 0
 
     profile = bool(getattr(args, "profile", False))
+    no_sleep = bool(getattr(args, "no_sleep", False))
     no_artifacts = bool(getattr(args, "no_artifacts", False))
 
     if args.command == "run":
-        if profile:
-            from colosseum.runner.profiling import run_with_profile
-
-            try:
-                return run_with_profile(
-                    lambda: _dispatch_run(parser, args),
-                    no_artifacts=no_artifacts,
-                )
-            except RuntimeError as exc:
-                _exit_with_message(str(exc))
-        return _dispatch_run(parser, args)
+        return _wrap_dispatch(
+            lambda: _dispatch_run(parser, args),
+            profile=profile,
+            no_sleep=no_sleep,
+            no_artifacts=no_artifacts,
+        )
 
     if args.command == "run-suite":
-        if profile:
-            from colosseum.runner.profiling import run_with_profile
-
-            try:
-                return run_with_profile(
-                    lambda: _dispatch_run_suite(args),
-                    no_artifacts=no_artifacts,
-                )
-            except RuntimeError as exc:
-                _exit_with_message(str(exc))
-        return _dispatch_run_suite(args)
+        return _wrap_dispatch(
+            lambda: _dispatch_run_suite(args),
+            profile=profile,
+            no_sleep=no_sleep,
+            no_artifacts=no_artifacts,
+        )
 
     parser.error(f"Unknown command: {args.command}")
     return 1
