@@ -265,17 +265,25 @@ def _fetch_table(
     table: str,
     wanted: tuple[str, ...],
 ) -> list[sqlite3.Row] | None:
-    """Return rows, or None when the table itself is absent."""
+    """Return rows, or None when the table itself is absent.
+
+    Selects only columns that exist so older ``execution.sqlite`` files without
+    newer fields (for example ``tolerance_json``) still load.
+    """
     exists = connection.execute(
         "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
         (table,),
     ).fetchone()
     if exists is None:
         return None
-    if "id" not in wanted:
+    present = {
+        str(row["name"])
+        for row in connection.execute(f"PRAGMA table_info({table})")  # nosec B608
+    }
+    columns = [name for name in wanted if name in present]
+    if "id" not in columns:
         raise sqlite3.OperationalError(f"{table} has no id column")
-    # Callers pass fixed table/column names for the current schema.
-    sql = f"SELECT {', '.join(wanted)} FROM {table} ORDER BY id ASC"  # nosec B608
+    sql = f"SELECT {', '.join(columns)} FROM {table} ORDER BY id ASC"  # nosec B608
     return list(connection.execute(sql))
 
 
