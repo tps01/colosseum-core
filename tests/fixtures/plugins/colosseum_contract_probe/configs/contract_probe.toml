@@ -1,0 +1,4 @@
+[[contract_probe.device]]
+device_id = 1
+serial = "PROBE-1"
+label = "e2e"

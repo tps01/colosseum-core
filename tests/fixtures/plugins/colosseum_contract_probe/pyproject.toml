@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "colosseum-contract-probe"
+version = "0.0.0"
+description = "Minimal fixture plugin for core plugin-contract e2e tests"
+requires-python = ">=3.9"
+
+[project.entry-points."colosseum.plugins"]
+contract_probe = "colosseum_contract_probe:register"
+
+[tool.setuptools.packages.find]
+include = ["colosseum_contract_probe*"]
