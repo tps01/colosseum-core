@@ -52,8 +52,10 @@ def _script_import_path(script: Path) -> Iterator[None]:
 
 def run_script(path: Path) -> None:
     """Execute a test/setup/teardown script (calls main() only; no endex)."""
+    from colosseum.paths import absolute_path
+
     ctx = get_context()
-    resolved = path.resolve()
+    resolved = absolute_path(path)
     ctx.db.insert_run_metadata("active_script", str(resolved))
     ctx.db.insert_event("INFO", "runner", f"script_start:{resolved}")
     if ctx.logger is not None:

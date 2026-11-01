@@ -315,11 +315,13 @@ class DatabaseManager:
     def open_readonly(self, db_path: Path) -> None:
         if self._conn is not None:
             raise RuntimeError("Database connection already open")
-        resolved = db_path.resolve()
+        from colosseum.paths import absolute_path, sqlite_readonly_uri
+
+        resolved = absolute_path(db_path)
         if not resolved.is_file():
             raise FileNotFoundError(f"Database not found: {resolved}")
         self._db_path = resolved
-        uri = f"file:{resolved.as_posix()}?mode=ro"
+        uri = sqlite_readonly_uri(resolved)
         self._readonly = True
         self._conn = sqlite3.connect(uri, uri=True, check_same_thread=False)
         self._conn.execute("PRAGMA query_only = ON")

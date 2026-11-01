@@ -8,6 +8,7 @@ from pathlib import Path
 from colosseum.config import ConfigError, load_config
 from colosseum.context import RuntimeContext, init_context
 from colosseum.database.evidence_import import import_evidence_from_previous
+from colosseum.paths import absolute_path
 from colosseum.results.exit_policy import endex
 from colosseum.runner.command_invoke import (
     CommandInvokeError,
@@ -263,9 +264,9 @@ def _shared_run_options(
 ) -> RunOptions:
     """Resolve mode flags before any output-directory allocation."""
     previous_raw = getattr(args, "previous_output_dir", None)
-    previous_path = Path(previous_raw).resolve() if previous_raw is not None else None
+    previous_path = absolute_path(previous_raw) if previous_raw is not None else None
     parameters_raw = getattr(args, "parameters_path", None)
-    parameters_path = Path(parameters_raw).resolve() if parameters_raw is not None else None
+    parameters_path = absolute_path(parameters_raw) if parameters_raw is not None else None
     dry_run = bool(getattr(args, "dry_run", False))
     export_arg = getattr(args, "export", None)
     export_text = export_arg if isinstance(export_arg, str) else None
@@ -291,10 +292,10 @@ def _shared_run_options(
 
     outputs_root = None
     if getattr(args, "output_dir", None) is not None:
-        outputs_root = Path(args.output_dir).resolve()
+        outputs_root = absolute_path(args.output_dir)
     report_cli = getattr(args, "reports", None)
     return RunOptions(
-        input_dir=Path(args.input_dir).resolve() if getattr(args, "input_dir", None) else None,
+        input_dir=absolute_path(args.input_dir) if getattr(args, "input_dir", None) else None,
         outputs_root=outputs_root,
         execution_mode=execution_mode,
         previous_output_dir=previous_output_dir,
@@ -368,8 +369,8 @@ def _run_single_test(
     )
     ctx = init_context(
         test_case_name=logical_name,
-        config_path=Path(config_path).resolve() if config_path else None,
-        metadata_path=Path(metadata_path).resolve() if metadata_path else None,
+        config_path=absolute_path(config_path) if config_path else None,
+        metadata_path=absolute_path(metadata_path) if metadata_path else None,
         no_artifacts=no_artifacts,
         run_options=options,
     )
@@ -481,11 +482,11 @@ def _dispatch_run_suite(args: argparse.Namespace) -> int:
     if not suite_path.exists():
         _exit_with_message(f"Suite file not found: {suite_path}")
     try:
-        config = Path(args.config_path).resolve() if args.config_path else None
+        config = absolute_path(args.config_path) if args.config_path else None
         run_suite(
             suite_path,
             config,
-            metadata_path=Path(args.metadata_path).resolve() if args.metadata_path else None,
+            metadata_path=absolute_path(args.metadata_path) if args.metadata_path else None,
             debug=bool(args.debug),
             no_artifacts=bool(getattr(args, "no_artifacts", False)),
             run_options=run_options,

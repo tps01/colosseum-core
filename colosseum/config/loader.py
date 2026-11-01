@@ -130,9 +130,11 @@ def _resolve_load_path(path: str | Path, *, label: str) -> Path:
     """
     import sys
 
+    from colosseum.paths import absolute_path
+
     supplied = Path(path)
-    # Python 3.9 on Windows may leave missing relative paths unresolved.
-    candidates = [(Path.cwd() / supplied).resolve()]
+    # Keep mapped drive letters; absolute() is enough for existence checks.
+    candidates = [absolute_path(Path.cwd() / supplied)]
     if not supplied.is_absolute():
         try:
             ctx = get_context()
@@ -143,9 +145,9 @@ def _resolve_load_path(path: str | Path, *, label: str) -> Path:
             # Direct Python launch; CLI loads happen before an active script.
             main_file = getattr(sys.modules.get("__main__"), "__file__", None)
             if main_file and not str(main_file).startswith("<"):
-                script = Path(main_file).resolve()
+                script = absolute_path(main_file)
         if script is not None:
-            candidate = (script.parent / supplied).resolve()
+            candidate = absolute_path(script.parent / supplied)
             if candidate not in candidates:
                 candidates.append(candidate)
     for candidate in candidates:
