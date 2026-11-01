@@ -136,27 +136,28 @@ def test_happy_suite_slot_debug_logs_have_one_header(
 
 
 @pytest.mark.requirement("E2E-SUITE-03")
-def test_setup_fail_exits_zero_without_fail_fast(
+def test_setup_fail_fails_suite_without_fail_fast(
     core_config, fixtures_dir, isolated_cwd, subprocess_env
 ) -> None:
-    """Setup failure does not fail the suite when fail_fast is false."""
+    """Setup failure fails the suite even when fail_fast is false; tests still run."""
     proc = run_suite_cli(_suite(fixtures_dir, "setup_fail.toml"), core_config, isolated_cwd, subprocess_env)
-    assert proc.returncode == 0, proc.stderr
+    assert proc.returncode == 1, proc.stderr
     container = latest_suite_container(isolated_cwd)
+    assert_suite_container(container, expect_pass=False)
     assert _slot(container, "pass_test").name.endswith("-pass")
 
 
 @pytest.mark.requirement("E2E-SUITE-04")
-def test_teardown_fail_does_not_fail_suite(
+def test_teardown_fail_fails_suite_when_tests_pass(
     core_config, fixtures_dir, isolated_cwd, subprocess_env
 ) -> None:
-    """Teardown failure does not fail the suite when tests pass."""
+    """Teardown failure fails the suite even when tests pass."""
     proc = run_suite_cli(
         _suite(fixtures_dir, "teardown_fail.toml"), core_config, isolated_cwd, subprocess_env
     )
-    assert proc.returncode == 0, proc.stderr
+    assert proc.returncode == 1, proc.stderr
     container = latest_suite_container(isolated_cwd)
-    assert_suite_container(container, expect_pass=True)
+    assert_suite_container(container, expect_pass=False)
 
 
 @pytest.mark.requirement("E2E-SUITE-05")
@@ -224,9 +225,9 @@ def test_teardown_continues_after_first_failure(
         isolated_cwd,
         subprocess_env,
     )
-    assert proc.returncode == 0, proc.stderr
+    assert proc.returncode == 1, proc.stderr
     container = latest_suite_container(isolated_cwd)
-    assert_suite_container(container, expect_pass=True)
+    assert_suite_container(container, expect_pass=False)
     assert _slot(container, "teardown_fail")
     assert _slot(container, "teardown_ok")
 

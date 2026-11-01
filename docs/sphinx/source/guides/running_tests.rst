@@ -97,9 +97,9 @@ Shared path and config flags for ``colosseum run`` and ``colosseum run-suite``:
   only (joined with the positional argument; pass a basename when using ``-i``)
 - ``-o/--output-dir PATH`` - custom output root for timestamped run folders (default:
   ``cwd/outputs``)
-- ``-g/--config PATH`` - config TOML (legacy short form); resolved from the process
+- ``-g/--config PATH`` - config TOML (short form ``-g``); resolved from the process
   cwd and not affected by ``-i``
-- ``-m/--metadata PATH`` - metadata YAML (short form); likewise cwd-relative
+- ``-m/--metadata PATH`` - metadata YAML (short form ``-m``); likewise cwd-relative
 - ``-d/--debug`` - include DEBUG logs on stdout
 - ``--no-artifacts`` - in-memory SQLite and console logging only
 - ``--dry-run`` - walk each script and log every command, measurement, and

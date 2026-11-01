@@ -77,9 +77,9 @@ def test_is_allowed_table_accepts_core_and_plugin_prefix() -> None:
         "events",
         "run_metadata",
         "plugin_custom",
-        "plugin_",
     ):
         assert is_allowed_table(name) is True
+    assert is_allowed_table("plugin_") is False
     assert is_allowed_table("sqlite_master") is False
     assert is_allowed_table("users") is False
 
@@ -145,3 +145,21 @@ def test_write_rows_round_trip_through_typed_reads(unit_runtime_context) -> None
     assert looked_up.key == "rail"
     assert looked_up.id == measurements[0].id
     assert isinstance(measurements[0], MeasurementRow)
+
+
+def test_plugin_table_read_round_trip(unit_runtime_context) -> None:
+    import colosseum.database as read_api
+
+    ctx = unit_runtime_context
+    with ctx.db._lock:  # noqa: SLF001
+        conn = ctx.db._require_conn()  # noqa: SLF001
+        conn.execute(
+            "CREATE TABLE plugin_custom (id INTEGER PRIMARY KEY, note TEXT NOT NULL)",
+        )
+        conn.execute("INSERT INTO plugin_custom (note) VALUES (?)", ("hello",))
+        conn.commit()
+    rows = read_api.read_table("plugin_custom")
+    assert rows == [{"id": 1, "note": "hello"}]
+    with pytest.raises(ValueError, match="Unknown plugin table"):
+        read_api.read_table("plugin_missing")
+

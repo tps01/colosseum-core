@@ -239,34 +239,47 @@ def _record_slot_failure(
     affects_suite_result: bool,
     reason: str,
 ) -> bool:
-    """Apply fail-fast / suite-fail notes for a failed slot. Returns stop flag.
+    """Score the suite for a failed slot; optionally stop remaining work.
 
-    When ``fail_fast`` is false, a normal script/params failure still finalizes the
-    slot (exit code / overall). ``slot_start`` is special: no folder is created, so
-    a test that never starts must mark ``suite_failed`` for the container exit.
+    Supporting-phase failures (setup / between_tests / teardown) always mark
+    ``suite_failed``. ``fail_fast`` only controls whether later setup / between /
+    test work is skipped (teardown always continues).
     """
-    if suite.fail_fast:
-        if phase == "teardown":
-            # Fail the suite but never skip remaining teardown scripts.
-            ctx.session.mark_suite_failed(f"teardown_failure:{script}:{reason}")
-            return False
-        _stop_remaining_work(ctx, script, reason)
-        if affects_suite_result:
-            ctx.session.mark_suite_failed(f"test_failure:{script}:{reason}")
-        return True
-    if affects_suite_result and reason == "slot_start":
+    if phase == "setup":
+        ctx.session.mark_suite_failed(f"setup_failure:{script}:{reason}")
+    elif phase == "between_tests":
+        ctx.session.mark_suite_failed(f"between_tests_failure:{script}:{reason}")
+    elif phase == "teardown":
+        ctx.session.mark_suite_failed(f"teardown_failure:{script}:{reason}")
+    elif affects_suite_result:
+        label = "slot_start_failed" if reason == "slot_start" else "test_failure"
+        ctx.session.mark_suite_failed(f"{label}:{script}:{reason}")
+    elif reason == "slot_start":
         ctx.session.mark_suite_failed(f"slot_start_failed:{script}")
-    return False
+
+    if not suite.fail_fast:
+        return False
+    if phase == "teardown":
+        # Fail the suite but never skip remaining teardown scripts.
+        return False
+    _stop_remaining_work(ctx, script, reason)
+    return True
 
 
 def _mark_post_endex_slot_failure(ctx: RuntimeContext, script: Path, phase: str) -> None:
-    """Update the in-memory slot result after endex() already finalized the folder."""
+    """Update in-memory and on-disk slot result after endex() already finalized."""
+    from colosseum.runner.runtime import rename_run_directory_for_result
+
     ctx.session.mark_suite_failed(f"post_endex_failure:{script}")
     for result in reversed(ctx.suite_slot_results):
         if result.script_path == script and result.phase == phase:
             result.exit_code = 1
             if result.affects_suite_result:
                 result.overall = "FAIL"
+            if result.output_dir is not None and result.output_dir.exists():
+                result.output_dir = rename_run_directory_for_result(
+                    result.output_dir, "FAIL",
+                )
             break
 
 

@@ -151,7 +151,7 @@ Three decorator kinds, same pattern:
 2. Maybe skip (:term:`execution mode`).
 3. Call the real function.
 4. Write a SQLite row.
-5. Feed :term:`ResultAggregator` (commands and verifications only).
+5. Feed :term:`ResultAggregator` (commands, verifications, and measurement ERROR).
 6. Log.
 
 .. list-table::
@@ -172,18 +172,21 @@ Three decorator kinds, same pattern:
        :term:`evidence key` that verifications look up. Duplicate keys are an
        error unless ``multi_row=True``. The return value is JSON-serialized.
        Exceptions become ``status=ERROR`` with a null value and re-raise unless
-       ``optional=True``, which returns ``None`` and continues the script. An
-       optional measurement error does not itself change the exit code. A
-       required verification of that missing value still fails the run.
+       ``optional=True``, which returns ``None`` and continues the script. A
+       **required** measurement ERROR fails the aggregate verdict (catching the
+       exception does not clear it). An optional measurement error does not
+       itself change the exit code. A required verification of that missing
+       value still fails the run.
    * - ``@verification``
      - Pass/fail against a prior measurement (usually the same ``key=``). The
        plugin body typically looks up the measurement and returns the actual
        value; the decorator compares it to ``expected_val`` /
        ``expected_result`` / ``tolerance`` (or ``minimum`` / ``maximum`` /
        ``exact`` / ``expected``). It may also return ``VerificationResult`` or
-       a ``bool``. Missing ``key=`` or a thrown exception is ERROR, not a crash
-       of the wrapper. ``optional=True`` records FAIL/ERROR but does not change
-       the exit code.
+       a ``bool``. An omitted ``key=`` is auto-assigned (never stored empty). A
+       thrown exception becomes ERROR without crashing the wrapper.
+       ``optional=True`` (framework-injected like commands/measurements)
+       records FAIL/ERROR but does not change the exit code.
 
 See :doc:`measurements_verifications` for script-author rules and
 :doc:`exit_codes` for the single-bit policy.
@@ -224,19 +227,14 @@ Execution modes gate the wrappers:
 ``--dry-run`` visits every command, measurement, and verification in call order,
 including each setup, between, test, and teardown slot of ``run-suite``. Omitted
 measurement keys are an error unless the procedure called ``col.auto_key()``.
-Omitted verification keys log a debug warning and continue. On the default
-``"log"`` policy the walk also checks the same structure a real run enforces:
-a repeated measurement key, ``multi_row`` without ``row_index``, and a call that
-does not match the function signature after parameter values are filled in.
-Where a parameter has a type hint, the walk also checks that the argument
-agrees with it.
-Duration and frequency strings are checked after they are parsed. An argument
-with no hint is left unchecked. A key with no parameters-file section keeps the
-call arguments. Each problem is recorded and the walk continues.
-A required error still fails that slot. ``"call"`` runs the body, and a callable
-runs instead of the body. ``--export parameters`` uses the same walk to collect
-keys and keyword values into ``parameters.toml``, and does not call decorated
-bodies or write a scored summary.
+Omitted verification keys are auto-assigned with a warning. On the default
+``"log"`` policy the body is not called; the walk checks structure a real run
+enforces (duplicate measurement keys, ``multi_row`` without ``row_index``,
+signature mismatches after parameters fill-in). ``dry_run="call"`` runs the
+**real** body (side effects happen). A callable substitute runs instead of the
+body and honors ``optional=`` the same way as live mode. ``--export parameters``
+uses the same walk to collect keys and keyword values into ``parameters.toml``,
+and does not call decorated bodies or write a scored summary.
 
 ``-u`` copies ``measurements`` and ``commands`` from the prior
 ``execution.sqlite`` and sets ``imported_from`` in metadata, then re-runs only
@@ -293,7 +291,7 @@ Finalize: ``endex()``
 For a single run, :term:`endex` is process-terminating: it scores the
 aggregator, writes artifacts, and raises ``SystemExit`` with 0 or 1.
 
-``finalize_run(mode="single", run_shutdown=True)`` then:
+``finalize_run(ctx, policy=policy_for_single(run_shutdown=True))`` then:
 
 1. **Score** via ``ResultAggregator.exit_code()``:
 

@@ -298,30 +298,32 @@ only.
 
 ### E2E-SUITE-03
 
-**Behavior:** Setup failure does not fail the suite when `fail_fast` is false.
+**Behavior:** Setup failure fails the suite when `fail_fast` is false, but
+remaining test slots still run.
 
 **Acceptance criteria:**
 
-- Exit code 0.
-- Test slot still runs.
+- Exit code 1.
+- Container ends with `-fail`.
+- Test slot still runs and can pass.
 
 **Fixtures:** `suites/setup_fail.toml`
 
-**Test:** `test_suite_cli.py::test_setup_fail_exits_zero_without_fail_fast`
+**Test:** `test_suite_cli.py::test_setup_fail_fails_suite_without_fail_fast`
 
 ### E2E-SUITE-04
 
-**Behavior:** Teardown failure does not fail the suite when tests pass and
+**Behavior:** Teardown failure fails the suite when tests pass and
 `fail_fast` is false.
 
 **Acceptance criteria:**
 
-- Exit code 0.
-- Container ends with `-pass`.
+- Exit code 1.
+- Container ends with `-fail`.
 
 **Fixtures:** `suites/teardown_fail.toml`
 
-**Test:** `test_suite_cli.py::test_teardown_fail_does_not_fail_suite`
+**Test:** `test_suite_cli.py::test_teardown_fail_fails_suite_when_tests_pass`
 
 ### E2E-SUITE-05
 

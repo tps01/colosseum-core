@@ -13,15 +13,16 @@ Suites are TOML files whose script paths are relative to the suite file::
 Suite pass/fail behavior
 ------------------------
 
-Suite pass/fail is determined from **test script slots**, plus session-level
-``suite_failed`` when ``fail_fast = true`` aborts after a supporting-slot failure
-(or a teardown failure under fail_fast). With ``fail_fast = false``, setup,
-``between_tests``, and teardown outcomes are recorded in their slot folders but do
-not change the suite result.
+Suite pass/fail is determined from **test script slots** and from any
+session-level ``suite_failed`` mark. Failures in **setup**, ``between_tests``,
+or **teardown** always set ``suite_failed`` (the suite overall is FAIL) even
+when later work still runs.
 
-Use ``fail_fast = true`` when a failed setup must prevent tests from running
-and fail the suite. Teardown is still attempted. Inspect supporting-slot
-``debug.log`` and ``execution.sqlite`` even when the suite passes.
+``fail_fast`` only controls **scheduling**: with ``fail_fast = false`` (default),
+later setup / between / test scripts continue after a failure; with
+``fail_fast = true``, remaining setup / between / test work is aborted after
+any of those fail. Teardown is always attempted. Inspect supporting-slot
+``debug.log`` and ``execution.sqlite`` for details.
 
 Scheduling tests
 ----------------
@@ -186,15 +187,20 @@ cache must reopen them after each slot (or after a mid-suite ``load_config``).
 ``fail_fast``
 -------------
 
-By default (``fail_fast = false``), a failed **test** iteration does not prevent later
-test iterations or teardown. Supporting-slot failures do not fail the suite.
+``fail_fast`` controls whether the suite **stops** remaining setup / between /
+test work after a failure. It does not change whether supporting-slot failures
+count: setup, ``between_tests``, and teardown failures always set
+``suite_failed``.
 
-Set ``fail_fast = true`` to abort remaining **setup / between / test** work after any
-of those slots fail (script exception, non-zero exit, parameters load failure,
-slot-start / bookkeeping failure, or required verification/command FAIL/ERROR).
-The runner always runs **every** teardown script. The suite fails
-(``suite_failed`` in the container summary). Optional verification failures never
-trigger fail-fast.
+By default (``fail_fast = false``), a failed test or supporting slot does not
+prevent later test iterations or teardown; the suite still ends FAIL if any
+supporting slot or test slot failed.
+
+Set ``fail_fast = true`` to abort remaining **setup / between / test** work after
+any of those slots fail (script exception, non-zero exit, parameters load
+failure, slot-start / bookkeeping failure, or required verification/command
+FAIL/ERROR). The runner always runs **every** teardown script. Optional
+verification failures never trigger fail-fast.
 
 Soak-style suites accumulate failures across repeat iterations; the suite container
 summary and exit code reflect whether any test slot failed or ``suite_failed`` was set.

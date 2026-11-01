@@ -3,10 +3,9 @@
 ## Output model
 
 Each script in a suite runs in its own child folder under the suite container.
-Only **test** slot results determine suite pass/fail by default. Setup,
-`between_tests`, and teardown slots keep their own logs and optional SQLite
-evidence but do not affect the suite outcome unless `fail_fast = true` records
-session-level `suite_failed`.
+**Test** slot results and any session-level `suite_failed` mark determine suite
+pass/fail. Setup, `between_tests`, and teardown failures always set
+`suite_failed` (suite overall FAIL) even when later work still runs.
 
 ## Default behavior (`fail_fast = false`)
 
@@ -14,7 +13,8 @@ When a script in the suite **`tests`** list raises an uncaught exception:
 
 1. The runner logs a `script_fail:...` event in that test slot's database.
 2. The test slot is finalized as FAIL; later tests and teardown still run.
-3. The suite container summary reports FAIL if any test slot failed.
+3. The suite container summary reports FAIL if any test slot failed or
+   `suite_failed` was set.
 
 Therefore a suite exits **`1`** when a test script crashes without recording
 verifications.
@@ -27,7 +27,8 @@ iteration does not stop later iterations of that entry unless `fail_fast = true`
 Failures accumulate across the soak window.
 
 Supporting-script failures (setup, `between_tests`, teardown) are logged in
-their slot folders and the suite **continues**.
+their slot folders, mark `suite_failed`, and the suite **continues** (unless
+`fail_fast = true` stops remaining setup / between / test work).
 
 The same continue rules apply when a slot fails before the script body:
 
@@ -36,13 +37,13 @@ The same continue rules apply when a slot fails before the script body:
 - `begin_script_slot` failures (for example the folder cannot be created)
 
 A test that never starts still fails the suite (`suite_failed`). Later tests and
-every teardown script are still attempted. Supporting slots that never start do
-not fail the suite unless `fail_fast = true`.
+every teardown script are still attempted. Supporting slots that never start
+also fail the suite.
 
 When a test calls **`endex()`** and then raises (or exits with a non-zero
-`SystemExit`), the on-disk slot folder keeps the result `endex()` already wrote.
-The in-memory slot result is updated to FAIL, `suite_failed` is set, and later
-tests still run. `SystemExit(0)` after `endex()` is ignored.
+`SystemExit`), the on-disk slot folder is re-stamped to FAIL to match the
+in-memory result, `suite_failed` is set, and later tests still run.
+`SystemExit(0)` after `endex()` is ignored.
 
 ## Signals and interrupts
 
@@ -53,9 +54,9 @@ Python `finally` unwinds.
 
 ## Rationale
 
-The default preserves suite throughput and teardown execution. Test-script
-failures still fail the suite because the script did not complete its evidence
-path. See [docs/scope.md](../scope.md).
+The default preserves suite throughput and teardown execution while still
+failing the suite when any phase (including supporting scripts) did not
+complete successfully. See [docs/scope.md](../scope.md).
 
 ## `fail_fast = true`
 
@@ -78,4 +79,4 @@ failures do not stop the suite.
 
 Covered by `tests/integration/test_suite_runner.py` and
 `tests/e2e/test_suite_cli.py` fail-fast cases (including setup abort,
-missing-parameters abort, and multi-teardown continuation).
+teardown continuation, and metadata write resilience).

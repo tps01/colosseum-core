@@ -38,7 +38,7 @@ def test_auto_key_requires_runtime() -> None:
         auto_key()
 
 
-def test_omitted_key_fails_measurement_but_verification_runs(ctx) -> None:
+def test_omitted_key_fails_measurement_but_verification_auto_keys(ctx) -> None:
     from colosseum.logging.setup import setup_logging
 
     setup_logging(ctx, console=False, file=True)
@@ -46,8 +46,9 @@ def test_omitted_key_fails_measurement_but_verification_runs(ctx) -> None:
         _measure()
     result = _verify()
     assert result.status == "PASS"
-    assert result.message == ""
-    assert ctx.db.count_rows("verifications", "key=?", ("",)) == 1
+    assert result.message == "1"
+    assert ctx.db.count_rows("verifications", "key=?", ("1",)) == 1
+    assert ctx.db.count_rows("verifications", "key=?", ("",)) == 0
     assert "verification omitted key=" in _debug_log(ctx)
 
 

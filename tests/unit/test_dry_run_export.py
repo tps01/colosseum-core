@@ -178,7 +178,12 @@ def test_dry_run_allows_keyless_verification(unit_runtime_context) -> None:
     assert ctx.output_dir is not None
     log_text = (ctx.output_dir / "debug.log").read_text(encoding="utf-8")
     assert "verification omitted key=" in log_text
-    assert any("verification omitted key=" in tip for tip in ctx.dry_run_tips)
+    assert "assigned an auto key" in log_text
+    records = [
+        row for row in ctx.result_aggregator._records  # noqa: SLF001
+        if row.get("kind") == "verification"
+    ]
+    assert records and records[0].get("key") == "1"
 
 
 def test_dry_run_parameters_key_fills_description(unit_runtime_context) -> None:
@@ -348,7 +353,11 @@ def test_export_records_missing_keys_and_keeps_walking(unit_runtime_context) -> 
     assert len(ctx.export_errors) == 1
     assert "was missing a key" in ctx.export_errors[0]
     assert "col.auto_key()" in ctx.export_errors[0]
-    assert ctx.parameter_export == {"ok": {"value": 2.0}}
+    # Verification omitted key= is auto-assigned; measurement without key is an error.
+    assert ctx.parameter_export == {
+        "1": {"expected_val": 1.0},
+        "ok": {"value": 2.0},
+    }
 
 
 def test_export_uses_auto_key(unit_runtime_context) -> None:

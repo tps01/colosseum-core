@@ -61,16 +61,18 @@ def test_optional_failure_does_not_fail_aggregate(ctx) -> None:
     assert ctx.result_aggregator.overall_pass() is True
 
 
-def test_missing_key_warns_and_runs(ctx) -> None:
+def test_missing_key_auto_assigns_and_warns(ctx) -> None:
     from colosseum.logging.setup import setup_logging
 
     setup_logging(ctx, console=False, file=True)
     result = _bool_verify(key="", expected=True)
     assert result.status == "PASS"
-    assert ctx.db.count_rows("verifications", "key=?", ("",)) >= 1
+    assert ctx.db.count_rows("verifications", "key=?", ("1",)) >= 1
+    assert ctx.db.count_rows("verifications", "key=?", ("",)) == 0
     assert ctx.output_dir is not None
     debug = (ctx.output_dir / "debug.log").read_text(encoding="utf-8")
     assert "verification omitted key=" in debug
+    assert "assigned an auto key" in debug
 
 
 def test_author_can_require_key_in_body(ctx) -> None:
@@ -80,19 +82,29 @@ def test_author_can_require_key_in_body(ctx) -> None:
             return missing_measurement_result(key=key, optional=optional)
         return VerificationResult(status="PASS", message="", optional=optional)
 
-    result = needs_key(key="")
-    assert result.status == "ERROR"
-    assert "no measurement for key=" in result.message
+    result = needs_key(key="absent")
+    assert result.status == "PASS"
+    missing = needs_key(key="")
+    # blank key= is auto-assigned; body still receives a non-empty key
+    assert missing.status == "PASS"
+    assert ctx.db.count_rows("verifications", "key=?", ("1",)) >= 1
 
 
 def test_keyless_verification_without_key_parameter(ctx) -> None:
+    from colosseum.logging.setup import setup_logging
+
+    setup_logging(ctx, console=False, file=True)
+
     @verification
     def spot_check() -> bool:
         return True
 
     result = spot_check()
     assert result.status == "PASS"
-    assert ctx.db.count_rows("verifications", "key=?", ("",)) >= 1
+    assert ctx.db.count_rows("verifications", "key=?", ("1",)) >= 1
+    assert ctx.db.count_rows("verifications", "key=?", ("",)) == 0
+    debug = (ctx.output_dir / "debug.log").read_text(encoding="utf-8")
+    assert "verification omitted key=" in debug
 
 
 def test_exception_becomes_error_status(ctx) -> None:
@@ -101,16 +113,23 @@ def test_exception_becomes_error_status(ctx) -> None:
     assert "boom" in result.message
 
 
-def test_optional_kwarg_requires_wrapped_parameter(ctx) -> None:
-    """Document specification: optional= must be accepted by the wrapped function signature."""
+def test_optional_kwarg_injected_without_wrapped_parameter(ctx) -> None:
+    """Framework injects optional= even when the wrapped function omits it."""
 
     @verification()
     def no_optional_param(*, key: str) -> bool:
         return False
 
     result = no_optional_param(key="k", optional=True)
-    assert result.status == "ERROR"
-    assert "optional" in result.message.lower() or "unexpected" in result.message.lower()
+    assert result.status == "FAIL"
+    assert result.optional is True
+    assert ctx.result_aggregator.overall_pass() is True
+
+
+def test_invalid_status_is_rejected() -> None:
+    with pytest.raises(ValueError, match="invalid outcome status"):
+        VerificationResult(status="NOPE")
+    assert VerificationResult(status="FAILED").status == "FAIL"
 
 
 def test_verification_result_passthrough(ctx) -> None:

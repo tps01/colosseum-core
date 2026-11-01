@@ -88,7 +88,7 @@ Greenfield plugins need a full project file, not only the entry point::
    version = "0.1.0"
    description = "My Colosseum extension"
    requires-python = ">=3.9"
-   dependencies = ["colosseum-core>=0.17.0,<0.18"]
+   dependencies = ["colosseum-core>=0.18.0,<0.19"]
 
    [project.entry-points."colosseum.plugins"]
    acme = "acme:register"
@@ -98,8 +98,10 @@ Greenfield plugins need a full project file, not only the entry point::
 
 Keep heavy imports inside ``register()`` so importing the package stays lightweight.
 
-Duplicate namespaces or config sections raise ``PluginRegistrationError``. A failing
-``register()`` also fails fast at load time.
+The first ``col.<namespace>`` access loads **every** installed
+``colosseum.plugins`` entry point (eager registration). A failing
+``register()`` fails fast and names the entry point in the error. Duplicate
+namespaces or config sections raise ``PluginRegistrationError``.
 
 First-party namespaces (choose a distinct name for your own plugin):
 ``equipment``, ``shared``, ``io``, ``host``, ``messaging``, and ``gui``.
@@ -114,9 +116,10 @@ so test scripts are immediately readable to people less familiar with Python:
 ``expected_val=5``, ``units="V"``, and ``tolerance=0.5`` show intent at the call site.
 
 ``--dry-run`` does not call a decorated body unless that function opts in.
-Pass ``dry_run="call"`` to run the real function, or ``dry_run=probe`` to call
-``probe`` with the same arguments instead. The default, ``dry_run="log"``, logs
-the arguments and returns ``None``.
+Pass ``dry_run="call"`` to run the **real** function (side effects happen), or
+``dry_run=probe`` to call ``probe`` with the same arguments instead. The
+default, ``dry_run="log"``, logs the arguments and returns ``None`` without
+calling the body. A substitute honors ``optional=`` the same way as live mode.
 
 .. code-block:: python
 

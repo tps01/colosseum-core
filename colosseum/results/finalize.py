@@ -1,17 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 from colosseum.config.parameters import owed_limit_keys
 from colosseum.database import VerificationRow
 from colosseum.decorators.verification import VerificationResult, verification_limit_fields
 from colosseum.logging.setup import close_logger_handlers
-from colosseum.results.finalize_policy import (
-    FinalizePolicy,
-    policy_for_single,
-    policy_for_suite_slot,
-)
 from colosseum.runner.runtime import ensure_runtime_ready, rename_run_directory_for_result
 
 if TYPE_CHECKING:
@@ -20,6 +15,7 @@ if TYPE_CHECKING:
 
     from colosseum.context import RuntimeContext
     from colosseum.database.manager import CommandRecord, MeasurementRecord, VerificationRecord
+    from colosseum.results.finalize_policy import FinalizePolicy
 
 
 @dataclass
@@ -120,22 +116,9 @@ def _write_run_artifacts(
 def finalize_run(
     ctx: RuntimeContext,
     *,
-    mode: Literal["single", "slot"] | None = None,
-    affects_suite_result: bool = True,
-    run_shutdown: bool = False,
-    policy: FinalizePolicy | None = None,
+    policy: FinalizePolicy,
 ) -> FinalizeRunResult:
-    """Shared finalize path for single runs and suite script slots.
-
-    Prefer ``policy=`` for new callers. ``mode`` / ``affects_suite_result`` /
-    ``run_shutdown`` remain for compatibility and derive a policy when omitted.
-    """
-    if policy is None:
-        if mode == "slot" or (mode is None and ctx.session.kind == "suite"):
-            policy = policy_for_suite_slot(affects_suite_result=affects_suite_result)
-        else:
-            policy = policy_for_single(run_shutdown=run_shutdown)
-
+    """Shared finalize path for single runs and suite script slots."""
     if policy.kind == "single":
         ensure_runtime_ready(ctx)
 
