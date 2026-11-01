@@ -52,7 +52,9 @@ def load_run_evidence(run_dir: Path) -> EvidenceLoad:
     database = run_dir / "execution.sqlite"
     if not database.is_file():
         return EvidenceLoad(rows=[], error=f"No execution.sqlite in {run_dir.name}.")
-    uri = database.resolve().as_uri() + "?mode=ro"
+    from colosseum.paths import sqlite_readonly_uri
+
+    uri = sqlite_readonly_uri(database)
     try:
         connection = sqlite3.connect(uri, uri=True)
     except sqlite3.Error as exc:

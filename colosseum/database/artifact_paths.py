@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from colosseum.paths import absolute_path
+
 
 def stored_artifact_path(path: Path | str, output_dir: Path | None) -> str:
     """Return the string to store in ``measurements.artifact_path``.
@@ -18,9 +20,9 @@ def stored_artifact_path(path: Path | str, output_dir: Path | None) -> str:
     if not candidate.is_absolute():
         return candidate.as_posix()
     try:
-        relative = candidate.resolve().relative_to(output_dir.resolve())
+        relative = absolute_path(candidate).relative_to(absolute_path(output_dir))
     except ValueError:
-        return str(candidate.resolve())
+        return str(absolute_path(candidate))
     return relative.as_posix()
 
 
@@ -53,10 +55,10 @@ def resolve_stored_artifact(
     for root in (run_dir, import_origin):
         if root is None:
             continue
-        joined = (root / relative).resolve()
+        joined = absolute_path(root / relative)
         if joined.is_file():
             return joined
-    return (run_dir / relative).resolve()
+    return absolute_path(run_dir / relative)
 
 
 def relativize_imported_artifact(stored: str | None, source_run: Path) -> str | None:
@@ -69,7 +71,7 @@ def relativize_imported_artifact(stored: str | None, source_run: Path) -> str | 
         return text.replace("\\", "/")
     resolved = resolve_stored_artifact(text, run_dir=source_run)
     try:
-        return resolved.resolve().relative_to(source_run.resolve()).as_posix()
+        return absolute_path(resolved).relative_to(absolute_path(source_run)).as_posix()
     except ValueError:
         if resolved.is_file():
             return str(resolved)
@@ -81,7 +83,7 @@ def _rebase_missing_absolute(stored: Path, run_dir: Path) -> Path | None:
     # Skip the drive/root component; try longest meaningful suffix first.
     for start in range(1, len(parts)):
         suffix = Path(*parts[start:])
-        candidate = (run_dir / suffix).resolve()
+        candidate = absolute_path(run_dir / suffix)
         if candidate.is_file():
             return candidate
     return None

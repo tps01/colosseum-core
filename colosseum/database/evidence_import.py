@@ -48,7 +48,9 @@ _COMMAND_SELECT = (
 
 def resolve_previous_run_dir(path: Path) -> Path:
     """Resolve a prior run directory, accepting optional ``-pass`` / ``-fail`` suffix."""
-    resolved = path.resolve()
+    from colosseum.paths import absolute_path
+
+    resolved = absolute_path(path)
     if resolved.is_dir():
         return resolved
     raise FileNotFoundError(f"Previous output directory not found: {resolved}")
