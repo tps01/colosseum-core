@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "colosseum-contract-broken"
+version = "0.0.0"
+description = "Broken fixture plugin for core plugin-contract e2e fail-fast tests"
+requires-python = ">=3.9"
+
+[project.entry-points."colosseum.plugins"]
+contract_broken = "colosseum_contract_broken:register"
+
+[tool.setuptools.packages.find]
+include = ["colosseum_contract_broken*"]

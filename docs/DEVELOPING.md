@@ -13,11 +13,12 @@ python -m venv .venv
 # Windows: .venv\Scripts\activate
 # Linux/macOS: source .venv/bin/activate
 python -m pip install -U pip setuptools wheel
-python -m pip install -e .
+python -m pip install -r requirements.txt
 ```
 
-That single editable install includes runtime, test, static-analysis, and docs
-tooling.
+`requirements.txt` editable-installs the package and adds test, static-analysis,
+and docs tooling. A plain wheel install (`pip install .` or a release wheel)
+includes only runtime dependencies.
 
 ## Checks
 

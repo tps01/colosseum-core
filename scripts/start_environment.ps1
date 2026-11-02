@@ -50,12 +50,12 @@ Write-Host "Installing editable project: $InstallTarget"
 & $VenvPython -m pip install --editable $InstallTarget
 
 if (-not $SelectedSkipDev) {
-    $DevRequirements = Join-Path $RepoRoot "requirements-dev.txt"
-    if (-not (Test-Path $DevRequirements)) {
-        throw "Dev requirements file was not found: $DevRequirements"
+    $Requirements = Join-Path $RepoRoot "requirements.txt"
+    if (-not (Test-Path $Requirements)) {
+        throw "Requirements file was not found: $Requirements"
     }
-    Write-Host "Installing dev requirements: requirements-dev.txt"
-    & $VenvPython -m pip install -r $DevRequirements
+    Write-Host "Installing requirements: requirements.txt"
+    & $VenvPython -m pip install -r $Requirements
 }
 
 . $ActivateScript

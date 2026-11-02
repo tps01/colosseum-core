@@ -60,6 +60,28 @@ def test_required_error_fails_overall() -> None:
 
 
 @pytest.mark.requirement("U-AGG-01")
+def test_required_blocked_fails_overall() -> None:
+    agg = ResultAggregator()
+    _record(agg, "PASS")
+    _record(agg, "BLOCKED", optional=False)
+    assert agg.overall_pass() is False
+    assert agg.exit_code() == 1
+    failed = agg.failed_required_outcomes()
+    assert len(failed) == 1
+    assert failed[0]["status"] == "BLOCKED"
+
+
+@pytest.mark.requirement("U-AGG-01")
+def test_optional_blocked_does_not_fail_overall() -> None:
+    agg = ResultAggregator()
+    _record(agg, "PASS")
+    _record(agg, "BLOCKED", optional=True)
+    assert agg.overall_pass() is True
+    assert agg.exit_code() == 0
+    assert agg.failed_required_outcomes() == []
+
+
+@pytest.mark.requirement("U-AGG-01")
 def test_optional_fail_does_not_fail_overall() -> None:
     agg = ResultAggregator()
     _record(agg, "PASS")
@@ -78,7 +100,7 @@ def test_optional_failure_before_required_failure_still_fails() -> None:
 @pytest.mark.requirement("U-AGG-02")
 def test_exit_code_only_zero_or_one() -> None:
     agg = ResultAggregator()
-    assert agg.exit_code() in (0, 1)
+    assert agg.exit_code() == 0
     _record(agg, "FAIL")
     assert agg.exit_code() == 1
 
@@ -88,20 +110,16 @@ def test_suite_error_and_teardown_failed_force_fail() -> None:
     agg = ResultAggregator()
     _record(agg, "PASS")
     agg.mark_suite_error("setup failed")
+    assert agg.suite_error is True
     assert agg.overall_pass() is False
     assert agg.failed_required_outcomes()
 
     agg2 = ResultAggregator()
     _record(agg2, "PASS")
     agg2.mark_teardown_failed()
+    assert agg2.teardown_failed is True
     assert agg2.overall_pass() is False
     assert agg2.exit_code() == 1
-
-
-def test_suite_error_flag_is_recorded() -> None:
-    agg = ResultAggregator()
-    agg.mark_suite_error("setup failed")
-    assert agg.suite_error is True
 
 
 def test_failed_required_excludes_optional_passes() -> None:
@@ -191,7 +209,7 @@ def test_failed_required_outcomes_keep_kind_and_key() -> None:
     assert by_kind["verification"]["key"] == "k"
     assert by_kind["command"]["key"] == "ck"
     assert all(row["optional"] is False for row in failed)
-    assert all(row["status"] in {"FAIL", "ERROR"} for row in failed)
+    assert all(row["status"] in {"FAIL", "ERROR", "BLOCKED"} for row in failed)
 
 
 def test_optional_outcomes_include_commands_and_verifications() -> None:

@@ -2,15 +2,33 @@
 
 from __future__ import annotations
 
+import math
+
 import pytest
 from colosseum.decorators import command, measurement
-from colosseum.units import parse_duration, parse_frequency
+from colosseum.units import coerce_units, parse_duration, parse_frequency
 
 
 def test_parse_duration_suffix() -> None:
     assert parse_duration("61s") == pytest.approx(61.0)
     assert parse_duration("500ms") == pytest.approx(0.5)
     assert parse_duration(2) == pytest.approx(2.0)
+    assert parse_duration("1us") == pytest.approx(1e-6)
+    assert parse_duration("1µs") == pytest.approx(1e-6)
+    assert parse_duration("1w") == pytest.approx(604800.0)
+    assert parse_duration("1d") == pytest.approx(86400.0)
+    assert parse_duration("1h30m") == pytest.approx(5400.0)
+
+
+def test_parse_duration_rejects_empty_negative_and_nonfinite() -> None:
+    with pytest.raises(ValueError, match="empty"):
+        parse_duration("")
+    with pytest.raises(ValueError, match="empty"):
+        parse_duration(" ")
+    with pytest.raises(ValueError, match="non-negative"):
+        parse_duration(-1)
+    with pytest.raises(ValueError, match="finite"):
+        parse_duration(math.inf)
 
 
 def test_parse_frequency_units() -> None:
@@ -22,9 +40,42 @@ def test_parse_frequency_units() -> None:
     assert parse_frequency("1e6") == pytest.approx(1e6)
 
 
-def test_parse_frequency_rejects_duration_suffix() -> None:
+def test_parse_frequency_rejects_bad_types_and_duration_suffix() -> None:
     with pytest.raises(ValueError, match="Invalid frequency"):
         parse_frequency("61s")
+    with pytest.raises(ValueError, match="Invalid frequency"):
+        parse_frequency(True)
+    with pytest.raises(ValueError, match="Invalid frequency"):
+        parse_frequency(None)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="empty"):
+        parse_frequency(" ")
+    with pytest.raises(ValueError, match="non-negative"):
+        parse_frequency(-1.0)
+
+
+def test_coerce_units_classifiers() -> None:
+    converted = coerce_units(
+        {
+            "timeout_s": "500ms",
+            "span_hz": "10kHz",
+            "rbw": "1kHz",
+            "vbw": "100Hz",
+            "span": "1MHz",
+            "expected_s": "1s",
+            "position_s": "2s",
+            "rate_per_s": "3s",
+            "label": "keep",
+        }
+    )
+    assert converted["timeout_s"] == pytest.approx(0.5)
+    assert converted["span_hz"] == pytest.approx(1e4)
+    assert converted["rbw"] == pytest.approx(1e3)
+    assert converted["vbw"] == pytest.approx(100.0)
+    assert converted["span"] == pytest.approx(1e6)
+    assert converted["expected_s"] == "1s"
+    assert converted["position_s"] == "2s"
+    assert converted["rate_per_s"] == "3s"
+    assert converted["label"] == "keep"
 
 
 @command

@@ -8,15 +8,6 @@ from colosseum.config.loader import normalize_sections
 from colosseum.config.sections import ConfigSectionSpec
 
 
-def _get_dotted(raw: dict, dotted: str) -> object | None:
-    cursor: object = raw
-    for part in dotted.split("."):
-        if not isinstance(cursor, dict) or part not in cursor:
-            return None
-        cursor = cursor[part]
-    return cursor
-
-
 PSU_SPEC = ConfigSectionSpec(
     dotted_path="equipment.psu",
     id_field="psu_id",
@@ -99,10 +90,6 @@ def test_non_int_id_raises() -> None:
     raw = {"equipment": {"psu": {"psu_id": "one", "driver": "sim", "resource": "A"}}}
     with pytest.raises(ValueError, match="must be int"):
         normalize_sections(raw, [PSU_SPEC])
-
-
-def test_get_dotted_return_type_is_object_or_none() -> None:
-    assert _get_dotted.__annotations__["return"] == "object | None"
 
 
 def test_invalid_section_type_raises() -> None:

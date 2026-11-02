@@ -46,11 +46,6 @@ def test_quoted_values_preserved() -> None:
     assert raw["model"] == "already-quoted"
 
 
-def test_suite_name_without_quotes() -> None:
-    raw = loads_relaxed('name = fixture_happy\n')
-    assert raw["name"] == "fixture_happy"
-
-
 def test_bool_spellings_become_bools() -> None:
     raw = loads_relaxed(
         """

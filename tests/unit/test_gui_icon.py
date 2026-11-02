@@ -42,6 +42,6 @@ def test_wrap_icon_is_a_semi_transparent_png() -> None:
     assert max(strong) == 200
 
 
-def test_init_windows_taskbar_is_safe_off_windows(monkeypatch) -> None:
+def test_init_windows_taskbar_is_noop_off_windows(monkeypatch) -> None:
     monkeypatch.setattr("colosseum.gui._icon.sys.platform", "linux")
-    init_windows_taskbar()
+    assert init_windows_taskbar() is None
