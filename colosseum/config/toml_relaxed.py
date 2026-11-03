@@ -67,15 +67,36 @@ def _needs_quoting(value: str) -> bool:
     return not _is_numeric_literal(value)
 
 
+def _toggle_multiline(line: str, delimiter: str, *, active: bool) -> bool:
+    """Return whether ``delimiter`` leaves us inside a multiline string after ``line``."""
+    # TOML multiline delimiters are three quotes; count odd/even occurrences per line.
+    count = line.count(delimiter)
+    if count == 0:
+        return active
+    # Each delimiter toggles; odd count flips the active state.
+    return active if count % 2 == 0 else not active
+
+
 def prepare_toml_text(text: str) -> str:
     """Quote bare-word RHS values so ``model = keysight-e4407b`` is valid TOML.
 
     Bare boolean spellings (``yes``, ``True``, ``F``, …) are rewritten to TOML
     ``true`` / ``false`` literals. Quoted strings such as ``"no"`` are left alone
-    so intentional string values are preserved after parse.
+    so intentional string values are preserved after parse. Content inside
+    multiline basic (``\"\"\"``) or literal (``'''``) strings is left unchanged.
     """
     lines: list[str] = []
+    in_multiline_basic = False
+    in_multiline_literal = False
     for line in text.splitlines():
+        if in_multiline_basic or in_multiline_literal:
+            lines.append(line)
+            if in_multiline_basic:
+                in_multiline_basic = _toggle_multiline(line, '"""', active=True)
+            else:
+                in_multiline_literal = _toggle_multiline(line, "'''", active=True)
+            continue
+
         stripped = line.strip()
         if not stripped or stripped.startswith("#") or stripped.startswith("["):
             lines.append(line)
@@ -87,6 +108,17 @@ def prepare_toml_text(text: str) -> str:
             continue
 
         raw_value, comment_suffix = _split_inline_comment(match.group("value"))
+        # Odd delimiter count on the RHS opens a multiline string that continues
+        # on following lines; leave those lines unchanged until it closes.
+        if raw_value.count('"""') % 2 == 1:
+            lines.append(line)
+            in_multiline_basic = True
+            continue
+        if raw_value.count("'''") % 2 == 1:
+            lines.append(line)
+            in_multiline_literal = True
+            continue
+
         bool_literal = _BARE_BOOL_LITERALS.get(raw_value)
         if bool_literal is not None:
             lines.append(
