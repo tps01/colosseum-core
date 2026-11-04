@@ -10,11 +10,13 @@ from colosseum.config.parameters import (
     ParametersError,
     apply_parameters_to_kwargs,
     attach_parameters,
+    attach_stacked_parameters,
     coerce_bool,
     coerce_parameter_value,
     is_limit_section,
     load_parameter,
     load_parameters_file,
+    merge_parameter_tables,
     owed_limit_keys,
     resolve_parameters_path,
 )
@@ -305,10 +307,61 @@ def test_load_parameter_missing_file_key_and_field(unit_runtime_context) -> None
         load_parameter(key="example_key", field="list1")
 
     unit_runtime_context.parameters_map = {"example_key": {"count": 1}}
-    with pytest.raises(ParametersError, match="parameters key not found: missing"):
-        load_parameter(key="missing", field="count")
+    assert load_parameter(key="missing", field="count") is None
+    assert load_parameter("missing", field="count") is None
     with pytest.raises(ParametersError, match=r"field 'list1' not found in \[example_key\]"):
         load_parameter(key="example_key", field="list1")
+
+
+def test_load_parameter_optional_override_bool(unit_runtime_context, tmp_path: Path) -> None:
+    path = tmp_path / "suite.toml"
+    path.write_text("[example_override]\nexample = true\n", encoding="utf-8")
+    attach_parameters(unit_runtime_context, path)
+    assert load_parameter("example_override", field="example") is True
+
+    path.write_text("[example_override]\nexample = false\n", encoding="utf-8")
+    attach_parameters(unit_runtime_context, path)
+    assert load_parameter("example_override", field="example") is False
+    assert load_parameter("absent_override", field="example") is None
+
+
+def test_merge_parameter_tables_suite_key_replaces_test_table() -> None:
+    test = {
+        "voltage": {"limit": "5V"},
+        "current": {"limit": "5A", "note": "test"},
+    }
+    suite = {"current": {"limit": "3A"}}
+    merged = merge_parameter_tables(test, suite)
+    assert merged == {
+        "voltage": {"limit": "5V"},
+        "current": {"limit": "3A"},
+    }
+
+
+def test_attach_stacked_parameters_merges_files(
+    unit_runtime_context,
+    tmp_path: Path,
+) -> None:
+    suite_path = tmp_path / "suite_limits.toml"
+    test_path = tmp_path / "test_limits.toml"
+    suite_path.write_text('[current]\nlimit = "3A"\n', encoding="utf-8")
+    test_path.write_text(
+        '[voltage]\nlimit = "5V"\n\n[current]\nlimit = "5A"\n',
+        encoding="utf-8",
+    )
+    attach_stacked_parameters(
+        unit_runtime_context,
+        suite_path=suite_path,
+        test_path=test_path,
+    )
+    assert unit_runtime_context.parameters_path == suite_path.resolve()
+    assert unit_runtime_context.parameters_map == {
+        "voltage": {"limit": "5V"},
+        "current": {"limit": "3A"},
+    }
+    assert load_parameter("voltage", field="limit") == "5V"
+    assert load_parameter("current", field="limit") == "3A"
+    assert load_parameter("missing", field="limit") is None
 
 
 def test_load_parameter_broken_container_names_the_field(unit_runtime_context) -> None:

@@ -50,6 +50,8 @@ class SuiteDefinition:
     fail_fast: bool = False
     cycle_count: int = 1
     cycle_for: timedelta | None = None
+    parameters: Path | None = None
+    parameter_stacking: bool = True
 
 
 @dataclass(frozen=True)
@@ -167,6 +169,23 @@ def _as_bool(value: object, field: str) -> bool:
     return parsed
 
 
+def _parse_suite_parameters(raw: object, base_dir: Path) -> Path | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, str) or not raw.strip():
+        raise SuiteError("Suite field `parameters` must be a non-empty string path")
+    return absolute_path(base_dir / raw)
+
+
+def _parse_parameter_stacking(raw: object) -> bool:
+    if raw is None:
+        return True
+    parsed = coerce_config_bool(raw)
+    if parsed is None:
+        raise SuiteError("Suite field `parameter_stacking` must be a boolean")
+    return parsed
+
+
 def load_suite_toml(path: Path) -> SuiteDefinition:
     suite_path = absolute_path(path)
     if not suite_path.exists():
@@ -211,6 +230,8 @@ def load_suite_toml(path: Path) -> SuiteDefinition:
         fail_fast=_as_bool(raw.get("fail_fast"), "fail_fast"),
         cycle_count=cycle_count,
         cycle_for=cycle_for,
+        parameters=_parse_suite_parameters(raw.get("parameters"), base),
+        parameter_stacking=_parse_parameter_stacking(raw.get("parameter_stacking")),
     )
 
 
@@ -347,6 +368,7 @@ def _run_script_slot(
     from colosseum.config.parameters import (
         ParametersError,
         attach_parameters,
+        attach_stacked_parameters,
         resolve_parameters_path,
     )
 
@@ -354,19 +376,36 @@ def _run_script_slot(
     stop_fail_fast = False
     try:
         entry_parameters = entry.parameters if entry is not None else None
-        resolved_parameters = resolve_parameters_path(
-            script_path=script if phase == "test" else None,
-            cli_path=ctx.run_options.parameters_path,
-            entry_path=entry_parameters if phase == "test" else None,
+        suite_level = (
+            ctx.run_options.parameters_path
+            if ctx.run_options.parameters_path is not None
+            else suite.parameters
         )
         params_ok = True
         try:
-            attach_parameters(
-                ctx,
-                resolved_parameters,
-                required=ctx.run_options.parameters_path is not None
-                or (phase == "test" and entry_parameters is not None),
-            )
+            if phase == "test" and suite.parameter_stacking:
+                test_parameters = resolve_parameters_path(
+                    script_path=script,
+                    cli_path=None,
+                    entry_path=entry_parameters,
+                )
+                attach_stacked_parameters(
+                    ctx,
+                    suite_path=suite_level,
+                    test_path=test_parameters,
+                )
+            else:
+                resolved_parameters = resolve_parameters_path(
+                    script_path=script if phase == "test" else None,
+                    cli_path=suite_level,
+                    entry_path=entry_parameters if phase == "test" else None,
+                )
+                attach_parameters(
+                    ctx,
+                    resolved_parameters,
+                    required=suite_level is not None
+                    or (phase == "test" and entry_parameters is not None),
+                )
         except ParametersError as exc:
             params_ok = False
             script_crash = True
@@ -577,6 +616,9 @@ def run_suite(
 
     apply_enabled_reports(ctx)
     ensure_suite_runtime_ready(ctx, suite.name)
+    suite_level = (
+        options.parameters_path if options.parameters_path is not None else suite.parameters
+    )
     record_suite_provenance(
         ctx,
         suite_path=suite_path,
@@ -584,12 +626,14 @@ def run_suite(
         tests=[(entry.path, entry.parameters) for entry in suite.tests],
         between_tests=suite.between_tests,
         teardown=suite.teardown,
+        suite_parameters=suite_level,
+        parameter_stacking=suite.parameter_stacking,
     )
     runner = _ScriptRunner(run_script, ScriptRunError)
     if ctx.logger is not None:
         ctx.logger.debug(
             "Suite %r: setup=%d tests=%d between=%d teardown=%d fail_fast=%s "
-            "cycle_count=%d cycle_for=%s",
+            "cycle_count=%d cycle_for=%s parameter_stacking=%s",
             suite.name,
             len(suite.setup),
             len(suite.tests),
@@ -598,6 +642,7 @@ def run_suite(
             suite.fail_fast,
             suite.cycle_count,
             suite.cycle_for,
+            suite.parameter_stacking,
         )
 
     interrupt: BaseException | None = None

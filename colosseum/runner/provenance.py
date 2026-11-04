@@ -395,21 +395,26 @@ def suite_input_files(
     tests: Sequence[tuple[Path, Path | None]],
     between_tests: Sequence[Path],
     teardown: Sequence[Path],
+    suite_parameters: Path | None = None,
+    parameter_stacking: bool = True,
 ) -> list[InputFile]:
     """Input files known when a suite starts, before any slot runs.
 
-    A CLI ``--parameters`` file is included once. Otherwise each test contributes
-    its entry parameters path, or the sibling ``parameters.toml`` the slot would
-    load.
+    The suite-level parameters file (CLI ``--parameters`` or suite TOML
+    ``parameters``) is included once when set. With stacking on, each test also
+    contributes its entry parameters path or sibling ``parameters.toml``. With
+    stacking off, per-test parameter files are skipped when a suite-level file
+    is set.
     """
     files: list[InputFile] = [InputFile("suite", suite_path)]
     if ctx.config_path:
         files.append(InputFile("config", Path(ctx.config_path)))
     if ctx.metadata_path:
         files.append(InputFile("metadata", Path(ctx.metadata_path)))
-    cli_parameters = ctx.run_options.parameters_path
-    if cli_parameters is not None:
-        files.append(InputFile("parameters", cli_parameters))
+    if suite_parameters is None:
+        suite_parameters = ctx.run_options.parameters_path
+    if suite_parameters is not None:
+        files.append(InputFile("parameters", suite_parameters))
     for script_path in setup:
         files.append(InputFile("setup", script_path))
     for script_path in between_tests:
@@ -418,7 +423,7 @@ def suite_input_files(
         files.append(InputFile("teardown", script_path))
     for script_path, entry_parameters in tests:
         files.append(InputFile("test", script_path))
-        if cli_parameters is not None:
+        if suite_parameters is not None and not parameter_stacking:
             continue
         resolved = resolve_parameters_path(
             script_path=script_path,
@@ -574,6 +579,8 @@ def record_suite_provenance(
     tests: Sequence[tuple[Path, Path | None]],
     between_tests: Sequence[Path],
     teardown: Sequence[Path],
+    suite_parameters: Path | None = None,
+    parameter_stacking: bool = True,
 ) -> None:
     """Capture suite provenance once onto the container. Slots are not updated."""
     if ctx.provenance is not None:
@@ -586,6 +593,8 @@ def record_suite_provenance(
             tests=tests,
             between_tests=between_tests,
             teardown=teardown,
+            suite_parameters=suite_parameters,
+            parameter_stacking=parameter_stacking,
         ),
     )
     ctx.provenance = snapshot

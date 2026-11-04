@@ -267,7 +267,7 @@ def test_selected_install_wins_and_editable_repo_is_recorded(
     assert repositories[0]["dirty"] is False  # type: ignore[index]
 
 
-def test_suite_inputs_prefer_cli_parameters_over_sibling(tmp_path: Path) -> None:
+def test_suite_inputs_stack_cli_and_sibling_by_default(tmp_path: Path) -> None:
     script = tmp_path / "t.py"
     script.write_text("def main():\n    pass\n", encoding="utf-8")
     sibling = tmp_path / "parameters.toml"
@@ -290,6 +290,44 @@ def test_suite_inputs_prefer_cli_parameters_over_sibling(tmp_path: Path) -> None
                 tests=[(script, None), (script, None)],
                 between_tests=[],
                 teardown=[],
+                suite_parameters=cli_parameters,
+                parameter_stacking=True,
+            ),
+        )
+    finally:
+        _close_runtime(ctx)
+    parameter_rows = [row for row in rows if row["role"] == "parameters"]
+    assert [row["path"] for row in parameter_rows] == [
+        str(cli_parameters.resolve()),
+        str(sibling.resolve()),
+    ]
+
+
+def test_suite_inputs_opt_out_records_only_suite_level(tmp_path: Path) -> None:
+    script = tmp_path / "t.py"
+    script.write_text("def main():\n    pass\n", encoding="utf-8")
+    sibling = tmp_path / "parameters.toml"
+    sibling.write_text("[rail]\nexpected = 1\n", encoding="utf-8")
+    cli_parameters = tmp_path / "cli.toml"
+    cli_parameters.write_text("[rail]\nexpected = 2\n", encoding="utf-8")
+    suite_path = tmp_path / "suite.toml"
+    suite_path.write_text('name = "demo"\n', encoding="utf-8")
+    ctx = init_context(
+        test_case_name="demo",
+        suite_name="demo",
+        run_options=RunOptions(parameters_path=cli_parameters),
+    )
+    try:
+        rows = hash_inputs(
+            suite_input_files(
+                ctx,
+                suite_path=suite_path,
+                setup=[],
+                tests=[(script, None), (script, None)],
+                between_tests=[],
+                teardown=[],
+                suite_parameters=cli_parameters,
+                parameter_stacking=False,
             ),
         )
     finally:

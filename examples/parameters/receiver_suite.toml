@@ -1,4 +1,6 @@
 name = "receiver_limits"
+# parameters = "suite_limits.toml"
+# parameter_stacking = false
 
 tests = [
   { path = "receiver_test.py", parameters = "limits_low.toml" },

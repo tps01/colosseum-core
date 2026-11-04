@@ -59,9 +59,9 @@ Terms used in the runtime and in the user guides. See
       verifications).
 
    load_parameter
-      ``col.load_parameter(key=..., field=...)``. Returns one field from the
-      loaded :term:`parameters file`. Collection-shaped strings become lists,
-      dicts, sets, or tuples. See :doc:`writing_test_scripts`.
+      ``col.load_parameter(key, field=...)``. Returns one field from the loaded
+      :term:`parameters file`. A missing key returns ``None``. Collection-shaped
+      strings become lists, dicts, sets, or tuples. See :doc:`using_parameters`.
 
    measurement
       A decorated plugin call that stores a captured value under
@@ -80,8 +80,10 @@ Terms used in the runtime and in the user guides. See
 
    parameters file
       Optional TOML whose tables are evidence keys and values are kwargs for
-      ``key=`` calls. Resolved from ``--parameters``, a suite entry field, or
-      sibling ``parameters.toml``. See :doc:`writing_test_scripts`.
+      ``key=`` calls. Suite runs resolve a suite-level file from ``--parameters``
+      or suite TOML ``parameters``, and a test-level file from a suite entry or
+      sibling ``parameters.toml``. Stacking merges them by default. See
+      :doc:`using_parameters`.
 
    plugin
       A separate Python distribution with a ``colosseum.plugins`` entry
