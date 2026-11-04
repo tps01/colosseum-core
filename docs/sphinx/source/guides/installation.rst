@@ -117,3 +117,11 @@ example plugin (under ``examples/plugins/colosseum_template`` in the core
 checkout), or a wheel built from that package. First-party bench plugins
 (equipment, shared, host, …) are separate distributions; see
 :doc:`first_party_plugins`.
+
+Optional standalone executable
+------------------------------
+
+The intended way to run Colosseum remains ``colosseum run`` and
+``colosseum run-suite`` from a virtual environment. If you need a frozen
+onedir launcher for operators who will not install Python, see
+:doc:`freezing`. That path is optional and is not required for normal use.
