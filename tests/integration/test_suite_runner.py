@@ -581,3 +581,125 @@ def test_keyboard_interrupt_in_teardown_propagates(
     # Later teardown is skipped; suite summary is not written (Python default unwind).
     assert slot_dirs_matching(container, "teardown_ok") == []
     assert not (container / "summary.json").is_file()
+
+
+def _write_parameter_probe(tmp_path) -> tuple:
+    script = tmp_path / "param_probe.py"
+    script.write_text(
+        "\n".join(
+            [
+                "from colosseum.config.parameters import load_parameter",
+                "from colosseum.context import get_context",
+                "",
+                "",
+                "def main() -> None:",
+                "    ctx = get_context()",
+                "    payload = {",
+                '        "voltage": load_parameter("voltage", field="limit"),',
+                '        "current": load_parameter("current", field="limit"),',
+                '        "missing": load_parameter("missing", field="limit"),',
+                "    }",
+                '    (ctx.output_dir / "params.json").write_text(',
+                "        __import__('json').dumps(payload),",
+                "        encoding='utf-8',",
+                "    )",
+                "",
+            ],
+        ),
+        encoding="utf-8",
+    )
+    suite_limits = tmp_path / "suite_limits.toml"
+    suite_limits.write_text('[current]\nlimit = "3A"\n', encoding="utf-8")
+    test_limits = tmp_path / "test_limits.toml"
+    test_limits.write_text(
+        '[voltage]\nlimit = "5V"\n\n[current]\nlimit = "5A"\n',
+        encoding="utf-8",
+    )
+    cli_limits = tmp_path / "cli_limits.toml"
+    cli_limits.write_text('[current]\nlimit = "1A"\n', encoding="utf-8")
+    return script, suite_limits, test_limits, cli_limits
+
+
+def test_suite_parameter_stacking_default_merges(
+    core_config, isolated_cwd, tmp_path,
+) -> None:
+    script, suite_limits, test_limits, _cli = _write_parameter_probe(tmp_path)
+    suite_path = tmp_path / "stack_default.toml"
+    suite_path.write_text(
+        "\n".join(
+            [
+                'name = "stack_default"',
+                f'parameters = "{suite_limits.name}"',
+                "tests = [",
+                f'  {{ path = "{script.name}", parameters = "{test_limits.name}" }},',
+                "]",
+                "",
+            ],
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(SystemExit) as exc:
+        run_suite(suite_path, core_config)
+    assert exc.value.code == 0
+    slot = _slot_with_stem(latest_suite_container(isolated_cwd), "param_probe")
+    payload = json.loads((slot / "params.json").read_text(encoding="utf-8"))
+    assert payload == {"voltage": "5V", "current": "3A", "missing": None}
+
+
+def test_suite_parameter_cli_overrides_suite_toml_path(
+    core_config, isolated_cwd, tmp_path,
+) -> None:
+    from colosseum.runner.run_options import RunOptions
+
+    script, suite_limits, test_limits, cli_limits = _write_parameter_probe(tmp_path)
+    suite_path = tmp_path / "stack_cli.toml"
+    suite_path.write_text(
+        "\n".join(
+            [
+                'name = "stack_cli"',
+                f'parameters = "{suite_limits.name}"',
+                "tests = [",
+                f'  {{ path = "{script.name}", parameters = "{test_limits.name}" }},',
+                "]",
+                "",
+            ],
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(SystemExit) as exc:
+        run_suite(
+            suite_path,
+            core_config,
+            run_options=RunOptions(parameters_path=cli_limits),
+        )
+    assert exc.value.code == 0
+    slot = _slot_with_stem(latest_suite_container(isolated_cwd), "param_probe")
+    payload = json.loads((slot / "params.json").read_text(encoding="utf-8"))
+    assert payload == {"voltage": "5V", "current": "1A", "missing": None}
+
+
+def test_suite_parameter_stacking_false_excludes_test_file(
+    core_config, isolated_cwd, tmp_path,
+) -> None:
+    script, suite_limits, test_limits, _cli = _write_parameter_probe(tmp_path)
+    suite_path = tmp_path / "stack_off.toml"
+    suite_path.write_text(
+        "\n".join(
+            [
+                'name = "stack_off"',
+                f'parameters = "{suite_limits.name}"',
+                "parameter_stacking = false",
+                "tests = [",
+                f'  {{ path = "{script.name}", parameters = "{test_limits.name}" }},',
+                "]",
+                "",
+            ],
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(SystemExit) as exc:
+        run_suite(suite_path, core_config)
+    assert exc.value.code == 0
+    slot = _slot_with_stem(latest_suite_container(isolated_cwd), "param_probe")
+    payload = json.loads((slot / "params.json").read_text(encoding="utf-8"))
+    assert payload == {"voltage": None, "current": "3A", "missing": None}

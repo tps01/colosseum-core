@@ -57,8 +57,9 @@ Argument priority (summary)
   :doc:`configuration`.
 * **Reports:** any ``--report NAME`` replaces ``[colosseum.reports]`` for the
   process.
-* **Parameters:** ``--parameters`` wins over a suite entry and over sibling
-  ``parameters.toml``. See :doc:`using_parameters`.
+* **Parameters:** ``--parameters`` sets the suite-level file and overrides a
+  suite TOML ``parameters`` path. With stacking (the default), that file merges
+  onto each test entry or sibling ``parameters.toml``. See :doc:`using_parameters`.
 
 .. figure:: ../_static/uml/config-priority.png
    :alt: Precedence for config, metadata, reports, and execution mode
