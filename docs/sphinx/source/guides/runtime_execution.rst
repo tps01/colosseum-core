@@ -274,7 +274,8 @@ flow with console output and in-memory evidence.
 
 CLI ``-c namespace.function,key=val`` is the same ``@command`` path without a
 script: parse the spec, resolve the registered namespace, invoke, then
-finalize.
+finalize. Commas inside quoted strings or ``[]`` / ``()`` / ``{}`` literals
+belong to the value and are not treated as argument separators.
 
 While ``main()`` runs, plugins may stash live handles in
 :term:`resource cache`. Core does not know the types; at shutdown it calls
