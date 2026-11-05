@@ -25,6 +25,8 @@ def test_load_happy_suite(fixtures_dir) -> None:
     assert suite.fail_fast is False
     assert suite.cycle_count == 1
     assert suite.cycle_for is None
+    assert suite.parameters is None
+    assert suite.parameter_stacking is True
 
 
 def test_missing_name_raises(tmp_path) -> None:
@@ -127,6 +129,51 @@ def test_load_per_entry_parameters(tmp_path, fixtures_dir) -> None:
     assert suite.tests[0].path == suite.tests[1].path
     assert suite.tests[0].parameters == low.resolve()
     assert suite.tests[1].parameters == high.resolve()
+    assert suite.parameter_stacking is True
+
+
+def test_load_suite_parameters_and_stacking_false(tmp_path, fixtures_dir) -> None:
+    script = fixtures_dir / "scripts" / "pass_test.py"
+    suite_limits = tmp_path / "suite_limits.toml"
+    suite_limits.write_text('[current]\nlimit = "3A"\n', encoding="utf-8")
+    path = tmp_path / "suite.toml"
+    path.write_text(
+        "\n".join(
+            [
+                'name = "stack_demo"',
+                f'parameters = "{suite_limits.name}"',
+                "parameter_stacking = false",
+                f'tests = ["{script.as_posix()}"]',
+                "",
+            ],
+        ),
+        encoding="utf-8",
+    )
+    suite = load_suite_toml(path)
+    assert suite.parameters == suite_limits.resolve()
+    assert suite.parameter_stacking is False
+
+
+def test_parameter_stacking_non_bool_raises(tmp_path, fixtures_dir) -> None:
+    script = fixtures_dir / "scripts" / "pass_test.py"
+    path = tmp_path / "bad_stack.toml"
+    path.write_text(
+        f'name = "x"\nparameter_stacking = "maybe"\ntests = ["{script.as_posix()}"]\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(SuiteError, match="parameter_stacking.*boolean"):
+        load_suite_toml(path)
+
+
+def test_suite_parameters_empty_raises(tmp_path, fixtures_dir) -> None:
+    script = fixtures_dir / "scripts" / "pass_test.py"
+    path = tmp_path / "bad_params.toml"
+    path.write_text(
+        f'name = "x"\nparameters = ""\ntests = ["{script.as_posix()}"]\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(SuiteError, match="parameters.*non-empty"):
+        load_suite_toml(path)
 
 
 def test_load_fail_fast_setup_fixture(fixtures_dir) -> None:

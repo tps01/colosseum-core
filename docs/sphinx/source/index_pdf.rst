@@ -21,6 +21,7 @@ User guide for running tests and developing plugins.
    guides/running_suites
    guides/measurements_verifications
    guides/output_artifacts
+   guides/freezing
    guides/first_party_plugins
    guides/testware_library
    guides/exit_codes

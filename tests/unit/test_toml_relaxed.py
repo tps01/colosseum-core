@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover
+    import tomli as tomllib  # type: ignore[no-redef]
+
 import pytest
 
 from colosseum.config.toml_relaxed import loads_relaxed, prepare_toml_text
@@ -79,3 +84,27 @@ def test_prepare_quotes_bare_word_only() -> None:
     prepared = prepare_toml_text("model = keysight-esg\noutput = false\n")
     assert 'model = "keysight-esg"' in prepared
     assert "output = false" in prepared
+
+
+def test_multiline_string_body_not_rewritten() -> None:
+    snippet = '''
+notes = """
+status = pending
+ready = yes
+"""
+'''
+    expected = tomllib.loads(snippet)
+    assert loads_relaxed(snippet) == expected
+    assert "status = pending" in expected["notes"]
+    assert "ready = yes" in expected["notes"]
+
+
+def test_multiline_literal_string_body_not_rewritten() -> None:
+    snippet = """
+notes = '''
+status = pending
+ready = yes
+'''
+"""
+    expected = tomllib.loads(snippet)
+    assert loads_relaxed(snippet) == expected

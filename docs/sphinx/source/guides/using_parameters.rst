@@ -6,19 +6,29 @@ keys; values are keyword arguments for ``@command`` and ``@verification`` calls
 that pass ``key=``. A field in the file overrides the same argument on the call.
 Arguments the file omits stay as passed.
 
-.. list-table:: Parameter file selection (first match wins)
+.. list-table:: Parameter file selection
    :header-rows: 1
 
-   * - Priority
-     - File source
-   * - 1
-     - CLI ``--parameters PATH``
-   * - 2
-     - Suite test entry's ``parameters`` field
-   * - 3
-     - ``parameters.toml`` beside the script
-   * - 4
+   * - Source
+     - Role
+   * - CLI ``--parameters PATH``
+     - Suite-level file for the process (overrides the suite TOML path)
+   * - Suite TOML ``parameters = "..."``
+     - Suite-level file when the CLI flag is omitted
+   * - Suite test entry ``parameters``
+     - Test-level file for that slot
+   * - ``parameters.toml`` beside the script
+     - Test-level file when the entry has no ``parameters`` path
+   * - None of the above
      - No parameter file
+
+For a single ``colosseum run``, the first present source among CLI, sibling
+``parameters.toml``, and none applies; there is no suite TOML. For
+``colosseum run-suite``, stacking is the default: each test slot loads the
+union of its test-level file and the suite-level file. A shared key is replaced
+as a whole table by the suite-level section. ``parameter_stacking = false``
+restores one-file selection (suite-level file when set, otherwise the test
+file). Setup, between, and teardown slots load only the suite-level file.
 
 .. figure:: ../_static/uml/parameters-resolution.png
    :alt: Parameters file resolution and BLOCKED owed limits
@@ -48,9 +58,10 @@ configured limits, finalization records the corresponding verification as
        measure_level(key="rx_level", value=0.0)
        verify_level(key="rx_level")  # expected_val / tolerance filled from file
 
-**Suite** (same script, two files)::
+**Suite** (suite-level file stacked onto per-entry files)::
 
    name = "receiver_limits"
+   parameters = "suite_limits.toml"
    tests = [
      { path = "receiver_test.py", parameters = "limits_low.toml" },
      { path = "receiver_test.py", parameters = "limits_high.toml" },
@@ -58,11 +69,23 @@ configured limits, finalization records the corresponding verification as
 
 **Reading one field**
 
-``col.load_parameter(key=..., field=...)`` returns one value from the loaded
-parameters file. A procedure uses it for a list of paths or another setting
-the script reads itself. Ints, floats, bools, and ordinary strings come back
-as written. A TOML array or inline table comes back as a list or dict.
-A quoted Python literal is parsed, and so is a bracketed list of bare words.
+``col.load_parameter(key, field=...)`` returns one value from the loaded
+parameters file. The key may be positional or a keyword. A procedure uses it
+for a list of paths or another setting the script reads itself. Ints, floats,
+bools, and ordinary strings come back as written. A TOML array or inline table
+comes back as a list or dict. A quoted Python literal is parsed, and so is a
+bracketed list of bare words. A missing key returns ``None``.
+
+**Optional suite override**::
+
+   [example_override]
+   example = true
+
+**Script**::
+
+   override = col.load_parameter("example_override", field="example")
+   if override:
+       ...
 
 **captures.toml**::
 
@@ -82,10 +105,10 @@ inside a list become bools. A note such as ``[see manual]`` stays a string.
 A quoted number such as ``"99"`` stays a string; unquoted ``99`` is an int.
 ``key=`` calls receive the value as loaded from TOML.
 
-A missing parameters file, key, or field raises ``ParametersError``. A matched
-bracket string that cannot be parsed, such as an empty slot or an unclosed
-inner bracket, raises ``ParametersError`` as well. ``{}`` is an empty dict.
-An empty set has no literal form.
+No parameters file loaded, or a missing field inside a present key, raises
+``ParametersError``. A matched bracket string that cannot be parsed, such as an
+empty slot or an unclosed inner bracket, raises ``ParametersError`` as well.
+``{}`` is an empty dict. An empty set has no literal form.
 
 See ``examples/parameters/`` in the core repository checkout. For ready-made bench procedures,
 copy a folder from :doc:`testware_library`.
@@ -141,5 +164,5 @@ overriding 3.3 +/- 0.1 on the call, and records FAIL. Change only the file's
 
 Commands and verifications receive per-key overrides. Measurements are included
 in parameter export, but their acquisition arguments are not overridden by
-this mechanism. File selection precedence chooses one file; it does not merge
-the CLI, suite-entry, and sibling parameter files.
+this mechanism. Suite stacking merges the suite-level file onto each test file
+by default; a single ``colosseum run`` still loads one file.

@@ -44,8 +44,8 @@ def resolve_parameters_path(
 ) -> Path | None:
     """Return the parameters file for this slot, or ``None`` when none applies.
 
-    Order: CLI ``--parameters``, suite entry ``parameters``, sibling
-    ``parameters.toml`` beside the script.
+    Order: suite-level path (CLI ``--parameters`` or suite TOML ``parameters``),
+    suite entry ``parameters``, sibling ``parameters.toml`` beside the script.
     """
     from colosseum.paths import absolute_path
 
@@ -58,6 +58,17 @@ def resolve_parameters_path(
         if sibling.is_file():
             return sibling
     return None
+
+
+def merge_parameter_tables(
+    base: dict[str, dict[str, Any]],
+    overlay: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Return ``base`` tables with whole ``overlay`` tables replacing the same key."""
+    merged = {key: dict(fields) for key, fields in base.items()}
+    for key, fields in overlay.items():
+        merged[key] = dict(fields)
+    return merged
 
 
 def load_parameters_file(path: Path) -> dict[str, dict[str, Any]]:
@@ -254,27 +265,80 @@ def attach_parameters(
         ctx.logger.info("Parameters file: %s (%d section(s))", resolved, len(ctx.parameters_map))
 
 
+def attach_stacked_parameters(
+    ctx: RuntimeContext,
+    *,
+    suite_path: Path | None,
+    test_path: Path | None,
+) -> None:
+    """Load test tables, then replace same-key tables from the suite-level file.
+
+    Either path may be omitted. A path that is set must exist. When both files
+    load, ``ctx.parameters_path`` is the suite-level file and the test path is
+    recorded as ``parameters_file_test``.
+    """
+    from colosseum.paths import absolute_path
+
+    ctx.parameters_map = None
+    ctx.parameters_path = None
+    if suite_path is None and test_path is None:
+        return
+
+    test_tables: dict[str, dict[str, Any]] = {}
+    resolved_test: Path | None = None
+    if test_path is not None:
+        resolved_test = absolute_path(test_path)
+        test_tables = load_parameters_file(resolved_test)
+
+    suite_tables: dict[str, dict[str, Any]] = {}
+    resolved_suite: Path | None = None
+    if suite_path is not None:
+        resolved_suite = absolute_path(suite_path)
+        suite_tables = load_parameters_file(resolved_suite)
+
+    if resolved_suite is not None:
+        ctx.parameters_map = merge_parameter_tables(test_tables, suite_tables)
+        ctx.parameters_path = resolved_suite
+    else:
+        ctx.parameters_map = test_tables
+        ctx.parameters_path = resolved_test
+
+    if ctx.db.is_initialized():
+        if ctx.parameters_path is not None:
+            ctx.db.insert_run_metadata("parameters_file", str(ctx.parameters_path))
+        if resolved_suite is not None and resolved_test is not None:
+            ctx.db.insert_run_metadata("parameters_file_test", str(resolved_test))
+    if ctx.logger is not None:
+        ctx.logger.info(
+            "Parameters file: %s (%d section(s))",
+            ctx.parameters_path,
+            len(ctx.parameters_map),
+        )
+        if resolved_suite is not None and resolved_test is not None:
+            ctx.logger.info("Parameters file (test): %s", resolved_test)
+
+
 _CONTAINER_CLOSERS = {"[": "]", "{": "}", "(": ")"}
 _BARE_BOOLS = {"true": True, "yes": True, "false": False, "no": False}
 
 
-def load_parameter(*, key: str, field: str) -> Any:  # noqa: ANN401
+def load_parameter(key: str, *, field: str) -> Any:  # noqa: ANN401
     """Return one field from the loaded parameters file.
 
     ``key`` is a TOML table name and ``field`` is a name in that table.
-    Ints, floats, bools, and ordinary strings are returned as loaded. A string
-    shaped like a list, dict, set, or tuple is parsed into that value. ``key=``
-    injection still receives the TOML value stored on the context.
+    A missing key returns ``None``. Ints, floats, bools, and ordinary strings
+    are returned as loaded. A string shaped like a list, dict, set, or tuple is
+    parsed into that value. ``key=`` injection still receives the TOML value
+    stored on the context.
     """
     from colosseum.context import get_context
 
     ctx = get_context()
     if ctx.parameters_map is None:
         raise ParametersError("no parameters file is loaded")
-    try:
-        table = ctx.parameters_map[key]
-    except KeyError:
-        raise ParametersError(f"parameters key not found: {key}") from None
+    table = ctx.parameters_map.get(key)
+    if table is None:
+        return None
     if field not in table:
         raise ParametersError(f"parameters field {field!r} not found in [{key}]")
     try:

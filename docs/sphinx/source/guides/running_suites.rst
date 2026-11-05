@@ -68,14 +68,21 @@ Suite flow
    :align: center
 
    Setup and teardown always run (teardown even after fail_fast). Test entries may
-   each set ``parameters``; CLI ``--parameters`` still wins for the process.
+   each set ``parameters``. Suite-level ``parameters`` stacks onto those files by
+   default; CLI ``--parameters`` overrides the suite TOML path.
 
 Parameterized suite example
 ---------------------------
 
-Same script, two limit files (paths relative to the suite TOML)::
+Suite-level file plus two per-entry limit files (paths relative to the suite
+TOML). Stacking is the default, so each test slot loads the union of
+``suite_limits.toml`` and that entry's file. A shared key is replaced as a
+whole table by the suite-level section. Set ``parameter_stacking = false`` to
+load only the suite-level file (or only the entry file when no suite-level
+file is set)::
 
    name = "receiver_limits"
+   parameters = "suite_limits.toml"
 
    tests = [
      { path = "receiver_test.py", parameters = "limits_low.toml" },
@@ -86,6 +93,7 @@ Run::
 
    colosseum run-suite receiver_suite.toml -g config.toml --report junit
 
+``--parameters other.toml`` uses ``other.toml`` instead of ``suite_limits.toml``.
 See ``examples/parameters/`` in the core package and :doc:`testware_library` for
 copy-out stubs.
 
@@ -114,10 +122,12 @@ The suite below runs ``test_a.py``, then ``between.py``, then ``test_b.py``.
    tests = ["../scripts/test_a.py", "../scripts/test_b.py"]
    between_tests = ["../scripts/between.py"]
 
-A test entry may set ``parameters`` to a TOML path (relative to the suite file).
-The same script can appear twice with different files. Setup, between, and
-teardown slots do not inherit a test entry's parameters file. CLI
-``--parameters`` still wins for the whole process when present.
+A suite may set top-level ``parameters`` to a TOML path (relative to the suite
+file). A test entry may set its own ``parameters`` the same way. The same script
+can appear twice with different files. Stacking merges the suite-level file
+onto each test file by default. Setup, between, and teardown slots load only
+the suite-level file. CLI ``--parameters`` overrides the suite TOML path for the
+whole process.
 
 Each test script can be minimal. The runner provides an output directory through
 ``get_context().output_dir``:

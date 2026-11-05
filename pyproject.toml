@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "colosseum-core"
-version = "0.18.2"
+version = "0.18.3"
 description = "Colosseum test automation framework (core runtime)"
 requires-python = ">=3.9"
 license = "MIT"
@@ -15,6 +15,8 @@ dependencies = [
   "PyYAML>=6.0,<7",
   "pyinstrument>=4.0",
   "wakepy>=0.10",
+  "pyinstaller>=6.22,<7",
+  "pyinstaller-hooks-contrib>=2026.9",
 ]
 
 [tool.pytest.ini_options]
@@ -32,13 +34,14 @@ colosseum = "colosseum.runner.cli:main"
 include = ["colosseum", "colosseum.*"]
 
 [tool.setuptools.package-data]
-colosseum = ["py.typed"]
+colosseum = ["py.typed", "hooks/hook-colosseum.py"]
 "colosseum.gui" = ["assets/*"]
 
 [tool.ruff]
 target-version = "py39"
 line-length = 100
 src = ["colosseum", "scripts"]
+exclude = ["colosseum/hooks"]
 
 [tool.ruff.lint]
 select = ["A", "BLE", "FBT", "N", "COM", "C4", "ISC", "ICN", "TID", "TCH", "E", "F", "W", "I", "B", "UP", "ANN", "ARG", "SIM", "RET", "PTH"]
@@ -51,7 +54,7 @@ select = ["A", "BLE", "FBT", "N", "COM", "C4", "ISC", "ICN", "TID", "TCH", "E", 
 [tool.mypy]
 python_version = "3.12"
 packages = ["colosseum"]
-exclude = ["tests/", "build/", "examples/"]
+exclude = ["tests/", "build/", "examples/", "colosseum/hooks/"]
 strict = true
 warn_unused_ignores = true
 show_error_codes = true
@@ -74,6 +77,8 @@ module = [
   "pyinstrument.*",
   "wakepy",
   "wakepy.*",
+  "PyInstaller",
+  "PyInstaller.*",
 ]
 ignore_missing_imports = true
 

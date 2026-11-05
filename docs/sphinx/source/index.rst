@@ -48,6 +48,7 @@ controls the application under test through ``col.gui.*``.
    guides/running_tests
    guides/running_suites
    guides/output_artifacts
+   guides/freezing
 
 .. toctree::
    :maxdepth: 1
