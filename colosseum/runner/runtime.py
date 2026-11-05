@@ -136,6 +136,13 @@ def rename_run_directory_for_result(
 def ensure_runtime_ready(ctx: RuntimeContext, logical_name: str | None = None) -> None:
     if ctx.runtime_ready:
         return
+    # Suite slots allocate under suite_output_dir via begin_script_slot. After a
+    # slot clears, do not mint a sibling under the outputs root.
+    if ctx.suite_output_dir is not None and ctx.output_dir is None:
+        raise RuntimeError(
+            "suite script slot is not active; decorated evidence APIs require "
+            "an open suite script slot (the slot may already be finalized)",
+        )
     if logical_name is None:
         logical_name = ctx.suite_name or ctx.test_case_name
     console_level = logging.DEBUG if ctx.debug_logging else logging.INFO
@@ -146,15 +153,16 @@ def ensure_runtime_ready(ctx: RuntimeContext, logical_name: str | None = None) -
         ctx.logger.debug("Runtime ready (no-artifacts mode)")
         initialize_database_if_needed(ctx)
     else:
-        outputs_root = resolve_outputs_root(ctx.run_options)
-        ensure_outputs_writable(outputs_root)
-        output_dir = allocate_run_directory(outputs_root, logical_name)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        ctx.output_dir = output_dir
+        if ctx.output_dir is None:
+            outputs_root = resolve_outputs_root(ctx.run_options)
+            ensure_outputs_writable(outputs_root)
+            output_dir = allocate_run_directory(outputs_root, logical_name)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            ctx.output_dir = output_dir
         ctx.logger = ctx.session.start_logging(
             ctx, console=True, console_level=console_level, file=True,
         )
-        ctx.logger.debug("Allocated output directory: %s", output_dir)
+        ctx.logger.debug("Allocated output directory: %s", ctx.output_dir)
         initialize_database_if_needed(ctx)
     from colosseum.config.loader import log_loaded_config
 
