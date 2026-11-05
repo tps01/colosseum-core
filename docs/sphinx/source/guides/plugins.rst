@@ -193,7 +193,8 @@ Only plugins that own TOML sections need this. See :doc:`configuration` for load
 behavior. Each ``ConfigSectionSpec`` is one table type:
 
 * exactly one ``dotted_path``
-* exactly one ``id_field`` (integer, unique per section)
+* exactly one ``id_field`` (integer, unique per section; boolean values such as
+  ``true`` are rejected because they alias ``1`` / ``0``)
 * any number of ``required_keys`` and ``optional_keys`` (including none)
 
 Register the spec in ``register()`` before ``register_namespace``::

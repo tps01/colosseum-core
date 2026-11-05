@@ -55,6 +55,9 @@ class ConfigStore:
         section = self._normalized.get(dotted)
         if section is None:
             raise ConfigError(f"Config section `{dotted}` is not registered")
+        # bool subclasses int; True aliases 1 and False aliases 0.
+        if isinstance(item_id, bool) or not isinstance(item_id, int):
+            raise ConfigError(f"Unknown id `{item_id}` in section `{dotted}`")
         if item_id not in section:
             raise ConfigError(f"Unknown id `{item_id}` in section `{dotted}`")
         return section[item_id]
@@ -103,7 +106,8 @@ def normalize_sections(
             row_id = row.get(spec.id_field)
             if row_id is None:
                 raise ValueError(f"Missing id field `{spec.id_field}` in `{spec.dotted_path}`")
-            if not isinstance(row_id, int):
+            # bool subclasses int; True aliases 1 and False aliases 0.
+            if isinstance(row_id, bool) or not isinstance(row_id, int):
                 raise ValueError(f"ID field `{spec.id_field}` in `{spec.dotted_path}` must be int")
             if row_id in by_id:
                 raise ValueError(f"Duplicate id `{row_id}` in `{spec.dotted_path}`")
