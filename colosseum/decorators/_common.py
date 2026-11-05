@@ -233,8 +233,12 @@ def _publish_keyword_parameter(
     default: object,
     annotation: object,
 ) -> None:
-    original = signature(func)
+    # Prefer an already-published wrapper signature so successive publishes
+    # (optional, description, requirements) accumulate instead of replace.
+    original = getattr(wrapper, "__signature__", None) or signature(func)
     if name in original.parameters:
+        return
+    if name in signature(func).parameters:
         return
     parameter = Parameter(
         name,
@@ -320,6 +324,7 @@ def _record_outcome(
     command: str,
     domain: str,
     description: str = "",
+    requirements: list[str] | None = None,
 ) -> None:
     if kind == "command":
         ctx.result_aggregator.record_command(
@@ -337,6 +342,7 @@ def _record_outcome(
         command=command,
         domain=domain,
         description=description,
+        requirements=requirements,
     )
 
 
@@ -537,6 +543,7 @@ def _dry_run_structure_message(
     pop_key: bool,
     pop_optional: bool,
     pop_description: bool,
+    pop_requirements: bool,
     multi_row: bool,
     require_prior_measurement: bool,
 ) -> tuple[str | None, dict[str, Any]]:
@@ -621,6 +628,8 @@ def _dry_run_structure_message(
         call_kwargs["key"] = ""
     if pop_description:
         call_kwargs.pop("description", None)
+    if pop_requirements:
+        call_kwargs.pop("requirements", None)
     # A parameters section may hold limit fields for another call on the same key.
     # Drop file-only names the function does not accept; caller keywords still bind.
     bound = signature(func)
@@ -672,11 +681,13 @@ def finish_dry_run_log(
     call_args: tuple[Any, ...],
     kwargs: dict[str, Any],
     description: str = "",
+    requirements: list[str] | None = None,
     injected: bool = False,
     apply_parameters: bool = False,
     pop_key: bool = False,
     pop_optional: bool = False,
     pop_description: bool = False,
+    pop_requirements: bool = False,
     multi_row: bool = False,
     require_prior_measurement: bool = False,
 ) -> bool:
@@ -697,6 +708,7 @@ def finish_dry_run_log(
         pop_key=pop_key,
         pop_optional=pop_optional,
         pop_description=pop_description,
+        pop_requirements=pop_requirements,
         multi_row=multi_row,
         require_prior_measurement=require_prior_measurement,
     )
@@ -704,6 +716,15 @@ def finish_dry_run_log(
         description = str(resolved["description"]).strip()
     if isinstance(resolved.get("optional"), bool):
         optional = resolved["optional"]
+    req_ids = list(requirements or [])
+    if "requirements" in resolved:
+        try:
+            from colosseum.summary.requirements import coerce_requirements
+
+            req_ids = coerce_requirements(resolved["requirements"])
+        except TypeError as exc:
+            message = str(exc) if message is None else message
+            req_ids = []
     if message is not None:
         _record_outcome(
             ctx,
@@ -713,6 +734,7 @@ def finish_dry_run_log(
             command=command,
             domain=domain,
             description=description,
+            requirements=req_ids,
         )
         log_evidence(
             ctx,
@@ -747,6 +769,7 @@ def finish_dry_run_log(
         command=command,
         domain=domain,
         description=description,
+        requirements=req_ids,
     )
     log_evidence(
         ctx,
@@ -775,6 +798,7 @@ def invoke_dry_run_substitute(
     call_kwargs: dict[str, Any],
     logged_kwargs: dict[str, Any],
     description: str = "",
+    requirements: list[str] | None = None,
 ) -> tuple[bool, Any]:
     """Run a dry-run substitute. ``(False, None)`` means the real body should run."""
     if not ctx.run_options.dry_run or policy == "call" or policy == "log":
@@ -796,6 +820,7 @@ def invoke_dry_run_substitute(
             command=command,
             domain=domain,
             description=description,
+            requirements=requirements,
         )
         log_evidence_error(
             ctx,
@@ -823,6 +848,7 @@ def invoke_dry_run_substitute(
         command=command,
         domain=domain,
         description=description,
+        requirements=requirements,
     )
     log_evidence(
         ctx,
@@ -845,3 +871,13 @@ def publish_description_parameter(wrapper: Callable[..., Any], func: Callable[..
     Functions that already declare ``description`` keep their own signature.
     """
     _publish_keyword_parameter(wrapper, func, name="description", default="", annotation=str)
+
+
+def publish_requirements_parameter(wrapper: Callable[..., Any], func: Callable[..., Any]) -> None:
+    """Expose keyword-only ``requirements`` on a verification wrapper.
+
+    Functions that already declare ``requirements`` keep their own signature.
+    """
+    _publish_keyword_parameter(
+        wrapper, func, name="requirements", default="", annotation=object,
+    )

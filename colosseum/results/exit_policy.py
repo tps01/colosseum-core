@@ -42,6 +42,18 @@ def finalize_suite(ctx: RuntimeContext) -> int:
     if ctx.logger is not None:
         with suppress(Exception):
             ctx.logger.info("Suite overall result: %s (exit %s)", overall, code)
+        with suppress(Exception):
+            from colosseum.summary.requirements import (
+                requirement_lines,
+                rollup_suite_requirements,
+            )
+
+            for line in requirement_lines(
+                rollup_suite_requirements(list(ctx.suite_test_results)),
+                suite=True,
+            ):
+                if line:
+                    ctx.logger.info(line)
 
     with suppress(Exception):
         ctx.plugin_registry.run_shutdown()

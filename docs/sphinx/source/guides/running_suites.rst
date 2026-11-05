@@ -184,6 +184,8 @@ Pass/fail counts and percentages cover executed test slots only; setup,
 ``between_tests``, and teardown stay in the slot list and do not enter those
 percentages. When the same test case runs more than once, required verification
 failures from those repeats are ranked by count, and the summary keeps the top 10.
+Verification ``requirements=`` identifiers roll up across test slots: a requirement
+passes on the suite only when every test slot that reported it passed.
 
 During a suite run, ``col.endex()`` finalizes the **current script slot** and returns
 control to the runner (it does not exit the process). The runner finalizes each slot

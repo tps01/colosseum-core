@@ -78,6 +78,12 @@ def _count_lines(label: str, prefix: str, counts: dict[str, int]) -> list[str]:
     return lines
 
 
+def _requirement_summary_lines(records: list[OutcomeRecord]) -> list[str]:
+    from colosseum.summary.requirements import aggregate_requirements, requirement_lines
+
+    return requirement_lines(aggregate_requirements(records))
+
+
 def _slot_dict(slot: SuiteSlotResult) -> dict[str, object]:
     return {
         "phase": slot.phase,
@@ -273,9 +279,13 @@ class SummaryWriter:
             ),
             *_outcome_lines(failed_required, header="Failed required outcomes:"),
             *_outcome_lines(aggregator.optional_outcomes(), header="Optional outcomes:"),
+            *_requirement_summary_lines(records),
         ]
         summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
+        from colosseum.summary.requirements import aggregate_requirements
+
+        requirement_rows = aggregate_requirements(records)
         payload: dict[str, object] = {
             "colosseum_version": ctx.framework_version,
             "test_case": ctx.test_case_name,
@@ -322,6 +332,7 @@ class SummaryWriter:
             ],
             "suite_error": aggregator.suite_error,
             "teardown_failed": aggregator.teardown_failed,
+            "requirements": requirement_rows,
         }
         if ctx.session.kind != "suite" and ctx.provenance is not None:
             payload["provenance"] = ctx.provenance
@@ -358,9 +369,15 @@ class SuiteSummaryWriter:
         ended_at = datetime.now(timezone.utc)
         started = ctx.suite_started_at
         started_utc = started.astimezone(timezone.utc) if started is not None else None
+        from colosseum.summary.requirements import (
+            requirement_lines,
+            rollup_suite_requirements,
+        )
+
         test_slots = cast("list[SuiteSlotResult]", ctx.suite_test_results)
         slot_counts = _test_slot_counts(test_slots)
         common_failures = _common_failed_verifications(test_slots)
+        requirement_rows = rollup_suite_requirements(test_slots)
         lines = [
             "Colosseum Suite Summary",
             "=======================",
@@ -396,6 +413,7 @@ class SuiteSummaryWriter:
             )
             lines.extend(_input_file_lines(slot))
         lines.extend(_common_failure_lines(common_failures))
+        lines.extend(requirement_lines(requirement_rows, suite=True))
         lines.extend(["", "All script slots:"])
         if not ctx.suite_slot_results:
             lines.append("  (none)")
@@ -423,6 +441,7 @@ class SuiteSummaryWriter:
             "all_slots": [_slot_dict(slot) for slot in ctx.suite_slot_results],
             "test_slot_counts": slot_counts,
             "common_failed_verifications": common_failures,
+            "requirements": requirement_rows,
         }
         if ctx.provenance is not None:
             payload["provenance"] = ctx.provenance

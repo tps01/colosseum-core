@@ -25,6 +25,7 @@ from ._common import (
     invoke_dry_run_substitute,
     publish_description_parameter,
     publish_optional_parameter,
+    publish_requirements_parameter,
     resolve_auto_key,
     resolve_command,
     resolve_domain,
@@ -401,6 +402,14 @@ def _clean_description(value: object) -> str | None:
     return text or None
 
 
+def _requirements_from_kwargs(kwargs: dict[str, Any]) -> list[str]:
+    from colosseum.summary.requirements import coerce_requirements
+
+    if "requirements" not in kwargs:
+        return []
+    return coerce_requirements(kwargs["requirements"])
+
+
 def _coerce_verification_result(
     raw_result: object,
     *,
@@ -442,6 +451,7 @@ def verification(
         command = resolve_command(func)
         parameters = signature(func).parameters
         accepts_description = "description" in parameters
+        accepts_requirements = "requirements" in parameters
         accepts_key = "key" in parameters
         accepts_optional = "optional" in parameters
 
@@ -458,6 +468,10 @@ def verification(
                 ctx, kind="verification", command=command, key=key_text, kwargs=kwargs,
             ):
                 return None
+            try:
+                early_requirements = _requirements_from_kwargs(kwargs)
+            except TypeError:
+                early_requirements = []
             if finish_dry_run_log(
                 ctx,
                 kind="verification",
@@ -470,11 +484,13 @@ def verification(
                 call_args=args,
                 kwargs=kwargs,
                 description=_clean_description(kwargs.get("description")) or "",
+                requirements=early_requirements,
                 injected=injected,
                 apply_parameters=bool(key) and not injected,
                 pop_key=not accepts_key,
                 pop_optional=not accepts_optional,
                 pop_description=not accepts_description,
+                pop_requirements=not accepts_requirements,
                 require_prior_measurement=False,
             ):
                 return None
@@ -496,6 +512,10 @@ def verification(
                         optional = coerce_bool(kwargs["optional"])
                     except ParametersError:
                         optional = False
+                try:
+                    requirements = _requirements_from_kwargs(call_kwargs)
+                except TypeError:
+                    requirements = []
                 result = VerificationResult(
                     status="ERROR", message=str(exc), optional=optional,
                 )
@@ -505,6 +525,7 @@ def verification(
                     command=command,
                     domain=domain,
                     description=description or "",
+                    requirements=requirements,
                 )
                 expected, compare_op, tolerance = verification_limit_fields(call_kwargs)
                 ctx.db.insert_verification(
@@ -537,11 +558,56 @@ def verification(
                 return result
 
             description = _clean_description(call_kwargs.get("description"))
+            try:
+                requirements = _requirements_from_kwargs(call_kwargs)
+            except TypeError as exc:
+                result = VerificationResult(
+                    status="ERROR", message=str(exc), optional=optional,
+                )
+                ctx.result_aggregator.record_verification(
+                    result,
+                    key=key_text,
+                    command=command,
+                    domain=domain,
+                    description=description or "",
+                    requirements=[],
+                )
+                expected, compare_op, tolerance = verification_limit_fields(call_kwargs)
+                ctx.db.insert_verification(
+                    VerificationRow(
+                        domain=domain,
+                        command=command,
+                        key=key_text,
+                        expected=expected,
+                        actual=None,
+                        tolerance=tolerance,
+                        compare_op=compare_op,
+                        status=result.status,
+                        optional=result.optional,
+                        message=result.message,
+                        description=description,
+                    ),
+                )
+                log_evidence(
+                    ctx,
+                    kind="verification",
+                    domain=domain,
+                    command=command,
+                    key=key_text,
+                    status=result.status,
+                    optional=result.optional,
+                    detail=f"message={result.message!r}",
+                    call_args=args,
+                    kwargs=call_kwargs,
+                )
+                return result
             logged_kwargs = dict(call_kwargs)
             if not accepts_optional:
                 call_kwargs.pop("optional", None)
             if not accepts_description:
                 call_kwargs.pop("description", None)
+            if not accepts_requirements:
+                call_kwargs.pop("requirements", None)
             if not accepts_key:
                 call_kwargs.pop("key", None)
             handled, value = invoke_dry_run_substitute(
@@ -556,6 +622,7 @@ def verification(
                 call_kwargs=call_kwargs,
                 logged_kwargs=logged_kwargs,
                 description=description or "",
+                requirements=requirements,
             )
             if handled:
                 return value
@@ -584,6 +651,7 @@ def verification(
                 command=command,
                 domain=domain,
                 description=description or "",
+                requirements=requirements,
             )
             expected, compare_op, tolerance = verification_limit_fields(call_kwargs)
             ctx.db.insert_verification(
@@ -622,6 +690,7 @@ def verification(
         bind_dry_run_policy(wrapper, dry_run)
         publish_optional_parameter(wrapper, func)
         publish_description_parameter(wrapper, func)
+        publish_requirements_parameter(wrapper, func)
         return wrapper
 
     if _func is None:

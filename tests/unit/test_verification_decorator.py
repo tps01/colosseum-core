@@ -384,6 +384,30 @@ def test_description_persisted_without_parameter(ctx) -> None:
     assert row["status"] == "PASS"
 
 
+def test_requirements_string_and_list_on_outcome(ctx) -> None:
+    @verification()
+    def check(*, key: str) -> bool:
+        return True
+
+    assert "requirements" in signature(check).parameters
+    check(key="a", requirements="REQ1,REQ2")
+    check(key="b", requirements=["REQ2", "REQ3"])
+    records = ctx.result_aggregator._records
+    assert records[0]["requirements"] == ["REQ1", "REQ2"]
+    assert records[1]["requirements"] == ["REQ2", "REQ3"]
+
+
+def test_invalid_requirements_type_is_error(ctx) -> None:
+    @verification()
+    def check(*, key: str) -> bool:
+        return True
+
+    result = check(key="bad", requirements=3)
+    assert result.status == "ERROR"
+    assert "requirements must be" in result.message
+    assert ctx.result_aggregator._records[0]["requirements"] == []
+
+
 def test_blank_description_stores_null(ctx) -> None:
     @verification()
     def named(*, key: str) -> bool:

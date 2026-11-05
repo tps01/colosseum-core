@@ -152,6 +152,13 @@ Verification labels and automatic keys
 ``description=`` supplies the summary label, WATS step name, and JUnit testcase
 name; blank or omitted descriptions fall back to ``key``.
 
+``requirements=`` attaches one or more requirement identifiers to a verification
+(a comma-separated string or a list of strings). When any verification lists a
+requirement, ``summary.txt`` / ``summary.json`` and the run stdout include a
+``Requirements:`` section. A requirement passes only when every verification that
+lists it is ``PASS`` or ``DRY`` (including optional verifications). Requirement
+status does not change the run exit code.
+
 Call ``col.auto_key()`` near the start of a CLI-managed ``main()`` for file/log
 checks that do not retrieve evidence by key. For direct Python, load config
 first. Omitted measurement and verification keys then use separate counters
