@@ -92,6 +92,33 @@ def test_non_int_id_raises() -> None:
         normalize_sections(raw, [PSU_SPEC])
 
 
+def test_boolean_id_raises() -> None:
+    raw = {
+        "equipment": {
+            "dmm": {"dmm_id": True, "driver": "sim", "resource": "SIM::DMM"},
+        },
+    }
+    with pytest.raises(ValueError, match="must be int"):
+        normalize_sections(raw, [DMM_SPEC])
+
+
+def test_get_item_rejects_boolean_id() -> None:
+    from colosseum.config.loader import ConfigError, ConfigStore
+
+    store = ConfigStore(
+        _raw={},
+        _normalized={
+            "equipment.dmm": {
+                1: {"dmm_id": 1, "driver": "sim", "resource": "SIM::DMM"},
+            },
+        },
+        _specs={"equipment.dmm": DMM_SPEC},
+    )
+    with pytest.raises(ConfigError, match="Unknown id"):
+        store.get_item("equipment.dmm", True)  # type: ignore[arg-type]
+    assert store.get_item("equipment.dmm", 1)["resource"] == "SIM::DMM"
+
+
 def test_invalid_section_type_raises() -> None:
     raw = {"equipment": {"psu": "not-a-table"}}
     with pytest.raises(ValueError, match="must be table or array of tables"):
