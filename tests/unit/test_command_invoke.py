@@ -24,6 +24,22 @@ def test_parse_plugin_command_with_kwargs() -> None:
     assert kwargs == {"key": "dev1", "enabled": True, "count": 3}
 
 
+def test_parse_plugin_command_keeps_commas_inside_quotes() -> None:
+    namespace, function, kwargs = parse_plugin_command(
+        'shared.comment,message="hello, world"',
+    )
+    assert namespace == "shared"
+    assert function == "comment"
+    assert kwargs == {"message": "hello, world"}
+
+
+def test_parse_plugin_command_keeps_commas_inside_lists() -> None:
+    namespace, function, kwargs = parse_plugin_command("stub.call,values=[1,2]")
+    assert namespace == "stub"
+    assert function == "call"
+    assert kwargs == {"values": [1, 2]}
+
+
 def test_parse_plugin_command_rejects_bad_target() -> None:
     with pytest.raises(CommandInvokeError, match="namespace.function"):
         parse_plugin_command("ping")

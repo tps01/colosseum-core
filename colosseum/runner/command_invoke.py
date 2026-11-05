@@ -18,12 +18,53 @@ class CommandInvokeError(RuntimeError):
     pass
 
 
+def _split_top_level_commas(text: str) -> list[str]:
+    """Split on commas outside quotes and outside ``[]`` / ``()`` / ``{}``."""
+    parts: list[str] = []
+    start = 0
+    depth = 0
+    quote: str | None = None
+    escape = False
+    openers = frozenset("[{(")
+    closers = frozenset("]})")
+    for index, char in enumerate(text):
+        if quote is not None:
+            if escape:
+                escape = False
+                continue
+            if char == "\\" and quote == '"':
+                escape = True
+                continue
+            if char == quote:
+                quote = None
+            continue
+        if char in "'\"":
+            quote = char
+            continue
+        if char in openers:
+            depth += 1
+            continue
+        if char in closers:
+            if depth > 0:
+                depth -= 1
+            continue
+        if char == "," and depth == 0:
+            part = text[start:index].strip()
+            if part:
+                parts.append(part)
+            start = index + 1
+    tail = text[start:].strip()
+    if tail:
+        parts.append(tail)
+    return parts
+
+
 def parse_plugin_command(spec: str) -> tuple[str, str, dict[str, Any]]:
     """Parse ``namespace.function,key=val,...`` into namespace, function, kwargs."""
     text = spec.strip()
     if not text:
         raise CommandInvokeError("command specification must not be empty")
-    parts = [part.strip() for part in text.split(",") if part.strip()]
+    parts = _split_top_level_commas(text)
     if not parts:
         raise CommandInvokeError("command specification must not be empty")
     target = parts[0]
