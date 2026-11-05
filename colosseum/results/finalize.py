@@ -169,6 +169,17 @@ def finalize_run(
             ctx.logger.info("Overall result: %s (exit %s)", overall, code)
         elif policy.log_overall:
             ctx.logger.info("Slot result: %s (exit %s)", overall, code)
+        if policy.write_summary:
+            from colosseum.summary.requirements import (
+                aggregate_requirements,
+                requirement_lines,
+            )
+
+            for line in requirement_lines(
+                aggregate_requirements(ctx.result_aggregator._records),  # noqa: SLF001
+            ):
+                if line:
+                    ctx.logger.info(line)
         close_logger_handlers(ctx.logger)
 
     if ctx.db.is_initialized():

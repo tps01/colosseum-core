@@ -11,6 +11,56 @@ from colosseum.runner.runtime import SuiteSlotResult
 from colosseum.summary.writer import SuiteSummaryWriter, SummaryWriter
 
 
+def test_summary_lists_requirements_section(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    out = ctx.output_dir
+    assert out is not None
+    ctx.result_aggregator.record_verification(
+        VerificationResult(status="PASS", message="", optional=False),
+        key="rail_a",
+        command="verify_voltage",
+        domain="equipment",
+        requirements=["REQ1", "REQ2"],
+    )
+    ctx.result_aggregator.record_verification(
+        VerificationResult(status="FAIL", message="low", optional=True),
+        key="rail_b",
+        command="verify_voltage",
+        domain="equipment",
+        requirements=["REQ2", "REQ3"],
+    )
+    SummaryWriter().write(out, ctx.result_aggregator, ctx)
+    text = (out / "summary.txt").read_text(encoding="utf-8")
+    payload = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+    assert "Overall result: PASS" in text
+    assert "Requirements:" in text
+    assert "REQ1: PASS" in text
+    assert "REQ2: FAIL" in text
+    assert "REQ3: FAIL" in text
+    assert payload["exit_code"] == 0
+    by_id = {row["id"]: row for row in payload["requirements"]}
+    assert by_id["REQ1"]["status"] == "PASS"
+    assert by_id["REQ2"]["status"] == "FAIL"
+    assert by_id["REQ2"]["failures"][0]["key"] == "rail_b"
+
+
+def test_summary_omits_requirements_when_unused(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    out = ctx.output_dir
+    assert out is not None
+    ctx.result_aggregator.record_verification(
+        VerificationResult(status="PASS", message="", optional=False),
+        key="rail_a",
+        command="verify_voltage",
+        domain="equipment",
+    )
+    SummaryWriter().write(out, ctx.result_aggregator, ctx)
+    text = (out / "summary.txt").read_text(encoding="utf-8")
+    payload = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+    assert "Requirements:" not in text
+    assert payload["requirements"] == []
+
+
 def test_summary_lists_failed_required(unit_runtime_context) -> None:
     ctx = unit_runtime_context
     out = ctx.output_dir
@@ -322,6 +372,69 @@ def test_suite_summary_without_test_slots_omits_rates_and_timing(unit_runtime_co
     assert payload["test_slot_counts"] == {"total": 0, "pass": 0, "fail": 0}
     assert payload["common_failed_verifications"] == []
     assert payload["suite_failed"] is False
+
+
+def test_suite_summary_rolls_up_requirements(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    root = ctx.output_dir
+    assert root is not None
+    container = root / "container"
+    container.mkdir()
+    slot_a = root / "slot-a"
+    slot_b = root / "slot-b"
+    slot_a.mkdir()
+    slot_b.mkdir()
+    (slot_a / "summary.json").write_text(
+        json.dumps(
+            {
+                "requirements": [
+                    {"id": "REQ1", "status": "PASS", "failures": []},
+                    {"id": "REQ2", "status": "PASS", "failures": []},
+                ],
+            },
+        ),
+        encoding="utf-8",
+    )
+    (slot_b / "summary.json").write_text(
+        json.dumps(
+            {
+                "requirements": [
+                    {
+                        "id": "REQ2",
+                        "status": "FAIL",
+                        "failures": [
+                            {
+                                "domain": "equipment",
+                                "command": "verify_voltage",
+                                "key": "rail",
+                            },
+                        ],
+                    },
+                    {"id": "REQ3", "status": "PASS", "failures": []},
+                ],
+            },
+        ),
+        encoding="utf-8",
+    )
+    ctx.suite_test_results = [
+        _slot(slot_a, "case_a.py", test_index=0, overall="PASS"),
+        _slot(slot_b, "case_b.py", test_index=1, overall="PASS"),
+    ]
+
+    SuiteSummaryWriter().write(container, ctx, exit_code=0, overall="PASS")
+
+    text = (container / "summary.txt").read_text(encoding="utf-8")
+    payload = json.loads((container / "summary.json").read_text(encoding="utf-8"))
+    assert "Requirements:" in text
+    assert "REQ1: PASS" in text
+    assert "REQ2: FAIL" in text
+    assert "test=1 case_b.py equipment.verify_voltage key=rail" in text
+    assert "REQ3: PASS" in text
+    by_id = {row["id"]: row for row in payload["requirements"]}
+    assert by_id["REQ1"]["status"] == "PASS"
+    assert by_id["REQ2"]["status"] == "FAIL"
+    assert by_id["REQ2"]["failures"][0]["script"] == "case_b.py"
+    assert by_id["REQ3"]["status"] == "PASS"
 
 
 def test_suite_summary_prints_fail_fast_reason(unit_runtime_context) -> None:

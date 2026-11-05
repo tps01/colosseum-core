@@ -260,6 +260,12 @@ def format_summary_text(summary: dict[str, Any] | None) -> str:
                 f"  - {row.get('status')} {row.get('domain')}.{row.get('command')} "
                 f"key={row.get('key')}: {row.get('message')}",
             )
+    requirements = summary.get("requirements") or []
+    if isinstance(requirements, list) and requirements:
+        from colosseum.summary.requirements import requirement_lines
+
+        suite_view = bool(summary.get("test_slots") or summary.get("all_slots"))
+        lines.extend(requirement_lines(requirements, suite=suite_view))
     slots = summary.get("all_slots") or summary.get("test_slots") or []
     if slots:
         lines.append("")
