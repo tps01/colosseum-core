@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import re
 
+import pytest
+
+from colosseum.context import init_context
 from colosseum.runner.runtime import (
     allocate_run_directory,
+    ensure_runtime_ready,
     rename_run_directory_for_result,
     sanitize_logical_name,
 )
@@ -54,6 +58,28 @@ def test_rename_run_directory_for_result_avoids_collision(isolated_cwd) -> None:
     final_dir = rename_run_directory_for_result(run_dir, "PASS")
     assert final_dir.name == "2026-01-01_120000_smoke-pass_1"
     assert final_dir.is_dir()
+
+
+def test_ensure_runtime_ready_does_not_allocate_beside_suite_container(
+    isolated_cwd,
+) -> None:
+    """After a suite slot clears, do not mint a sibling under outputs/."""
+    outputs = isolated_cwd / "outputs"
+    container = outputs / "2026-01-01_120000_fixture_suite"
+    container.mkdir(parents=True)
+    ctx = init_context(test_case_name="fixture_suite", suite_name="fixture_suite")
+    ctx.session.kind = "suite"
+    ctx.suite_output_dir = container
+    ctx.runtime_ready = False
+    ctx.output_dir = None
+
+    with pytest.raises(RuntimeError, match="suite script slot"):
+        ensure_runtime_ready(ctx)
+
+    siblings = [path for path in outputs.iterdir() if path.is_dir()]
+    assert siblings == [container]
+    assert ctx.output_dir is None
+    assert ctx.runtime_ready is False
 
 
 def test_rename_run_directory_for_result_keeps_dir_after_oserror(

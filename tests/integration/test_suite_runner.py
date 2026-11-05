@@ -32,6 +32,27 @@ def _slot_with_stem(container, stem: str):
     return matches[-1]
 
 
+def test_post_endex_decorator_does_not_leave_sibling_outputs(
+    fixtures_dir, core_config, isolated_cwd,
+) -> None:
+    """A decorated call after endex() must not mint an unmarked outputs sibling."""
+    suite = fixtures_dir / "suites" / "endex_then_verify.toml"
+    _run_suite_expect_exit(suite, core_config, isolated_cwd, 1)
+    outputs = isolated_cwd / "outputs"
+    dirs = sorted(path for path in outputs.iterdir() if path.is_dir())
+    assert len(dirs) == 1
+    container = dirs[0]
+    assert container.name.endswith("-fail")
+    assert (container / "debug.log").is_file()
+    assert (container / "summary.txt").is_file()
+    assert (container / "execution.sqlite").is_file()
+    unmarked = [
+        path for path in dirs
+        if not path.name.endswith(("-pass", "-fail"))
+    ]
+    assert unmarked == []
+
+
 def test_happy_suite_container_and_slot_outputs(fixtures_dir, core_config, isolated_cwd) -> None:
     suite = fixtures_dir / "suites" / "happy.toml"
     _run_suite_expect_exit(suite, core_config, isolated_cwd, 0)
