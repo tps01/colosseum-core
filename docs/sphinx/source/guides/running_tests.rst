@@ -121,8 +121,9 @@ Shared path and config flags for ``colosseum run`` and ``colosseum run-suite``:
   hint. Duration and frequency strings are checked after they are parsed. An
   argument with no hint is not checked. A key with no parameters-file section
   keeps the call arguments. Soft tips also cover unused parameters-file
-  sections, keyed verifications with no prior measurement in the walk, and an
-  empty walk with no decorated calls. Tips appear in ``debug.log`` and under
+  sections (a section read with ``col.load_parameter`` counts as used), keyed
+  verifications with no prior measurement in the walk, and an empty walk with
+  no decorated calls. Tips appear in ``debug.log`` and under
   **Dry-run tips:** in ``summary.txt``. It records each problem and continues,
   and a required error fails the slot. ``debug.log``, ``summary.txt``, and
   ``summary.json`` are still written. ``run-suite --dry-run`` uses the same

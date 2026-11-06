@@ -73,7 +73,7 @@ class RuntimeContext:
     export_errors: list[str] = field(default_factory=list)
     # Measurements a dry-run log walk has already visited: domain, command, key, row_index.
     dry_run_measurements: set[tuple[str, str, str, int]] = field(default_factory=set)
-    # Keys referenced by any dry-run command/measurement/verification call.
+    # Keys referenced by dry-run decorated calls or load_parameter.
     dry_run_keys_seen: set[str] = field(default_factory=set)
     # Soft guidance collected during a dry-run walk (shown in summary.txt).
     dry_run_tips: list[str] = field(default_factory=list)
