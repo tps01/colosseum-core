@@ -339,6 +339,8 @@ def load_parameter(key: str, *, field: str) -> Any:  # noqa: ANN401
     table = ctx.parameters_map.get(key)
     if table is None:
         return None
+    if ctx.run_options.dry_run:
+        ctx.dry_run_keys_seen.add(key)
     if field not in table:
         raise ParametersError(f"parameters field {field!r} not found in [{key}]")
     try:
