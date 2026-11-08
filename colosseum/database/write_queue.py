@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import queue
 import threading
+from contextlib import suppress
 from dataclasses import dataclass
 from typing import Callable
 
@@ -45,14 +46,19 @@ class DatabaseWriteQueue:
         batch_size: int = 32,
         batch_interval_s: float = 0.05,
         commit: Callable[[], None],
+        rollback: Callable[[], None] | None = None,
     ) -> None:
         self._lock = lock
         self._batch_size = max(1, batch_size)
         self._batch_interval_s = max(0.001, batch_interval_s)
         self._commit = commit
+        self._rollback = rollback
         self._queue: queue.Queue[WriteJob | _StopSentinel] = queue.Queue()
         self._thread: threading.Thread | None = None
         self._started = False
+        self._closing = False
+        self._failure: BaseException | None = None
+        self._state_lock = threading.Lock()
 
     @property
     def started(self) -> bool:
@@ -61,6 +67,9 @@ class DatabaseWriteQueue:
     def start(self) -> None:
         if self._started:
             return
+        if self._failure is not None:
+            raise self._failure
+        self._closing = False
         self._started = True
         self._thread = threading.Thread(
             target=self._run,
@@ -70,9 +79,12 @@ class DatabaseWriteQueue:
         self._thread.start()
 
     def put(self, job: WriteJob) -> None:
-        if not self._started:
-            raise RuntimeError("Database write queue is not started")
-        self._queue.put(job)
+        with self._state_lock:
+            if self._failure is not None:
+                raise self._failure
+            if not self._started or self._closing:
+                raise RuntimeError("Database write queue is not accepting writes")
+            self._queue.put(job)
 
     def put_and_wait(self, job: WriteJob, *, timeout: float | None = None) -> None:
         done = threading.Event()
@@ -88,59 +100,66 @@ class DatabaseWriteQueue:
         """Block until all queued jobs are applied and committed."""
         if not self._started:
             return
-        done = threading.Event()
-        self._queue.put(
-            WriteJob(apply=lambda: None, done=done, error=[]),
-        )
-        if not done.wait(timeout=timeout):
-            raise TimeoutError("Timed out draining database write queue")
+        self.put_and_wait(WriteJob(apply=lambda: None), timeout=timeout)
 
     def stop(self, *, timeout: float | None = 30.0) -> None:
         if not self._started:
             return
-        self.drain(timeout=timeout)
-        self._queue.put(_STOP)
-        if self._thread is not None:
-            self._thread.join(timeout=timeout)
+        with self._state_lock:
+            if not self._closing:
+                self._closing = True
+                self._queue.put(_STOP)
+        thread = self._thread
+        if thread is not None:
+            thread.join(timeout=timeout)
+            if thread.is_alive():
+                raise TimeoutError("Database write queue did not stop")
         self._thread = None
         self._started = False
+        if self._failure is not None:
+            raise self._failure
 
     def _run(self) -> None:
         batch: list[WriteJob] = []
-        while True:
-            try:
-                item = self._queue.get(timeout=self._batch_interval_s)
-            except queue.Empty:
-                if batch:
+        try:
+            while True:
+                try:
+                    item = self._queue.get(timeout=self._batch_interval_s)
+                except queue.Empty:
+                    if batch:
+                        self._flush(batch)
+                        batch = []
+                    continue
+                if isinstance(item, _StopSentinel):
+                    if batch:
+                        self._flush(batch)
+                    return
+                batch.append(item)
+                if len(batch) >= self._batch_size or item.done is not None:
                     self._flush(batch)
                     batch = []
-                continue
-            if isinstance(item, _StopSentinel):
-                if batch:
-                    self._flush(batch)
-                return
-            batch.append(item)
-            if len(batch) >= self._batch_size or item.done is not None:
-                self._flush(batch)
-                batch = []
+        except BaseException as exc:  # noqa: BLE001 — forward worker failures to callers
+            with self._state_lock:
+                self._failure = exc
+                while not self._queue.empty():
+                    pending = self._queue.get_nowait()
+                    if isinstance(pending, WriteJob):
+                        batch.append(pending)
+            if self._rollback is not None:
+                # Preserve the original storage failure if rollback also fails.
+                with self._lock, suppress(Exception):
+                    self._rollback()
+            for job in batch:
+                if job.error is not None:
+                    job.error.append(exc)
+                if job.done is not None:
+                    job.done.set()
 
     def _flush(self, batch: list[WriteJob]) -> None:
         with self._lock:
             for job in batch:
-                try:
-                    job.apply()
-                except BaseException as exc:  # noqa: BLE001 — surface to waiter
-                    if job.error is not None:
-                        job.error.append(exc)
-                    elif job.done is None:
-                        raise
-            try:
-                self._commit()
-            except BaseException as exc:  # noqa: BLE001
-                for job in batch:
-                    if job.error is not None and not job.error:
-                        job.error.append(exc)
-                raise
+                job.apply()
+            self._commit()
         for job in batch:
             if job.done is not None:
                 job.done.set()

@@ -20,7 +20,13 @@ _AUTO_FINALIZE_HOOKS_REGISTERED = False
 
 
 def _finalize_context(ctx: RuntimeContext) -> int:
-    result = finalize_run(ctx, policy=policy_for_single(run_shutdown=True))
+    try:
+        result = finalize_run(ctx, policy=policy_for_single(run_shutdown=True))
+    except BaseException:
+        # Do not replay shutdown or turn a failed completion into PASS on retry.
+        ctx.finalized = True
+        ctx.final_exit_code = 1
+        raise
     ctx.finalized = True
     ctx.final_exit_code = result.exit_code
     return result.exit_code
@@ -33,11 +39,14 @@ def finalize_suite(ctx: RuntimeContext) -> int:
     returns the suite exit code. KeyboardInterrupt and other signals are not
     caught here.
     """
+    from colosseum.results.aggregation import build_suite_summary
+    from colosseum.runner.runtime import refresh_slot_artifacts
     from colosseum.summary.writer import SuiteSummaryWriter
 
     writer = SuiteSummaryWriter()
     code = writer.suite_exit_code(ctx)
     overall = "PASS" if code == 0 else "FAIL"
+    summary = build_suite_summary(ctx, exit_code=code, overall=overall)
 
     if ctx.logger is not None:
         with suppress(Exception):
@@ -45,11 +54,10 @@ def finalize_suite(ctx: RuntimeContext) -> int:
         with suppress(Exception):
             from colosseum.summary.requirements import (
                 requirement_lines,
-                rollup_suite_requirements,
             )
 
             for line in requirement_lines(
-                rollup_suite_requirements(list(ctx.suite_test_results)),
+                summary["requirements"],
                 suite=True,
             ):
                 if line:
@@ -69,10 +77,12 @@ def finalize_suite(ctx: RuntimeContext) -> int:
         ctx.logger = None
 
     if ctx.suite_output_dir is not None and not ctx.no_artifacts:
+        original_root = ctx.suite_output_dir
         # Rename is resilient; write afterward so summary paths match the final dir.
         try:
             ctx.suite_output_dir = rename_run_directory_for_result(
-                ctx.suite_output_dir, overall,
+                ctx.suite_output_dir,
+                overall,
             )
         except Exception as exc:  # noqa: BLE001 - keep original path for summary
             print(
@@ -80,7 +90,21 @@ def finalize_suite(ctx: RuntimeContext) -> int:
                 file=sys.stderr,
             )
         try:
-            writer.write(ctx.suite_output_dir, ctx, exit_code=code, overall=overall)
+            if ctx.suite_output_dir != original_root:
+                for slot in ctx.suite_slot_results:
+                    slot.output_dir = ctx.suite_output_dir / slot.output_dir.relative_to(
+                        original_root,
+                    )
+                    refresh_slot_artifacts(ctx, slot)
+            summary["test_slots"] = [slot.as_dict() for slot in ctx.suite_test_results]
+            summary["all_slots"] = [slot.as_dict() for slot in ctx.suite_slot_results]
+            writer.write(
+                ctx.suite_output_dir,
+                ctx,
+                exit_code=code,
+                overall=overall,
+                payload=summary,
+            )
         except Exception as exc:  # noqa: BLE001 - suite exit code still returned
             print(
                 f"Colosseum: failed to write suite summary: {exc}",

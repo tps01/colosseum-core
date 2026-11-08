@@ -48,24 +48,20 @@ def log_evidence(
     call_args: tuple[Any, ...] = (),
     kwargs: dict[str, Any] | None = None,
 ) -> None:
+    """Record one DEBUG line for a successful decorated call.
+
+    Status, optional, redacted arguments, and any short detail share a single
+    record. INFO is reserved for hand-written operator messages and for
+    runner progress such as the identity header and overall result.
+    """
     if ctx.logger is None:
         return
-    parts: list[str] = []
+    parts = [f"status={status}", f"optional={optional}"]
     if kwargs is not None or call_args:
         parts.append(call_args_text(call_args, kwargs or {}))
     if detail:
         parts.append(detail)
-    if parts:
-        ctx.logger.debug("%s %s.%s key=%s %s", kind, domain, command, key, " ".join(parts))
-    ctx.logger.info(
-        "%s %s.%s key=%s status=%s optional=%s",
-        kind,
-        domain,
-        command,
-        key,
-        status,
-        optional,
-    )
+    ctx.logger.debug("%s %s.%s key=%s %s", kind, domain, command, key, " ".join(parts))
 
 
 def log_evidence_error(

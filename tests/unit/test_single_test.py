@@ -22,7 +22,10 @@ def test_run_script_imports_sibling_module(unit_runtime_context, tmp_path: Path,
         encoding="utf-8",
     )
     monkeypatch.chdir(tmp_path.parent)
-    run_script(script)
+    try:
+        run_script(script)
+    finally:
+        sys.modules.pop("helper_mod", None)
 
 
 def test_run_script_restores_sys_path_and_keeps_sibling(
@@ -56,6 +59,7 @@ def test_run_script_restores_sys_path_and_keeps_sibling(
     assert list(sys.path) == before
     assert unit_runtime_context.active_script_path is None
     assert sys.modules["shared_helper"] is first_mod
+    sys.modules.pop("shared_helper", None)
 
 
 def test_run_script_does_not_replace_cached_module(
@@ -136,6 +140,9 @@ def test_run_script_prefers_script_dir_when_already_later_on_path(
     # Script directory later on the path; decoy earlier must not win.
     monkeypatch.setattr(sys, "path", [decoy_dir, script_dir, *sys.path])
     before = list(sys.path)
-    run_script(script)
+    try:
+        run_script(script)
+    finally:
+        sys.modules.pop("path_probe", None)
     assert list(sys.path) == before
     assert unit_runtime_context.active_script_path is None

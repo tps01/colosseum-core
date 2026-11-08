@@ -104,8 +104,7 @@ def test_summary_prints_verification_description(unit_runtime_context) -> None:
     SummaryWriter().write(out, ctx.result_aggregator, ctx)
     text = (out / "summary.txt").read_text(encoding="utf-8")
     assert (
-        "[verification] Verify rail voltage equipment.verify_voltage key=rail_a: "
-        "out of tolerance"
+        "[verification] Verify rail voltage equipment.verify_voltage key=rail_a: out of tolerance"
     ) in text
     assert "[verification] equipment.verify_voltage key=rail_b: other" in text
     payload = json.loads((out / "summary.json").read_text(encoding="utf-8"))
@@ -160,6 +159,7 @@ def _slot(
     test_index: int,
     overall: str,
     repeat_index: int | None = None,
+    summary: dict | None = None,
 ) -> SuiteSlotResult:
     return SuiteSlotResult(
         phase="test",
@@ -170,13 +170,8 @@ def _slot(
         affects_suite_result=True,
         overall=overall,
         exit_code=0 if overall == "PASS" else 1,
+        summary={} if summary is None else summary,
     )
-
-
-def _write_failures(directory: Path, rows: list[dict[str, str]]) -> None:
-    directory.mkdir(parents=True, exist_ok=True)
-    payload = {"failed_required_verifications": rows}
-    (directory / "summary.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
 def test_summary_lists_parameters_and_metadata_files(unit_runtime_context) -> None:
@@ -267,69 +262,58 @@ def test_suite_summary_ranks_repeated_verification_failures(unit_runtime_context
     assert root is not None
     container = root / "container"
     container.mkdir()
-    boot_a = root / "boot-0"
-    boot_b = root / "boot-1"
-    boot_b.mkdir()
-    _write_failures(
-        boot_a,
-        [
-            {
-                "domain": "equipment",
-                "command": "verify_voltage",
-                "key": f"v{index:02d}",
-                "message": "low",
-            }
-            for index in range(11)
-        ],
-    )
-    rail_a = root / "rail-0"
-    rail_b = root / "rail-1"
-    _write_failures(
-        rail_a,
-        [
-            {
-                "domain": "equipment",
-                "command": "verify_voltage",
-                "key": "rail_a",
-                "message": "low",
-            },
-            {
-                "domain": "equipment",
-                "command": "verify_voltage",
-                "key": "rail_a",
-                "message": "lower",
-            },
-        ],
-    )
-    _write_failures(
-        rail_b,
-        [
-            {
-                "domain": "equipment",
-                "command": "verify_voltage",
-                "key": "rail_a",
-                "message": "other",
-            },
-        ],
-    )
-    solo = root / "solo"
-    _write_failures(
-        solo,
-        [
-            {
-                "domain": "equipment",
-                "command": "verify_voltage",
-                "key": "solo",
-                "message": "once",
-            },
-        ],
-    )
+    boot_failures = [
+        {
+            "domain": "equipment",
+            "command": "verify_voltage",
+            "key": f"v{index:02d}",
+            "message": "low",
+        }
+        for index in range(11)
+    ]
+    rail_a_failures = [
+        {"domain": "equipment", "command": "verify_voltage", "key": "rail_a", "message": "low"},
+        {"domain": "equipment", "command": "verify_voltage", "key": "rail_a", "message": "lower"},
+    ]
+    rail_b_failures = [
+        {"domain": "equipment", "command": "verify_voltage", "key": "rail_a", "message": "other"},
+    ]
+    solo_failures = [
+        {"domain": "equipment", "command": "verify_voltage", "key": "solo", "message": "once"},
+    ]
     ctx.suite_test_results = [
-        _slot(boot_a, "boot_verify.py", test_index=0, overall="FAIL", repeat_index=0),
-        _slot(boot_b, "boot_verify.py", test_index=0, overall="FAIL", repeat_index=1),
-        _slot(solo, "only_once.py", test_index=1, overall="FAIL"),
-        _slot(rail_a, "rail.py", test_index=2, overall="FAIL", repeat_index=0),
-        _slot(rail_b, "rail.py", test_index=2, overall="FAIL", repeat_index=1),
+        _slot(
+            root / "boot-0",
+            "boot_verify.py",
+            test_index=0,
+            overall="FAIL",
+            repeat_index=0,
+            summary={"failed_required_verifications": boot_failures},
+        ),
+        _slot(root / "boot-1", "boot_verify.py", test_index=0, overall="FAIL", repeat_index=1),
+        _slot(
+            root / "solo",
+            "only_once.py",
+            test_index=1,
+            overall="FAIL",
+            summary={"failed_required_verifications": solo_failures},
+        ),
+        _slot(
+            root / "rail-0",
+            "rail.py",
+            test_index=2,
+            overall="FAIL",
+            repeat_index=0,
+            summary={"failed_required_verifications": rail_a_failures},
+        ),
+        _slot(
+            root / "rail-1",
+            "rail.py",
+            test_index=2,
+            overall="FAIL",
+            repeat_index=1,
+            summary={"failed_required_verifications": rail_b_failures},
+        ),
     ]
 
     SuiteSummaryWriter().write(container, ctx, exit_code=1, overall="FAIL")
@@ -380,24 +364,25 @@ def test_suite_summary_rolls_up_requirements(unit_runtime_context) -> None:
     assert root is not None
     container = root / "container"
     container.mkdir()
-    slot_a = root / "slot-a"
-    slot_b = root / "slot-b"
-    slot_a.mkdir()
-    slot_b.mkdir()
-    (slot_a / "summary.json").write_text(
-        json.dumps(
-            {
+    ctx.suite_test_results = [
+        _slot(
+            root / "slot-a",
+            "case_a.py",
+            test_index=0,
+            overall="PASS",
+            summary={
                 "requirements": [
                     {"id": "REQ1", "status": "PASS", "failures": []},
                     {"id": "REQ2", "status": "PASS", "failures": []},
                 ],
             },
         ),
-        encoding="utf-8",
-    )
-    (slot_b / "summary.json").write_text(
-        json.dumps(
-            {
+        _slot(
+            root / "slot-b",
+            "case_b.py",
+            test_index=1,
+            overall="PASS",
+            summary={
                 "requirements": [
                     {
                         "id": "REQ2",
@@ -414,11 +399,6 @@ def test_suite_summary_rolls_up_requirements(unit_runtime_context) -> None:
                 ],
             },
         ),
-        encoding="utf-8",
-    )
-    ctx.suite_test_results = [
-        _slot(slot_a, "case_a.py", test_index=0, overall="PASS"),
-        _slot(slot_b, "case_b.py", test_index=1, overall="PASS"),
     ]
 
     SuiteSummaryWriter().write(container, ctx, exit_code=0, overall="PASS")

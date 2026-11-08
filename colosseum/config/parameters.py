@@ -196,9 +196,7 @@ def _toml_quoted(text: str) -> str:
 
 def _toml_key(name: str) -> str:
     """Format a key; bare keys are ASCII letters/digits/underscore/dash only."""
-    if name and all(
-        char.isascii() and (char.isalnum() or char in {"_", "-"}) for char in name
-    ):
+    if name and all(char.isascii() and (char.isalnum() or char in {"_", "-"}) for char in name):
         return name
     return _toml_quoted(name)
 
@@ -239,30 +237,51 @@ def write_parameters_file(path: Path, tables: dict[str, dict[str, Any]]) -> None
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
-def attach_parameters(
-    ctx: RuntimeContext,
-    path: Path | None,
+def _suite_parameter_paths(
     *,
-    required: bool = False,
-) -> None:
-    """Load parameters onto the runtime context and record the path in metadata."""
+    script_path: Path | None,
+    entry_path: Path | None,
+    suite_path: Path | None,
+    stacking: bool,
+) -> list[Path]:
+    """Select ordered sources for both execution and provenance."""
+    test = resolve_parameters_path(script_path=script_path, entry_path=entry_path)
+    if suite_path is not None and not stacking:
+        return [suite_path]
+    return [path for path in (test, suite_path) if path is not None]
+
+
+def _attach_parameter_sources(ctx: RuntimeContext, sources: list[Path]) -> None:
     from colosseum.paths import absolute_path
 
     ctx.parameters_map = None
     ctx.parameters_path = None
-    if path is None:
+    if not sources:
         return
-    resolved = absolute_path(path)
-    if not resolved.is_file():
-        if required:
-            raise ParametersError(f"Parameters file not found: {resolved}")
-        return
-    ctx.parameters_map = load_parameters_file(resolved)
-    ctx.parameters_path = resolved
+    sources = [absolute_path(path) for path in sources]
+    tables: dict[str, dict[str, Any]] = {}
+    for path in sources:
+        tables = merge_parameter_tables(tables, load_parameters_file(path))
+    ctx.parameters_map = tables
+    ctx.parameters_path = sources[-1]
     if ctx.db.is_initialized():
-        ctx.db.insert_run_metadata("parameters_file", str(resolved))
+        ctx.db.insert_run_metadata("parameters_file", str(sources[-1]))
+        if len(sources) > 1:
+            ctx.db.insert_run_metadata("parameters_file_test", str(sources[0]))
     if ctx.logger is not None:
-        ctx.logger.info("Parameters file: %s (%d section(s))", resolved, len(ctx.parameters_map))
+        ctx.logger.info("Parameters file: %s (%d section(s))", sources[-1], len(tables))
+        if len(sources) > 1:
+            ctx.logger.info("Parameters file (test): %s", sources[0])
+
+
+def attach_parameters(ctx: RuntimeContext, path: Path | None, *, required: bool = False) -> None:
+    """Attach one file, preserving optional sibling-file behavior."""
+    from colosseum.paths import absolute_path
+
+    resolved = absolute_path(path) if path is not None else None
+    if resolved is not None and not required and not resolved.is_file():
+        resolved = None
+    _attach_parameter_sources(ctx, [resolved] if resolved is not None else [])
 
 
 def attach_stacked_parameters(
@@ -271,51 +290,8 @@ def attach_stacked_parameters(
     suite_path: Path | None,
     test_path: Path | None,
 ) -> None:
-    """Load test tables, then replace same-key tables from the suite-level file.
-
-    Either path may be omitted. A path that is set must exist. When both files
-    load, ``ctx.parameters_path`` is the suite-level file and the test path is
-    recorded as ``parameters_file_test``.
-    """
-    from colosseum.paths import absolute_path
-
-    ctx.parameters_map = None
-    ctx.parameters_path = None
-    if suite_path is None and test_path is None:
-        return
-
-    test_tables: dict[str, dict[str, Any]] = {}
-    resolved_test: Path | None = None
-    if test_path is not None:
-        resolved_test = absolute_path(test_path)
-        test_tables = load_parameters_file(resolved_test)
-
-    suite_tables: dict[str, dict[str, Any]] = {}
-    resolved_suite: Path | None = None
-    if suite_path is not None:
-        resolved_suite = absolute_path(suite_path)
-        suite_tables = load_parameters_file(resolved_suite)
-
-    if resolved_suite is not None:
-        ctx.parameters_map = merge_parameter_tables(test_tables, suite_tables)
-        ctx.parameters_path = resolved_suite
-    else:
-        ctx.parameters_map = test_tables
-        ctx.parameters_path = resolved_test
-
-    if ctx.db.is_initialized():
-        if ctx.parameters_path is not None:
-            ctx.db.insert_run_metadata("parameters_file", str(ctx.parameters_path))
-        if resolved_suite is not None and resolved_test is not None:
-            ctx.db.insert_run_metadata("parameters_file_test", str(resolved_test))
-    if ctx.logger is not None:
-        ctx.logger.info(
-            "Parameters file: %s (%d section(s))",
-            ctx.parameters_path,
-            len(ctx.parameters_map),
-        )
-        if resolved_suite is not None and resolved_test is not None:
-            ctx.logger.info("Parameters file (test): %s", resolved_test)
+    """Replace whole test tables with suite tables and retain both source identities."""
+    _attach_parameter_sources(ctx, [path for path in (test_path, suite_path) if path is not None])
 
 
 _CONTAINER_CLOSERS = {"[": "]", "{": "}", "(": ")"}
@@ -339,8 +315,7 @@ def load_parameter(key: str, *, field: str) -> Any:  # noqa: ANN401
     table = ctx.parameters_map.get(key)
     if table is None:
         return None
-    if ctx.run_options.dry_run:
-        ctx.dry_run_keys_seen.add(key)
+    ctx.note_parameter_use(key)
     if field not in table:
         raise ParametersError(f"parameters field {field!r} not found in [{key}]")
     try:
@@ -395,7 +370,7 @@ def _coerce_parameter_string(raw: str) -> object:
 def _top_level_indexes(text: str, *, separator: str, source: str) -> list[int]:
     """Return indexes of ``separator`` outside quotes and nested brackets."""
     indexes: list[int] = []
-    depth = 0
+    closers: list[str] = []
     in_single = False
     in_double = False
     escaped = False
@@ -415,16 +390,15 @@ def _top_level_indexes(text: str, *, separator: str, source: str) -> list[int]:
         if in_single or in_double:
             continue
         if char in _CONTAINER_CLOSERS:
-            depth += 1
+            closers.append(_CONTAINER_CLOSERS[char])
             continue
         if char in _CONTAINER_CLOSERS.values():
-            depth -= 1
-            if depth < 0:
+            if not closers or closers.pop() != char:
                 raise _parse_error(source)
             continue
-        if char == separator and depth == 0:
+        if char == separator and not closers:
             indexes.append(index)
-    if depth != 0 or in_single or in_double:
+    if closers or in_single or in_double:
         raise _parse_error(source)
     return indexes
 

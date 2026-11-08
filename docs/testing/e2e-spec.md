@@ -1,13 +1,22 @@
 # Colosseum core E2E specification
 
 Black-box behavioral requirements for the Colosseum test framework. Each
-requirement
-maps to a subprocess test under `tests/e2e/` and can be used for test-driven
-reimplementation without reading source.
+requirement names the test that owns it. Most user-facing checks are subprocess
+tests under `tests/e2e/`. A requirement may instead name an integration test
+when that test is the public-path owner. The named test can be used for
+test-driven reimplementation without reading source.
 
-Tests use the built-in `core` evidence domain via `tests/support/core_api.py`.
-No
-plugins are installed.
+Most tests use the built-in `core` evidence domain via `tests/support/core_api.py`.
+Plugin-contract checks install generic fixture plugins into disposable interpreters,
+never into the environment running pytest. They exercise editable and offline wheel
+installs, lazy namespace discovery, packaged resources, undecorated multi-row writes,
+independent SQL commits, existing measurement reads, and report/shutdown boundaries.
+
+To exercise an actual frozen bundle, install the existing `colosseum_contract_probe`
+fixture in the build environment, run `python -m colosseum.tools.build_executable`,
+and set `COLOSSEUM_FROZEN_EXECUTABLE` to its absolute launcher path before running
+`tests/e2e/test_plugin_contract.py`. The frozen test skips when this variable is
+absent; fake archive tests alone do not validate executable behavior.
 
 Integration tests under `tests/integration/` mirror many suite behaviors
 in-process
@@ -23,7 +32,8 @@ for faster feedback; this document is the user-facing CLI specification.
 
 - Process exit code is 0.
 - `outputs/<timestamp>_<name>-pass/` contains `debug.log`, `execution.sqlite`,
-  `summary.txt`, `summary.json`, and `wats_<datetime>_<script>.json`.
+  `summary.txt`, and `summary.json`. WATS JSON is not written unless
+  `--report wats` is passed.
 - `run_metadata` records `overall_status=PASS` and `exit_code=0`.
 - Stdout includes `Colosseum version:` and `Overall result: PASS`.
 - `summary.json` `provenance` has `platform`, `packages` (selected versions,
@@ -47,7 +57,7 @@ for faster feedback; this document is the user-facing CLI specification.
 
 **Fixtures:** `optional_fail_test.py`
 
-**Test:** `test_run_cli.py::test_optional_verification_fail_exits_zero`
+**Test:** `test_run_cli.py::test_pass_run_writes_full_artifacts`
 
 ### E2E-RUN-03
 
@@ -62,6 +72,23 @@ for faster feedback; this document is the user-facing CLI specification.
 **Fixtures:** `fail_required_verify.py`
 
 **Test:** `test_run_cli.py::test_missing_measurement_exits_one`
+
+### E2E-RUN-16
+
+**Behavior:** A required verification of a real measurement outside its limit
+exits 1 with status FAIL.
+
+**Acceptance criteria:**
+
+- Exit code 1.
+- Verification row has `status=FAIL` for the measured key.
+- `summary.json` `overall_result` is `FAIL` and the failed-verification entry
+  names that key with status `FAIL`.
+- Output directory suffix is `-fail`.
+
+**Fixtures:** `fail_required_limit.py`
+
+**Test:** `test_run_cli.py::test_required_limit_fail_exits_one`
 
 ### E2E-RUN-04
 
@@ -116,7 +143,7 @@ for faster feedback; this document is the user-facing CLI specification.
 
 **Fixtures:** `wats_smoke_test.py`, `metadata_example.yaml`
 
-**Test:** `test_run_cli.py::test_metadata_enriches_wats_report`
+**Test:** `test_wats_cli.py::test_wats_metadata_identity_fields`
 
 ### E2E-RUN-08
 
@@ -165,7 +192,9 @@ finalize it is renamed with `-pass` or `-fail`.
 - Exit code 0.
 - `commands` table contains the invoked plugin command row.
 
-**Test:** `test_cli_standalone_command.py::test_standalone_command_run_writes_artifacts`
+**Test:** `test_plugin_contract.py::test_installed_plugin_is_discovered_and_attached`
+
+The command row is produced by the installed ``contract_probe.ping`` plugin, and its domain is ``contract_probe``.
 
 ### E2E-RUN-12
 
@@ -288,13 +317,14 @@ only.
 
 **Acceptance criteria:**
 
-- Test slot: `summary.txt`, `summary.json`, WATS JSON present.
+- Test slot: `summary.txt`, `summary.json`, `debug.log`, and `execution.sqlite`.
+  No WATS JSON unless `--report wats` is passed.
 - Setup/teardown slot: `debug.log` and `execution.sqlite` only; no `summary.txt`
   or WATS.
 
 **Fixtures:** `suites/happy.toml`
 
-**Test:** `test_suite_cli.py::test_slot_artifact_sets`
+**Test:** `test_suite_cli.py::test_happy_suite_container_passes`
 
 ### E2E-SUITE-03
 
@@ -466,17 +496,21 @@ A test slot with a missing measurement key fails the suite container.
 
 ## WATS artifacts
 
+WATS JSON is opt-in. A normal run with artifacts enabled does not write it.
+`test_run_cli.py::test_pass_run_writes_full_artifacts` checks that default.
+
 ### E2E-ART-WATS-01
 
-**Behavior:** WATS JSON is written on every normal run with artifacts enabled.
+**Behavior:** `--report wats` writes one WATS JSON file.
 
 **Acceptance criteria:**
 
 - Exactly one `wats_*.json` file in the run directory.
+- Filename matches `wats_<UTCdatetime>_<script_stem>.json`.
 
 **Fixtures:** `optional_fail_test.py`
 
-**Test:** `test_wats_cli.py::test_wats_file_always_written`
+**Test:** `test_wats_cli.py::test_wats_file_written_when_enabled`
 
 ### E2E-ART-WATS-02
 
@@ -488,7 +522,7 @@ A test slot with a missing measurement key fails the suite container.
 
 **Fixtures:** `optional_fail_test.py`
 
-**Test:** `test_wats_cli.py::test_wats_filename_pattern`
+**Test:** `test_wats_cli.py::test_wats_file_written_when_enabled`
 
 ### E2E-ART-WATS-03
 
@@ -514,3 +548,16 @@ A test slot with a missing measurement key fails the suite container.
 **Fixtures:** `wats_best_effort_test.py`
 
 **Test:** `test_wats_cli.py::test_wats_best_effort_without_metadata`
+
+### E2E-ART-WATS-05
+
+**Behavior:** Without ``--report wats``, a normal run writes no WATS JSON.
+
+**Acceptance criteria:**
+
+- Exit code 0.
+- The run directory contains ``summary.json`` and no ``wats_*.json``.
+
+**Fixtures:** `optional_fail_test.py`
+
+**Test:** `test_run_cli.py::test_pass_run_writes_full_artifacts`

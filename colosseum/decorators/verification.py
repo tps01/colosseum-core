@@ -159,18 +159,27 @@ def _pass_or_fail(
     if passed:
         return VerificationResult(status="PASS", message="", optional=optional, actual=actual)
     return VerificationResult(
-        status="FAIL", message=fail_message, optional=optional, actual=actual,
+        status="FAIL",
+        message=fail_message,
+        optional=optional,
+        actual=actual,
     )
 
 
 def _error_result(message: str, *, actual: object, optional: bool) -> VerificationResult:
     return VerificationResult(
-        status="ERROR", message=message, optional=optional, actual=actual,
+        status="ERROR",
+        message=message,
+        optional=optional,
+        actual=actual,
     )
 
 
 def _require_numbers(
-    actual: object, expected: object, *, optional: bool,
+    actual: object,
+    expected: object,
+    *,
+    optional: bool,
 ) -> tuple[float, float] | VerificationResult:
     actual_n = _as_finite_number(actual)
     expected_n = _as_finite_number(expected)
@@ -206,7 +215,9 @@ def apply_tolerance(
     """
     if isinstance(tolerance, bool):
         return _error_result(
-            f"unsupported tolerance {tolerance!r}", actual=actual, optional=optional,
+            f"unsupported tolerance {tolerance!r}",
+            actual=actual,
+            optional=optional,
         )
 
     if tolerance is None:
@@ -251,7 +262,9 @@ def apply_tolerance(
         op = _OPERATOR_ALIASES.get(text) or _OPERATOR_ALIASES.get(text.upper())
         if op is None:
             return _error_result(
-                f"unknown tolerance {tolerance!r}", actual=actual, optional=optional,
+                f"unknown tolerance {tolerance!r}",
+                actual=actual,
+                optional=optional,
             )
 
         symbol = _OP_SYMBOLS[op]
@@ -282,7 +295,9 @@ def apply_tolerance(
         )
 
     return _error_result(
-        f"unsupported tolerance {tolerance!r}", actual=actual, optional=optional,
+        f"unsupported tolerance {tolerance!r}",
+        actual=actual,
+        optional=optional,
     )
 
 
@@ -290,18 +305,9 @@ def _has_required_unit_command_error() -> bool:
     from colosseum.context import get_context
 
     try:
-        records = get_context().result_aggregator._records  # noqa: SLF001
+        return bool(get_context().result_aggregator.required_command_errors(cause="unit"))
     except RuntimeError:
         return False
-    for row in records:
-        if (
-            row["kind"] == "command"
-            and not row["optional"]
-            and row["status"] == "ERROR"
-            and row.get("cause", "unit") == "unit"
-        ):
-            return True
-    return False
 
 
 def missing_measurement_result(*, key: str, optional: bool = False) -> VerificationResult:
@@ -403,7 +409,7 @@ def _clean_description(value: object) -> str | None:
 
 
 def _requirements_from_kwargs(kwargs: dict[str, Any]) -> list[str]:
-    from colosseum.summary.requirements import coerce_requirements
+    from colosseum.results.aggregation import coerce_requirements
 
     if "requirements" not in kwargs:
         return []
@@ -429,7 +435,10 @@ def _coerce_verification_result(
         expected, tolerance = limit
         return apply_tolerance(raw_result, expected, tolerance, optional=optional)
     return VerificationResult(
-        status="PASS", message=str(raw_result), optional=optional, actual=raw_result,
+        status="PASS",
+        message=str(raw_result),
+        optional=optional,
+        actual=raw_result,
     )
 
 
@@ -439,12 +448,17 @@ def verification(func: Callable[P, R], /) -> Callable[P, R]: ...
 
 @overload
 def verification(
-    func: None = None, /, *, dry_run: object = "log",
+    func: None = None,
+    /,
+    *,
+    dry_run: object = "log",
 ) -> Callable[[Callable[P, R]], Callable[P, R]]: ...
 
 
 def verification(
-    _func: Callable[..., Any] | None = None, *, dry_run: object = "log",
+    _func: Callable[..., Any] | None = None,
+    *,
+    dry_run: object = "log",
 ) -> object:
     def decorate(func: Callable[..., Any]) -> Callable[..., Any]:
         domain = resolve_domain(func)
@@ -457,15 +471,23 @@ def verification(
 
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+            # Resolve runtime policy and identity before deciding whether the body runs.
             ctx = ensure_runtime_context()
             if should_skip_verification(ctx):
                 return None
             key, injected = resolve_auto_key(
-                ctx, kwargs, family="verification", command=command,
+                ctx,
+                kwargs,
+                family="verification",
+                command=command,
             )
             key_text = "" if not key else str(key)
             if capture_parameter_export(
-                ctx, kind="verification", command=command, key=key_text, kwargs=kwargs,
+                ctx,
+                kind="verification",
+                command=command,
+                key=key_text,
+                kwargs=kwargs,
             ):
                 return None
             try:
@@ -495,6 +517,7 @@ def verification(
             ):
                 return None
 
+            # Resolve effective arguments; parameter tables override caller keywords.
             call_kwargs = dict(kwargs)
             try:
                 if key and not injected:
@@ -517,7 +540,9 @@ def verification(
                 except TypeError:
                     requirements = []
                 result = VerificationResult(
-                    status="ERROR", message=str(exc), optional=optional,
+                    status="ERROR",
+                    message=str(exc),
+                    optional=optional,
                 )
                 ctx.result_aggregator.record_verification(
                     result,
@@ -541,6 +566,7 @@ def verification(
                         optional=result.optional,
                         message=result.message,
                         description=description,
+                        requirements=requirements,
                     ),
                 )
                 log_evidence(
@@ -562,7 +588,9 @@ def verification(
                 requirements = _requirements_from_kwargs(call_kwargs)
             except TypeError as exc:
                 result = VerificationResult(
-                    status="ERROR", message=str(exc), optional=optional,
+                    status="ERROR",
+                    message=str(exc),
+                    optional=optional,
                 )
                 ctx.result_aggregator.record_verification(
                     result,
@@ -601,6 +629,7 @@ def verification(
                     kwargs=call_kwargs,
                 )
                 return result
+            # Keep evidence metadata; remove wrapper-owned keywords the body does not declare.
             logged_kwargs = dict(call_kwargs)
             if not accepts_optional:
                 call_kwargs.pop("optional", None)
@@ -627,6 +656,7 @@ def verification(
             if handled:
                 return value
 
+            # Run the body and normalize its value, bool, or explicit VerificationResult.
             try:
                 call_kwargs = coerce_units(call_kwargs)
                 result = _coerce_verification_result(
@@ -645,6 +675,7 @@ def verification(
                     kwargs=logged_kwargs,
                 )
                 result = VerificationResult(status="ERROR", message=str(exc), optional=optional)
+            # Record the same outcome in the verdict and the evidence database.
             ctx.result_aggregator.record_verification(
                 result,
                 key=key_text,
@@ -667,6 +698,7 @@ def verification(
                     optional=result.optional,
                     message=result.message,
                     description=description,
+                    requirements=requirements,
                 ),
             )
             log_evidence(
@@ -678,8 +710,7 @@ def verification(
                 status=result.status,
                 optional=result.optional,
                 detail=(
-                    f"expected={_reference_expected(call_kwargs)!r} "
-                    f"message={result.message!r}"
+                    f"expected={_reference_expected(call_kwargs)!r} message={result.message!r}"
                 ),
                 call_args=args,
                 kwargs=logged_kwargs,

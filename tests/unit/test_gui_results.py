@@ -127,11 +127,6 @@ def test_load_run_evidence_reads_sqlite_without_later_columns(tmp_path: Path) ->
 
 
 def test_limit_view_rejects_non_numeric_and_keeps_one_sided_bounds() -> None:
-    assert limit_view(
-        compare_op="GE", expected_raw="3.3", tolerance_raw="", actual_raw="2.9", units="V",
-    ) == limit_view(
-        compare_op="GE", expected_raw="3.3", tolerance_raw="", actual_raw="2.9", units="V",
-    )
     view = limit_view(
         compare_op="GE", expected_raw="3.3", tolerance_raw="", actual_raw="2.9", units="V",
     )

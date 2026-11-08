@@ -108,3 +108,8 @@ ready = yes
 """
     expected = tomllib.loads(snippet)
     assert loads_relaxed(snippet) == expected
+
+
+@pytest.mark.parametrize("note", ["'\"\"\"'", '"\'\'\'"', '"escaped \\\" # quote"'])
+def test_delimiters_in_ordinary_strings_do_not_hide_following_values(note) -> None:
+    assert loads_relaxed(f"note = {note}\nflag = yes\n")["flag"] is True

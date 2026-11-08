@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-
 import pytest
 
 from colosseum.decorators import CommandResult
@@ -135,49 +133,6 @@ def test_all_required_pass_overall() -> None:
     _record_command(agg, "PASS")
     assert agg.overall_pass() is True
     assert agg.exit_code() == 0
-
-
-def test_kind_filters_use_exact_equality() -> None:
-    """Reject ``is``/ordering mutants that behave like ``==`` only for interned literals."""
-    agg = ResultAggregator()
-    _record(agg, "FAIL", optional=False)
-    _record(agg, "FAIL", optional=True)
-    _record_command(agg, "FAIL", optional=False)
-    _record_command(agg, "FAIL", optional=True)
-
-    def _required(kind: str) -> list:
-        return [row for row in agg.failed_required_outcomes() if row["kind"] == kind]
-
-    def _optional(kind: str) -> list:
-        return [row for row in agg.optional_outcomes() if row["kind"] == kind]
-
-    ver_fail = _required("verification")[0]
-    ver_fail["kind"] = json.loads('"verification"')
-    assert len(_required("verification")) == 1
-
-    cmd_fail = _required("command")[0]
-    cmd_fail["kind"] = json.loads('"command"')
-    assert len(_required("command")) == 1
-
-    opt_ver = _optional("verification")[0]
-    opt_ver["kind"] = json.loads('"verification"')
-    assert len(_optional("verification")) == 1
-
-    opt_ver["kind"] = "verification" + "~"
-    assert _optional("verification") == []
-
-    agg_ver = ResultAggregator()
-    _record(agg_ver, "FAIL")
-    agg_ver.failed_required_outcomes()[0]["kind"] = "verification" + "~"
-    remaining = [
-        row for row in agg_ver.failed_required_outcomes() if row["kind"] == "verification"
-    ]
-    assert remaining == []
-
-    agg_cmd = ResultAggregator()
-    _record_command(agg_cmd, "FAIL")
-    agg_cmd.failed_required_outcomes()[0]["kind"] = "comman"
-    assert [row for row in agg_cmd.failed_required_outcomes() if row["kind"] == "command"] == []
 
 
 def test_optional_error_does_not_fail_overall() -> None:

@@ -213,15 +213,12 @@ def finalize_dry_run_tips(ctx: RuntimeContext) -> None:
             "check that main() runs and plugins are loaded",
         )
     if ctx.parameters_map:
-        unused = sorted(
-            key for key in ctx.parameters_map if key not in ctx.dry_run_keys_seen
-        )
+        unused = sorted(key for key in ctx.parameters_map if key not in ctx.dry_run_keys_seen)
         if unused:
             listed = ", ".join(repr(key) for key in unused)
             note_dry_run_tip(
                 ctx,
-                f"parameters file has unused section(s): {listed}; "
-                "check for typos or stale keys",
+                f"parameters file has unused section(s): {listed}; check for typos or stale keys",
             )
 
 
@@ -291,7 +288,6 @@ def normalize_outcome_status(status: str) -> str:
     return canonical
 
 
-
 class _Outcome:
     """Minimal status object accepted by the result aggregator."""
 
@@ -309,8 +305,7 @@ def bind_dry_run_policy(wrapper: Callable[..., Any], policy: object) -> None:
     """
     if policy != "log" and policy != "call" and not callable(policy):
         raise TypeError(
-            "dry_run must be 'log', 'call', or a callable, "
-            f"got {type(policy).__name__}",
+            f"dry_run must be 'log', 'call', or a callable, got {type(policy).__name__}",
         )
     setattr(wrapper, DRY_RUN_ATTR, policy)
 
@@ -328,12 +323,18 @@ def _record_outcome(
 ) -> None:
     if kind == "command":
         ctx.result_aggregator.record_command(
-            result, key=key, command=command, domain=domain,
+            result,
+            key=key,
+            command=command,
+            domain=domain,
         )
         return
     if kind == "measurement":
         ctx.result_aggregator.record_measurement(
-            result, key=key, command=command, domain=domain,
+            result,
+            key=key,
+            command=command,
+            domain=domain,
         )
         return
     ctx.result_aggregator.record_verification(
@@ -436,7 +437,10 @@ def _measurement_already_logged(
     if multi_row:
         return (
             ctx.db.get_measurement(
-                domain=domain, command=command, key=key, row_index=row_index,
+                domain=domain,
+                command=command,
+                key=key,
+                row_index=row_index,
             )
             is not None
         )
@@ -588,11 +592,7 @@ def _dry_run_structure_message(
                 "distinct row_index="
             ), kwargs
     key_in_parameters = bool(key) and ctx.parameters_map is not None and key in ctx.parameters_map
-    if (
-        require_prior_measurement
-        and not key_in_parameters
-        and not _evidence_key_measured(ctx, key)
-    ):
+    if require_prior_measurement and not key_in_parameters and not _evidence_key_measured(ctx, key):
         return f"no measurement recorded for key={key!r}", kwargs
     call_kwargs = dict(kwargs)
     applied_parameters = False
@@ -643,9 +643,7 @@ def _dry_run_structure_message(
     except TypeError as exc:
         message = f"`{command}` call did not match its signature: {exc}"
         if key_in_parameters:
-            message += (
-                f"; check parameters[{key!r}] fields against the function signature"
-            )
+            message += f"; check parameters[{key!r}] fields against the function signature"
         return message, resolved
     binding.apply_defaults()
     try:
@@ -664,7 +662,7 @@ def _dry_run_structure_message(
     if kind == "measurement" and key:
         ctx.dry_run_measurements.add((domain, command, key, row_index))
     if key:
-        ctx.dry_run_keys_seen.add(key)
+        ctx.note_parameter_use(key)
     return None, resolved
 
 
@@ -719,7 +717,7 @@ def finish_dry_run_log(
     req_ids = list(requirements or [])
     if "requirements" in resolved:
         try:
-            from colosseum.summary.requirements import coerce_requirements
+            from colosseum.results.aggregation import coerce_requirements
 
             req_ids = coerce_requirements(resolved["requirements"])
         except TypeError as exc:
@@ -805,8 +803,7 @@ def invoke_dry_run_substitute(
         return False, None
     if not callable(policy):
         raise TypeError(
-            "dry_run must be 'log', 'call', or a callable, "
-            f"got {type(policy).__name__}",
+            f"dry_run must be 'log', 'call', or a callable, got {type(policy).__name__}",
         )
     substitute = cast("Callable[..., Any]", policy)
     try:
@@ -835,7 +832,9 @@ def invoke_dry_run_substitute(
             from colosseum.decorators.verification import VerificationResult
 
             return True, VerificationResult(
-                status="ERROR", message=str(exc), optional=optional,
+                status="ERROR",
+                message=str(exc),
+                optional=optional,
             )
         if optional:
             return True, None
@@ -879,5 +878,9 @@ def publish_requirements_parameter(wrapper: Callable[..., Any], func: Callable[.
     Functions that already declare ``requirements`` keep their own signature.
     """
     _publish_keyword_parameter(
-        wrapper, func, name="requirements", default="", annotation=object,
+        wrapper,
+        func,
+        name="requirements",
+        default="",
+        annotation=object,
     )

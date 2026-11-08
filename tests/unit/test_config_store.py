@@ -118,17 +118,22 @@ def test_apply_raw_config_attaches_store() -> None:
 
 
 def test_load_config_reload_updates_run_metadata(core_config, isolated_cwd, tmp_path) -> None:
+    from tests.support.helpers import release_context
+
     load_config(core_config)
     ctx = get_context()
-    ensure_output_dir(ctx)
-    replacement = tmp_path / "replacement.toml"
-    replacement.write_text(
-        "[runtime]\n"
-        "label = \"replacement\"\n",
-        encoding="utf-8",
-    )
+    try:
+        ensure_output_dir(ctx)
+        replacement = tmp_path / "replacement.toml"
+        replacement.write_text(
+            "[runtime]\n"
+            "label = \"replacement\"\n",
+            encoding="utf-8",
+        )
 
-    load_config(replacement)
+        load_config(replacement)
 
-    metadata = {row.key: row.value for row in ctx.db.fetch_run_metadata()}
-    assert metadata["config_path"] == str(replacement.resolve())
+        metadata = {row.key: row.value for row in ctx.db.fetch_run_metadata()}
+        assert metadata["config_path"] == str(replacement.resolve())
+    finally:
+        release_context(ctx)

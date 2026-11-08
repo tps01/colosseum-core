@@ -9,7 +9,7 @@ import sys
 import time
 import uuid
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -148,7 +148,10 @@ def ensure_runtime_ready(ctx: RuntimeContext, logical_name: str | None = None) -
     console_level = logging.DEBUG if ctx.debug_logging else logging.INFO
     if ctx.no_artifacts:
         ctx.logger = ctx.session.start_logging(
-            ctx, console=True, console_level=console_level, file=False,
+            ctx,
+            console=True,
+            console_level=console_level,
+            file=False,
         )
         ctx.logger.debug("Runtime ready (no-artifacts mode)")
         initialize_database_if_needed(ctx)
@@ -160,7 +163,10 @@ def ensure_runtime_ready(ctx: RuntimeContext, logical_name: str | None = None) -
             output_dir.mkdir(parents=True, exist_ok=True)
             ctx.output_dir = output_dir
         ctx.logger = ctx.session.start_logging(
-            ctx, console=True, console_level=console_level, file=True,
+            ctx,
+            console=True,
+            console_level=console_level,
+            file=True,
         )
         ctx.logger.debug("Allocated output directory: %s", ctx.output_dir)
         initialize_database_if_needed(ctx)
@@ -202,6 +208,34 @@ class SuiteSlotResult:
     config_path: str | None = None
     parameters_path: str | None = None
     metadata_path: str | None = None
+    summary: dict[str, Any] = field(default_factory=dict)
+    slot_id: int = 0
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return the existing outward slot metadata."""
+        return {
+            "phase": self.phase,
+            "script": str(self.script_path),
+            "output_directory": str(self.output_dir),
+            "test_index": self.test_index,
+            "repeat_index": self.repeat_index,
+            "cycle_index": self.cycle_index,
+            "overall_result": self.overall,
+            "exit_code": self.exit_code,
+            "config_path": self.config_path,
+            "parameters_path": self.parameters_path,
+            "metadata_path": self.metadata_path,
+        }
+
+    def persisted(self, root: Path) -> dict[str, Any]:
+        """Include compact result facts and an occurrence ID for suite storage."""
+        return {
+            **self.as_dict(),
+            "slot_id": self.slot_id,
+            "output_directory": self.output_dir.relative_to(root).as_posix(),
+            "affects_suite_result": self.affects_suite_result,
+            "result": self.summary,
+        }
 
 
 def ensure_suite_runtime_ready(ctx: RuntimeContext, suite_name: str) -> None:
@@ -213,7 +247,10 @@ def ensure_suite_runtime_ready(ctx: RuntimeContext, suite_name: str) -> None:
     if ctx.no_artifacts:
         ctx.suite_output_dir = None
         ctx.logger = ctx.session.start_logging(
-            ctx, console=True, console_level=console_level, file=False,
+            ctx,
+            console=True,
+            console_level=console_level,
+            file=False,
         )
         return
     outputs_root = resolve_outputs_root(ctx.run_options)
@@ -221,8 +258,16 @@ def ensure_suite_runtime_ready(ctx: RuntimeContext, suite_name: str) -> None:
     container = allocate_run_directory(outputs_root, suite_name)
     container.mkdir(parents=True, exist_ok=True)
     ctx.suite_output_dir = container
+    database = DatabaseManager()
+    try:
+        database.initialize(container / "execution.sqlite")
+    finally:
+        database.close()
     ctx.logger = ctx.session.start_logging(
-        ctx, console=True, console_level=console_level, file=True,
+        ctx,
+        console=True,
+        console_level=console_level,
+        file=True,
     )
     if ctx.logger is not None:
         ctx.logger.info("Suite container: %s", container)
@@ -265,7 +310,10 @@ def begin_script_slot(
     console_level = logging.DEBUG if ctx.debug_logging else logging.INFO
     if ctx.no_artifacts:
         ctx.logger = ctx.session.start_logging(
-            ctx, console=True, console_level=console_level, file=False,
+            ctx,
+            console=True,
+            console_level=console_level,
+            file=False,
         )
         initialize_database_if_needed(ctx)
         ctx.runtime_ready = True
@@ -281,7 +329,10 @@ def begin_script_slot(
     slot_dir.mkdir(parents=True, exist_ok=True)
     ctx.output_dir = slot_dir
     ctx.logger = ctx.session.start_logging(
-        ctx, console=True, console_level=console_level, file=True,
+        ctx,
+        console=True,
+        console_level=console_level,
+        file=True,
     )
     initialize_database_if_needed(ctx)
     ctx.db.insert_run_metadata("phase", phase)
@@ -308,7 +359,8 @@ def finalize_script_slot(
     finalize_error: BaseException | None = None
     try:
         result_data = finalize_run(
-            ctx, policy=policy_for_suite_slot(affects_suite_result=affects),
+            ctx,
+            policy=policy_for_suite_slot(affects_suite_result=affects),
         )
     except Exception as exc:  # noqa: BLE001 - slot must not abort the suite
         finalize_error = exc
@@ -336,10 +388,17 @@ def finalize_script_slot(
         config_path=_stored_path(ctx.config_path),
         parameters_path=_stored_path(ctx.parameters_path),
         metadata_path=_stored_path(ctx.metadata_path),
+        summary=result_data.summary if result_data is not None else {},
+        slot_id=len(ctx.suite_slot_results),
     )
     ctx.suite_slot_results.append(result)
-    if affects:
-        ctx.suite_test_results.append(result)
+    if ctx.suite_output_dir is not None and not ctx.no_artifacts:
+        DatabaseManager.persist_results(
+            ctx.suite_output_dir / "execution.sqlite",
+            None,
+            kind="suite",
+            slots=[result.persisted(ctx.suite_output_dir)],
+        )
     ctx.output_dir = None
     ctx.runtime_ready = False
     ctx.slot_finalized = True
@@ -355,9 +414,37 @@ def finalize_script_slot(
         ctx.logger = None
     if finalize_error is not None and ctx.logger is not None:
         ctx.logger.exception(
-            "Script slot finalize failed for %s: %s", script_path, finalize_error,
+            "Script slot finalize failed for %s: %s",
+            script_path,
+            finalize_error,
         )
     return result
+
+
+def refresh_slot_artifacts(ctx: RuntimeContext, slot: SuiteSlotResult) -> None:
+    """Reconcile core-owned artifacts after a slot failure or container rename."""
+    if ctx.no_artifacts or not slot.summary:
+        return
+    from colosseum.summary.writer import SummaryWriter
+
+    slot.summary["output_directory"] = str(slot.output_dir)
+    DatabaseManager.persist_results(
+        slot.output_dir / "execution.sqlite",
+        {
+            **slot.summary,
+            "stored_status": slot.summary["overall_result"] if slot.affects_suite_result else "N/A",
+        },
+        kind="slot",
+    )
+    if (slot.output_dir / "summary.json").is_file():
+        SummaryWriter().write(slot.output_dir, ctx.result_aggregator, ctx, payload=slot.summary)
+    if ctx.suite_output_dir is not None:
+        DatabaseManager.persist_results(
+            ctx.suite_output_dir / "execution.sqlite",
+            None,
+            kind="suite",
+            slots=[slot.persisted(ctx.suite_output_dir)],
+        )
 
 
 @dataclass(frozen=True)

@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-import shutil
-import sys
 from pathlib import Path
 from unittest.mock import patch
 
 REPO = Path(__file__).resolve().parents[2]
 
 
-def test_build_pdf_invokes_sphinx_and_latexmk(tmp_path) -> None:
-    sys.path.insert(0, str(REPO / "scripts" / "docgen"))
+def test_build_pdf_invokes_sphinx_and_latexmk(tmp_path, monkeypatch) -> None:
+    monkeypatch.syspath_prepend(str(REPO / "scripts" / "docgen"))
     from build_pdf import build_pdf
 
     site_source = tmp_path / "source"
@@ -42,8 +40,8 @@ def test_build_pdf_invokes_sphinx_and_latexmk(tmp_path) -> None:
     assert "colosseum.tex" in latexmk_cmd
 
 
-def test_require_latex_toolchain_exits_when_missing() -> None:
-    sys.path.insert(0, str(REPO / "scripts" / "docgen"))
+def test_require_latex_toolchain_exits_when_missing(monkeypatch) -> None:
+    monkeypatch.syspath_prepend(str(REPO / "scripts" / "docgen"))
     from build_pdf import require_latex_toolchain
 
     with patch("build_pdf.shutil.which", return_value=None):

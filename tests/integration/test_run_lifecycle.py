@@ -30,8 +30,7 @@ def test_decorators_create_sqlite_log_and_summary(core_config, isolated_cwd) -> 
     assert (run_dir / "debug.log").is_file()
     assert (run_dir / "execution.sqlite").is_file()
     tables = {
-        row[0]
-        for row in query_db(run_dir, "SELECT name FROM sqlite_master WHERE type='table'")
+        row[0] for row in query_db(run_dir, "SELECT name FROM sqlite_master WHERE type='table'")
     }
     assert {"run_metadata", "measurements", "verifications", "events"} <= tables
     summary = (run_dir / "summary.txt").read_text(encoding="utf-8")
@@ -42,6 +41,10 @@ def test_decorators_create_sqlite_log_and_summary(core_config, isolated_cwd) -> 
     assert payload["overall_result"] == "PASS"
     assert payload["exit_code"] == 0
     assert payload["output_directory"] == str(run_dir)
+    stored = query_db(run_dir, "SELECT overall_result, exit_code, payload_json FROM run_result")
+    assert stored[0][:2] == ("PASS", 0)
+    snapshot = json.loads(stored[0][2])
+    assert {key: snapshot[key] for key in payload} == payload
 
 
 def test_read_api_returns_measurement_keys(core_config, isolated_cwd) -> None:
@@ -73,6 +76,30 @@ def test_endex_second_call_reuses_final_exit_code(core_config, isolated_cwd) -> 
     with pytest.raises(SystemExit) as exc:
         col.endex()
     assert exc.value.code == 1
+
+
+def test_failed_finalization_releases_writer_and_does_not_repeat_shutdown(monkeypatch):
+    from colosseum.context import init_context
+    from colosseum.database import MeasurementRow
+    from colosseum.runner.runtime import ensure_runtime_ready
+
+    ctx = init_context(test_case_name="storage_failure", no_artifacts=True)
+    ensure_runtime_ready(ctx)
+    calls = []
+    ctx.plugin_registry._shutdown_hooks.append(lambda: calls.append("shutdown"))
+
+    def fail():
+        raise OSError("commit failed")
+
+    monkeypatch.setattr(ctx.db._write_queue, "_commit", fail)
+    ctx.db.enqueue_measurement(MeasurementRow(domain="core", command="sample", key="v", value=1))
+    with pytest.raises(OSError, match="commit failed"):
+        col.endex()
+    assert not ctx.db.is_initialized()
+    with pytest.raises(SystemExit) as exc:
+        col.endex()
+    assert exc.value.code == 1
+    assert calls == ["shutdown"]
 
 
 def test_required_command_error_endex_fails(core_config, isolated_cwd) -> None:
@@ -150,9 +177,7 @@ def test_direct_script_unhandled_exception_auto_finalizes_fail(
     run_dir = latest_output_dir(isolated_cwd)
     assert run_dir.name.endswith("-fail")
     unfinalized = [
-        path
-        for path in (isolated_cwd / "outputs").glob("*_direct_crash")
-        if path.is_dir()
+        path for path in (isolated_cwd / "outputs").glob("*_direct_crash") if path.is_dir()
     ]
     assert unfinalized == []
     payload = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))

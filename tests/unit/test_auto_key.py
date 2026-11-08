@@ -143,19 +143,26 @@ def test_begin_script_slot_clears_auto_key(core_config) -> None:
     from colosseum.context import init_context
     from colosseum.runner.runtime import begin_script_slot, ensure_suite_runtime_ready
 
+    from tests.support.helpers import release_context
+
     ctx = init_context(
         test_case_name="auto_key_slot",
         suite_name="auto_key_slot",
         config_path=core_config,
         no_artifacts=True,
     )
-    ensure_suite_runtime_ready(ctx, "auto_key_slot")
-    ctx.auto_key_enabled = True
-    ctx.next_measurement_key = 4
-    ctx.next_verification_key = 5
-    ctx.auto_key_warned = True
-    begin_script_slot(ctx, "next", phase="test", affects_suite_result=True)
-    assert ctx.auto_key_enabled is False
-    assert ctx.next_measurement_key == 0
-    assert ctx.next_verification_key == 0
-    assert ctx.auto_key_warned is False
+    opened = [ctx.db]
+    try:
+        ensure_suite_runtime_ready(ctx, "auto_key_slot")
+        ctx.auto_key_enabled = True
+        ctx.next_measurement_key = 4
+        ctx.next_verification_key = 5
+        ctx.auto_key_warned = True
+        begin_script_slot(ctx, "next", phase="test", affects_suite_result=True)
+        opened.append(ctx.db)
+        assert ctx.auto_key_enabled is False
+        assert ctx.next_measurement_key == 0
+        assert ctx.next_verification_key == 0
+        assert ctx.auto_key_warned is False
+    finally:
+        release_context(ctx, *opened)

@@ -49,6 +49,11 @@ def test_command_logical_name() -> None:
     assert command_logical_name("stub.ping,key=dev1") == "stub_ping"
 
 
+def test_single_quote_escapes_and_nested_literals() -> None:
+    _, _, kwargs = parse_plugin_command(r"stub.call,message='it\'s, fine',values={'a': [1, (2, 3)]}")
+    assert kwargs == {"message": "it's, fine", "values": {"a": [1, (2, 3)]}}
+
+
 def test_resolve_and_invoke_plugin_command(unit_runtime_context) -> None:
     calls: list[str] = []
 

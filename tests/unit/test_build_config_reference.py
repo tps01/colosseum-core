@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 REPO = Path(__file__).resolve().parents[2]
 
 
-def test_build_config_reference_handles_core_only_install(tmp_path) -> None:
-    sys.path.insert(0, str(REPO))
+def test_build_config_reference_handles_core_only_install(tmp_path, monkeypatch) -> None:
     docgen_dir = REPO / "scripts" / "docgen"
-    sys.path.insert(0, str(docgen_dir))
+    monkeypatch.syspath_prepend(str(docgen_dir))
+    monkeypatch.syspath_prepend(str(REPO))
     from build_config_reference import build_config_reference_rst
 
     output = tmp_path / "config_reference.rst"
@@ -30,10 +29,10 @@ def test_build_config_reference_handles_core_only_install(tmp_path) -> None:
     assert "colosseum_equipment" not in text
 
 
-def test_build_config_reference_emits_path_id_and_keys(tmp_path) -> None:
-    sys.path.insert(0, str(REPO))
+def test_build_config_reference_emits_path_id_and_keys(tmp_path, monkeypatch) -> None:
     docgen_dir = REPO / "scripts" / "docgen"
-    sys.path.insert(0, str(docgen_dir))
+    monkeypatch.syspath_prepend(str(docgen_dir))
+    monkeypatch.syspath_prepend(str(REPO))
     from build_config_reference import build_config_reference_rst
     from colosseum.config.sections import ConfigSectionSpec
 

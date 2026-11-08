@@ -1,4 +1,5 @@
 name = "no_artifacts_procedure"
 
-setup = ["../scripts/setup_ok.py"]
-tests = ["../scripts/optional_fail_test.py"]
+setup = ["../scripts/procedure_setup_verify.py"]
+tests = ["../scripts/procedure_sentinel_test.py"]
+teardown = ["../scripts/procedure_teardown_verify.py"]

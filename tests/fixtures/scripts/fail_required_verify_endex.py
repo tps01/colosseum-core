@@ -1,4 +1,4 @@
-"""Required verification FAIL then explicit col.endex() (suite fail_fast metadata)."""
+"""Required verification ERROR (missing measurement) then explicit col.endex()."""
 
 from __future__ import annotations
 

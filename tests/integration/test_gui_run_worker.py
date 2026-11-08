@@ -28,24 +28,32 @@ def test_run_worker_streams_stdout_before_process_finishes(
     )
 
     worker = RunWorker(cwd=isolated_cwd)
-    worker.start(RunRequest(RunKind.TEST, script, config_path=None, metadata_path=None, debug=False))
+    try:
+        worker.start(
+            RunRequest(RunKind.TEST, script, config_path=None, metadata_path=None, debug=False),
+        )
 
-    saw_live_line_while_running = False
-    finished: RunFinished | None = None
-    deadline = time.monotonic() + 10.0
-    while time.monotonic() < deadline:
-        try:
-            event = worker.events.get(timeout=0.2)
-        except queue.Empty:
-            continue
-        if event[0] == "log" and "live stdout marker" in event[1] and worker.is_running():
-            saw_live_line_while_running = True
-        if event[0] == "finished":
-            finished = event[1]
-            break
+        saw_live_line_while_running = False
+        finished: RunFinished | None = None
+        deadline = time.monotonic() + 10.0
+        while time.monotonic() < deadline:
+            try:
+                event = worker.events.get(timeout=0.2)
+            except queue.Empty:
+                continue
+            if event[0] == "log" and "live stdout marker" in event[1] and worker.is_running():
+                saw_live_line_while_running = True
+            if event[0] == "finished":
+                finished = event[1]
+                break
 
-    assert saw_live_line_while_running
-    assert finished is not None
-    assert finished.exit_code == 0
-    assert finished.run_dir is not None
-    assert finished.run_dir.name.endswith("-pass")
+        assert saw_live_line_while_running
+        assert finished is not None
+        assert finished.exit_code == 0
+        assert finished.run_dir is not None
+        assert finished.run_dir.name.endswith("-pass")
+    finally:
+        worker.stop()
+        thread = worker._thread  # noqa: SLF001
+        if thread is not None:
+            thread.join(timeout=5)
