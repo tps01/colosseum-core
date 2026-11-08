@@ -260,8 +260,10 @@ to ``colosseum.template``). Child loggers such as ``colosseum.template.api`` are
 Names like ``template`` or ``colosseum_template`` never reach ``debug.log``.
 
 The file handler records DEBUG and above. Console output, when enabled, defaults
-to INFO. Decorators already record command, measurement, and verification
-pass/fail; do not duplicate that at INFO.
+to INFO. Decorators already write one DEBUG record for each command,
+measurement, and verification (status, optional flag, and call arguments). Do
+not duplicate that at INFO. Use INFO for hand-written messages a person reads,
+for example ``Enabling output on PSU {psu_id}``.
 
 End-to-end checklist
 --------------------
