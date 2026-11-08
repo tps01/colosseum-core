@@ -119,7 +119,9 @@ def test_requirement_attachments_keep_source_order_and_rollback(db):
     stored = db.fetch_all_verifications()
     assert [(item.id, item.requirements) for item in stored] == [(rowid, row.requirements)]
     row.requirements = ["valid", object()]
-    with pytest.raises(sqlite3.ProgrammingError):
+    # CPython 3.9 reports an unbound parameter as InterfaceError. 3.12 reports
+    # ProgrammingError. Either way the savepoint rolls the partial insert back.
+    with pytest.raises((sqlite3.ProgrammingError, sqlite3.InterfaceError)):
         db.insert_verification(row)
     assert db.count_rows("verifications") == 1
     assert len(db.fetch_table_rows("verification_requirements")) == 3
