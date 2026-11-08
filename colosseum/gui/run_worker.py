@@ -78,7 +78,9 @@ class RunWorker:
         return suite.name
 
     def _build_argv(self, request: RunRequest) -> list[str]:
-        argv = [sys.executable, "-u", "-m", "colosseum.runner.cli"]
+        argv = [sys.executable]
+        if not getattr(sys, "frozen", False):
+            argv.extend(["-u", "-m", "colosseum.runner.cli"])
         if request.kind == RunKind.TEST:
             argv.extend(["run", str(request.path)])
         else:

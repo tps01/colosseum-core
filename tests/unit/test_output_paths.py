@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import re
-
 import pytest
 
 from colosseum.context import init_context
@@ -20,15 +18,21 @@ def test_sanitize_strips_unsafe_characters() -> None:
     assert sanitize_logical_name("") == "run"
 
 
-def test_allocate_run_directory_format_and_collision(isolated_cwd) -> None:
+def test_allocate_run_directory_format_and_collision(isolated_cwd, monkeypatch) -> None:
+    from datetime import datetime as real_datetime
+
+    class _Frozen(real_datetime):
+        @classmethod
+        def now(cls, tz=None):  # noqa: ANN001, ANN206
+            return cls(2026, 1, 2, 3, 4, 5)
+
+    monkeypatch.setattr("colosseum.runner.runtime.datetime", _Frozen)
     outputs_root = isolated_cwd / "outputs"
     first = allocate_run_directory(outputs_root, "smoke test")
     first.mkdir()
     second = allocate_run_directory(outputs_root, "smoke test")
-    pattern = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{6}_smoke_test(_\d+)?$")
-    assert pattern.match(first.name)
-    assert second != first
-    assert second.name.endswith("_1") or first.name != second.name
+    assert first.name == "2026-01-02_030405_smoke_test"
+    assert second.name == "2026-01-02_030405_smoke_test_1"
 
 
 def test_allocate_run_directory_under_parent(isolated_cwd) -> None:

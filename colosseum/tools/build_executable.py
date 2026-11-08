@@ -87,14 +87,13 @@ def main() -> None:
             "Reinstall colosseum-core (it declares pyinstaller as a dependency).",
         ) from None
 
-    entry_source = (
-        "from colosseum.runner.cli import main\n"
-        "if __name__ == '__main__':\n"
-        "    main()\n"
-    )
+    entry_source = "from colosseum.runner.cli import main\nif __name__ == '__main__':\n    main()\n"
     cwd = Path.cwd()
-    with resources.as_file(resources.files("colosseum").joinpath("hooks")) as hook_dir:
-        work = Path(tempfile.mkdtemp(prefix="colosseum-freeze-"))
+    with (
+        resources.as_file(resources.files("colosseum").joinpath("hooks")) as hook_dir,
+        tempfile.TemporaryDirectory(prefix="colosseum-freeze-") as directory,
+    ):
+        work = Path(directory)
         entry = work / "entry.py"
         entry.write_text(entry_source, encoding="utf-8")
         command = [

@@ -11,3 +11,7 @@ def main() -> None:
     path = out / "invocations.txt"
     with path.open("a", encoding="utf-8") as handle:
         handle.write(f"{LABEL}\n")
+    container = get_context().suite_output_dir
+    if container is not None:
+        with (container / "sequence.txt").open("a", encoding="utf-8") as handle:
+            handle.write(f"{LABEL}\n")

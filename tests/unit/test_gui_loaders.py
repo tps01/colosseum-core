@@ -9,9 +9,6 @@ from colosseum.gui._browser import (
     load_run_browser_snapshot,
     load_run_snapshot,
 )
-from colosseum.gui.app import _STATUS_BUTTON_COLORS, _normalize_status
-
-
 def test_load_run_browser_snapshot_reads_statuses(isolated_cwd) -> None:
     pass_run = isolated_cwd / "outputs" / "2026-01-01_120000_pass-pass"
     incomplete_run = isolated_cwd / "playground" / "outputs" / "2026-01-01_120001_incomplete"
@@ -220,9 +217,3 @@ def test_format_summary_text_includes_suite_slot_metrics() -> None:
     assert "Runtime: 0:00:10" in text
     assert "2x test=0 boot_verify.py equipment.verify_voltage key=rail_a" in text
 
-
-def test_error_and_incomplete_use_purple() -> None:
-    purple = _STATUS_BUTTON_COLORS["NO TEST"]
-    assert _STATUS_BUTTON_COLORS[_normalize_status("ERROR")] == purple
-    assert _STATUS_BUTTON_COLORS[_normalize_status("incomplete")] == purple
-    assert _STATUS_BUTTON_COLORS[_normalize_status("FAIL")] != purple

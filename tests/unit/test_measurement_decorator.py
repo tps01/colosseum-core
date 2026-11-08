@@ -40,6 +40,16 @@ def _accepts_optional(*, key: str, optional: bool = False) -> int:
     return 1 if optional else 0
 
 
+@measurement
+def _bytes_value(*, key: str) -> bytes:
+    return b"\x00\xff"
+
+
+@measurement
+def _bytearray_value(*, key: str) -> bytearray:
+    return bytearray(b"\x10\x20")
+
+
 @pytest.mark.requirement("U-MV-01")
 def test_duplicate_key_raises(ctx) -> None:
     _once(key="dup")
@@ -148,3 +158,33 @@ def test_duplicate_key_raises_when_optional(ctx) -> None:
     _once(key="dup-opt")
     with pytest.raises(MeasurementKeyError, match="Duplicate measurement key"):
         _once(key="dup-opt", optional=True)
+
+
+def test_bytes_return_original_and_store_hex(ctx) -> None:
+    """Decorator hex-encodes bytes; a direct insert stores the value it is given."""
+    from colosseum.database import MeasurementRow
+
+    original = _bytes_value(key="blob")
+    assert original == b"\x00\xff"
+    assert type(original) is bytes
+    stored = ctx.db.get_measurement("core", "_bytes_value", "blob")
+    assert stored is not None
+    assert stored.value == {"encoding": "hex", "data": "00ff", "nbytes": 2}
+
+    raw = _bytearray_value(key="buf")
+    assert raw == bytearray(b"\x10\x20")
+    assert type(raw) is bytearray
+    encoded = ctx.db.get_measurement("core", "_bytearray_value", "buf")
+    assert encoded is not None and encoded.value["data"] == "1020"
+
+    ctx.db.insert_measurement(
+        MeasurementRow(
+            domain="core",
+            command="direct",
+            key="given",
+            value={"encoding": "hex", "data": "aa", "nbytes": 1},
+        ),
+    )
+    direct = ctx.db.get_measurement("core", "direct", "given")
+    assert direct is not None
+    assert direct.value == {"encoding": "hex", "data": "aa", "nbytes": 1}

@@ -33,9 +33,7 @@ from colosseum.runner.runtime import OutputNotWritableError, ensure_runtime_read
 from .single_test import ScriptRunError, run_script
 from .suite import SuiteError, run_suite
 
-_DESCRIPTION = (
-    "Colosseum test automation: run Python test scripts and suites with configuration."
-)
+_DESCRIPTION = "Colosseum test automation: run Python test scripts and suites with configuration."
 _EPILOG = """examples:
   colosseum run my_test.py -g config.toml
   colosseum run -c template.arm_device,key=dev1 -g config.toml
@@ -126,8 +124,7 @@ def _add_shared_run_options(parser: argparse.ArgumentParser) -> None:
         "--no-sleep",
         action="store_true",
         help=(
-            "Prevent system sleep until the run or suite completes "
-            "(screen may still blank or lock)"
+            "Prevent system sleep until the run or suite completes (screen may still blank or lock)"
         ),
     )
 
@@ -377,8 +374,12 @@ def _run_single_test(
     run_options: RunOptions | None = None,
 ) -> None:
     options = run_options or RunOptions()
-    logical_name = test_path.stem if test_path is not None else command_logical_name(
-        options.plugin_commands[0],
+    logical_name = (
+        test_path.stem
+        if test_path is not None
+        else command_logical_name(
+            options.plugin_commands[0],
+        )
     )
     ctx = init_context(
         test_case_name=logical_name,
@@ -521,18 +522,18 @@ def _wrap_dispatch(
     if profile:
         from colosseum.runner.profiling import run_with_profile
 
-        inner = wrapped
+        profile_action = wrapped
 
         def wrapped() -> int:
-            return run_with_profile(inner, no_artifacts=no_artifacts)
+            return run_with_profile(profile_action, no_artifacts=no_artifacts)
 
     if no_sleep:
         from colosseum.runner.keep_awake import run_with_no_sleep
 
-        inner = wrapped
+        awake_action = wrapped
 
         def wrapped() -> int:
-            return run_with_no_sleep(inner)
+            return run_with_no_sleep(awake_action)
 
     return wrapped()
 

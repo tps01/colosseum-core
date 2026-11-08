@@ -45,7 +45,11 @@ def measurement(func: Callable[P, R], /) -> Callable[P, R]: ...
 
 @overload
 def measurement(
-    func: None = None, /, *, multi_row: bool = False, dry_run: object = "log",
+    func: None = None,
+    /,
+    *,
+    multi_row: bool = False,
+    dry_run: object = "log",
 ) -> Callable[[Callable[P, R]], Callable[P, R]]: ...
 
 
@@ -64,13 +68,18 @@ def measurement(
 
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+            # Resolve runtime policy and identity before deciding whether the body runs.
             ctx = ensure_runtime_context()
             if should_skip_measurement(ctx):
                 return None
             key, injected = resolve_auto_key(ctx, kwargs, family="measurement")
             key_text = "" if not key else str(key)
             if capture_parameter_export(
-                ctx, kind="measurement", command=command, key=key_text, kwargs=kwargs,
+                ctx,
+                kind="measurement",
+                command=command,
+                key=key_text,
+                kwargs=kwargs,
             ):
                 return None
             if finish_dry_run_missing_key(
@@ -114,7 +123,10 @@ def measurement(
                     )
             elif (
                 ctx.db.get_measurement(
-                    domain=domain, command=command, key=key, row_index=row_index,
+                    domain=domain,
+                    command=command,
+                    key=key,
+                    row_index=row_index,
                 )
                 is not None
             ):
@@ -122,6 +134,7 @@ def measurement(
                     f"Duplicate measurement key for ({domain}, {command}, {key}, "
                     f"row_index={row_index})",
                 )
+            # Resolve effective arguments; parameter tables override caller keywords.
             call_kwargs = dict(kwargs)
             if (
                 ctx.parameters_map is not None
@@ -130,6 +143,7 @@ def measurement(
             ):
                 call_kwargs["optional"] = ctx.parameters_map[key_text]["optional"]
             optional = coerce_optional_kwarg(call_kwargs)
+            # Only an automatically injected key may be removed from the body call.
             logged_kwargs = dict(call_kwargs)
             if not accepts_optional:
                 call_kwargs.pop("optional", None)
@@ -149,6 +163,7 @@ def measurement(
             )
             if handled:
                 return value
+            # Run the body, record evidence, and return its original value.
             try:
                 call_kwargs = coerce_units(call_kwargs)
                 value = func(*args, **call_kwargs)

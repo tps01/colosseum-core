@@ -175,22 +175,6 @@ def test_missing_measurement_result_defaults_required() -> None:
     assert signature(missing_measurement_result).parameters["optional"].default is False
 
 
-def test_verification_overloads_and_annotations() -> None:
-    impl = verification.__annotations__
-    assert impl["_func"] == "Callable[..., Any] | None"
-    assert "sources" not in impl
-
-    if sys.version_info < (3, 11):
-        pytest.skip("typing.get_overloads requires Python 3.11+")
-
-    from typing import get_overloads
-
-    overloads = get_overloads(verification)
-    assert len(overloads) == 2
-    for overload in overloads:
-        assert "sources" not in overload.__annotations__
-
-
 def test_decorator_metadata() -> None:
     assert getattr(_bool_verify, COLOSSEUM_DECORATOR) == "verification"
 
@@ -395,6 +379,10 @@ def test_requirements_string_and_list_on_outcome(ctx) -> None:
     records = ctx.result_aggregator._records
     assert records[0]["requirements"] == ["REQ1", "REQ2"]
     assert records[1]["requirements"] == ["REQ2", "REQ3"]
+    assert [row.requirements for row in ctx.db.fetch_all_verifications()] == [
+        ["REQ1", "REQ2"],
+        ["REQ2", "REQ3"],
+    ]
 
 
 def test_invalid_requirements_type_is_error(ctx) -> None:

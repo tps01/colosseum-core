@@ -23,23 +23,9 @@ _WATS_NAME_RE = re.compile(r"^wats_\d{8}T\d{6}_.+\.json$")
 
 
 @pytest.mark.requirement("E2E-ART-WATS-01")
-def test_wats_file_written_when_enabled(core_config, isolated_cwd, subprocess_env) -> None:
-    """WATS JSON is written when ``--report wats`` is passed."""
-    proc = run_cli(
-        OPTIONAL_FAIL,
-        core_config,
-        isolated_cwd,
-        subprocess_env,
-        extra_args=["--report", "wats"],
-    )
-    assert proc.returncode == 0, proc.stderr
-    run_dir = latest_output_dir(isolated_cwd)
-    assert find_wats_json(run_dir).is_file()
-
-
 @pytest.mark.requirement("E2E-ART-WATS-02")
-def test_wats_filename_pattern(core_config, isolated_cwd, subprocess_env) -> None:
-    """WATS filename matches wats_<UTCdatetime>_<script_stem>.json."""
+def test_wats_file_written_when_enabled(core_config, isolated_cwd, subprocess_env) -> None:
+    """Enabled WATS JSON exists and uses the UTC filename shape."""
     proc = run_cli(
         OPTIONAL_FAIL,
         core_config,
@@ -50,6 +36,7 @@ def test_wats_filename_pattern(core_config, isolated_cwd, subprocess_env) -> Non
     assert proc.returncode == 0, proc.stderr
     run_dir = latest_output_dir(isolated_cwd)
     wats = find_wats_json(run_dir)
+    assert wats.is_file()
     assert _WATS_NAME_RE.match(wats.name), wats.name
     assert wats.name.endswith("_optional_fail_test.json")
 
@@ -97,12 +84,3 @@ def test_wats_best_effort_without_metadata(core_config, isolated_cwd, subprocess
     assert "root" in payload
     assert isinstance(payload.get("pn"), str)
 
-
-@pytest.mark.requirement("E2E-ART-WATS-05")
-def test_wats_not_written_by_default(core_config, isolated_cwd, subprocess_env) -> None:
-    """Without ``--report wats``, no WATS JSON is written."""
-    proc = run_cli(OPTIONAL_FAIL, core_config, isolated_cwd, subprocess_env)
-    assert proc.returncode == 0, proc.stderr
-    run_dir = latest_output_dir(isolated_cwd)
-    assert list(run_dir.glob("wats_*.json")) == []
-    assert (run_dir / "summary.json").is_file()

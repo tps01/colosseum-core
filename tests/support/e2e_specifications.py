@@ -82,9 +82,10 @@ def run_python_script(
     env: dict[str, str],
     *,
     timeout: int = 120,
+    python: Path | None = None,
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, str(script)],
+        [str(python) if python is not None else sys.executable, str(script)],
         cwd=cwd,
         env=env,
         capture_output=True,

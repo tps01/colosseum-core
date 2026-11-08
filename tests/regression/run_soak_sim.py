@@ -37,6 +37,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", type=Path, default=CONFIG)
     args = parser.parse_args(argv)
 
+    if args.count < 1:
+        print(f"--count must be at least 1, got {args.count}", file=sys.stderr)
+        return 2
     if not args.suite.is_file():
         print(f"Suite not found: {args.suite}", file=sys.stderr)
         return 2

@@ -65,9 +65,38 @@ def _close_runtime(ctx: context_module.RuntimeContext) -> None:
     context_module._ACTIVE_CONTEXT = None
 
 
+def test_repository_facts_refresh_between_collections(tmp_path, monkeypatch) -> None:
+    script = tmp_path / "probe.py"
+    script.write_text("pass", encoding="utf-8")
+    monkeypatch.setattr(provenance_module, "installed_packages", lambda: ({}, [], []))
+    monkeypatch.setattr(provenance_module, "_discover_git", lambda start: (tmp_path, tmp_path, tmp_path))
+    commits = iter(["old", "new"])
+    dirty = iter([False, True])
+    monkeypatch.setattr(provenance_module, "_read_git_commit", lambda *args: next(commits))
+    monkeypatch.setattr(provenance_module, "_git_worktree_dirty", lambda root: next(dirty))
+    provenance_module._git_repository_cache.clear()
+    first = provenance_module.collect_provenance([InputFile("script", script)])
+    second = provenance_module.collect_provenance([InputFile("script", script)])
+    assert first["repositories"][0]["commit"] == "old"
+    assert second["repositories"][0]["commit"] == "new"
+    assert second["repositories"][0]["dirty"] is True
+
+
 def test_outputs_root_probe_accepts_temp_directory(tmp_path: Path) -> None:
     ensure_outputs_writable(tmp_path)
     assert list(tmp_path.iterdir()) == []
+
+
+def test_repository_misses_expire_between_collections(tmp_path, monkeypatch):
+    script = tmp_path / "probe.py"
+    script.write_text("pass", encoding="utf-8")
+    probes = iter([None, (tmp_path, tmp_path, tmp_path)])
+    monkeypatch.setattr(provenance_module, "installed_packages", lambda: ({}, [], []))
+    monkeypatch.setattr(provenance_module, "_discover_git", lambda start: next(probes))
+    monkeypatch.setattr(provenance_module, "_read_git_commit", lambda *args: "new")
+    monkeypatch.setattr(provenance_module, "_git_worktree_dirty", lambda root: False)
+    assert provenance_module.collect_provenance([InputFile("script", script)])["repositories"] == []
+    assert provenance_module.collect_provenance([InputFile("script", script)])["repositories"][0]["commit"] == "new"
 
 
 def test_probe_wraps_write_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

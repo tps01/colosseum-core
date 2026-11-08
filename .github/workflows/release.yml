@@ -62,6 +62,96 @@ jobs:
             colosseum-core-offline-*.tar.gz
           if-no-files-found: error
 
+  smoke-offline-install:
+    name: offline install (${{ matrix.os }})
+    needs: build-offline-wheelhouse
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            python-version: "3.12"
+            artifact: offline-ubuntu-24.04-py3.12
+          - os: windows-latest
+            python-version: "3.12"
+            artifact: offline-windows-latest-py3.12
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Download wheelhouse
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.artifact }}
+          path: offline-smoke
+      - name: Install with package indexes disabled and run a procedure
+        shell: bash
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          archive=$(echo offline-smoke/*.tar.gz)
+          mkdir -p offline-root
+          tar -xzf "$archive" -C offline-root
+          chmod +x offline-root/install.sh
+          export PIP_NO_INDEX=1
+          export PIP_INDEX_URL=http://127.0.0.1:9/simple
+          unset PIP_EXTRA_INDEX_URL || true
+          ./offline-root/install.sh
+          work=$(mktemp -d)
+          (
+            cd "$work"
+            env -u PYTHONPATH "$GITHUB_WORKSPACE/offline-root/.venv/bin/python" \
+              -m colosseum.runner.cli run \
+              "$GITHUB_WORKSPACE/tests/fixtures/scripts/pass_test.py" \
+              --config "$GITHUB_WORKSPACE/tests/fixtures/core.toml"
+            test -n "$(find outputs -name execution.sqlite -print -quit)"
+          )
+      - name: Install with package indexes disabled and run a procedure
+        shell: pwsh
+        if: runner.os == 'Windows'
+        run: |
+          $archive = Get-ChildItem offline-smoke\*.zip | Select-Object -First 1
+          Expand-Archive $archive.FullName -DestinationPath offline-root
+          $env:PIP_NO_INDEX = '1'
+          $env:PIP_INDEX_URL = 'http://127.0.0.1:9/simple'
+          Remove-Item Env:PIP_EXTRA_INDEX_URL -ErrorAction SilentlyContinue
+          cmd /c "offline-root\install.bat"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $work = Join-Path $env:TEMP "colosseum-offline-smoke"
+          New-Item -ItemType Directory -Force -Path $work | Out-Null
+          $python = (Resolve-Path "offline-root\.venv\Scripts\python.exe").Path
+          $env:PYTHONPATH = $null
+          Push-Location $work
+          try {
+            & $python -m colosseum.runner.cli run "$env:GITHUB_WORKSPACE\tests\fixtures\scripts\pass_test.py" --config "$env:GITHUB_WORKSPACE\tests\fixtures\core.toml"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            if (-not (Get-ChildItem outputs -Recurse -Filter execution.sqlite)) { throw "procedure wrote no database" }
+          } finally {
+            Pop-Location
+          }
+
+  smoke-frozen-executable:
+    name: frozen executable smoke
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install core, the probe plugin, and test tools
+        run: |
+          python -m pip install -U pip setuptools wheel
+          python -m pip install -r requirements.txt
+          python -m pip install -e tests/fixtures/plugins/colosseum_contract_probe --no-deps
+      - name: Freeze and run the probe contract
+        run: |
+          python -m colosseum.tools.build_executable
+          export COLOSSEUM_FROZEN_EXECUTABLE="$PWD/dist/colosseum/colosseum"
+          python -m pytest tests/e2e/test_plugin_contract.py::test_real_frozen_plugin_contract -q -p no:cacheprovider
+
   build-docs:
     name: documentation (HTML + PDF)
     runs-on: ubuntu-24.04
@@ -104,7 +194,7 @@ jobs:
   publish:
     name: publish GitHub release
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-    needs: [build-sdist-wheel, build-offline-wheelhouse, build-docs]
+    needs: [build-sdist-wheel, build-offline-wheelhouse, smoke-offline-install, smoke-frozen-executable, build-docs]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7

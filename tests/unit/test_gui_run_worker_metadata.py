@@ -3,8 +3,16 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 
 from colosseum.gui.run_worker import RunKind, RunRequest, RunWorker
+
+
+def test_frozen_worker_launches_application_without_interpreter_flags(tmp_path, monkeypatch):
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "colosseum.exe"))
+    request = RunRequest(RunKind.TEST, tmp_path / "test.py", None, None, False)
+    assert RunWorker(tmp_path)._build_argv(request) == [sys.executable, "run", str(request.path)]
 
 
 def test_build_argv_includes_metadata_flag(tmp_path: Path) -> None:

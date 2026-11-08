@@ -42,7 +42,7 @@ def ctx(unit_runtime_context, tmp_path: Path):
 def _attach_limits(ctx, tmp_path: Path) -> Path:
     path = tmp_path / "parameters.toml"
     path.write_text(
-        "[rail]\nexpected_val = 3.3\ntolerance = 0.1\n",
+        '[rail]\nexpected_val = 3.3\ntolerance = 0.1\nrequirements = ["R-1", "R-1"]\n',
         encoding="utf-8",
     )
     attach_parameters(ctx, path)
@@ -65,6 +65,9 @@ def test_owed_key_blocked_after_unit_command_error(ctx, tmp_path: Path) -> None:
     assert len(blocked) == 1
     assert blocked[0].status == "BLOCKED"
     assert blocked[0].actual is None
+    assert blocked[0].requirements == ["R-1", "R-1"]
+    assert result.summary["requirements"][0]["id"] == "R-1"
+    assert result.summary["requirements"][0]["status"] == "FAIL"
     assert "power_on" in blocked[0].message
 
 

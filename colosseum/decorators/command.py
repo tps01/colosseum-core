@@ -62,7 +62,10 @@ def command(func: Callable[P, R], /) -> Callable[P, R]: ...
 
 @overload
 def command(
-    func: None = None, /, *, dry_run: object = "log",
+    func: None = None,
+    /,
+    *,
+    dry_run: object = "log",
 ) -> Callable[[Callable[P, R]], Callable[P, R]]: ...
 
 
@@ -76,13 +79,18 @@ def command(_func: Callable[..., Any] | None = None, *, dry_run: object = "log")
 
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+            # Resolve runtime policy and identity before deciding whether the body runs.
             ctx = ensure_runtime_context()
             if should_skip_command(ctx):
                 return None
             key_raw = kwargs.get("key")
             key = str(key_raw) if key_raw is not None and str(key_raw) != "" else ""
             if capture_parameter_export(
-                ctx, kind="command", command=command_name, key=key, kwargs=kwargs,
+                ctx,
+                kind="command",
+                command=command_name,
+                key=key,
+                kwargs=kwargs,
             ):
                 return None
             if finish_dry_run_log(
@@ -101,6 +109,7 @@ def command(_func: Callable[..., Any] | None = None, *, dry_run: object = "log")
                 pop_optional=not accepts_optional,
             ):
                 return None
+            # Resolve effective arguments; parameter tables override caller keywords.
             call_kwargs = dict(kwargs)
             try:
                 if key:
@@ -153,6 +162,7 @@ def command(_func: Callable[..., Any] | None = None, *, dry_run: object = "log")
                     return None
                 raise
 
+            # Keep evidence metadata; remove wrapper-owned keywords the body does not declare.
             logged_kwargs = dict(call_kwargs)
             if not accepts_optional:
                 call_kwargs.pop("optional", None)
@@ -173,6 +183,7 @@ def command(_func: Callable[..., Any] | None = None, *, dry_run: object = "log")
             if handled:
                 return value
 
+            # Run the body, record evidence, and return its original value.
             try:
                 call_kwargs = coerce_units(call_kwargs)
                 value = func(*args, **call_kwargs)
@@ -193,7 +204,10 @@ def command(_func: Callable[..., Any] | None = None, *, dry_run: object = "log")
                     ),
                 )
                 ctx.result_aggregator.record_command(
-                    result, key=key, command=command_name, domain=domain,
+                    result,
+                    key=key,
+                    command=command_name,
+                    domain=domain,
                 )
                 detail = f"value={short_repr(stored)}" if stored is not None else ""
                 log_evidence(

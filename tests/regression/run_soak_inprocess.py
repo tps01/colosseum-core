@@ -24,6 +24,8 @@ SUMMARY_PASS = "Overall result: PASS"
 
 WARMUP_ROWS = 10
 WINDOW_ROWS = 10
+# Warmup and tail are each WINDOW_ROWS long and must not be the same rows.
+MIN_GROWTH_ROWS = WARMUP_ROWS + (2 * WINDOW_ROWS)
 MAX_RSS_DELTA_MB = 8.0
 MAX_GC_OBJECTS_DELTA = 20_000
 MAX_COLOSSEUM_OBJECTS_DELTA = 500
@@ -65,9 +67,11 @@ def _load_metrics(path: Path) -> list[SoakRow]:
 
 def _check_growth(rows: list[SoakRow]) -> list[str]:
     failures: list[str] = []
-    required = WARMUP_ROWS + WINDOW_ROWS
-    if len(rows) < required:
-        failures.append(f"expected at least {required} metric rows, got {len(rows)}")
+    if len(rows) < MIN_GROWTH_ROWS:
+        failures.append(
+            f"expected at least {MIN_GROWTH_ROWS} metric rows so warmup and tail "
+            f"windows do not overlap, got {len(rows)}",
+        )
         return failures
 
     for row in rows:
@@ -78,6 +82,11 @@ def _check_growth(rows: list[SoakRow]) -> list[str]:
 
     warmup = rows[WARMUP_ROWS : WARMUP_ROWS + WINDOW_ROWS]
     tail = rows[-WINDOW_ROWS:]
+    if warmup[-1].repeat_index >= tail[0].repeat_index:
+        failures.append(
+            "growth windows overlap; the gate would compare a sample window with itself",
+        )
+        return failures
     rss_delta = _mean([row.rss_mb for row in tail]) - _mean([row.rss_mb for row in warmup])
     gc_delta = _mean([row.gc_objects for row in tail]) - _mean(
         [row.gc_objects for row in warmup],
@@ -93,13 +102,11 @@ def _check_growth(rows: list[SoakRow]) -> list[str]:
         )
     if gc_delta > MAX_GC_OBJECTS_DELTA:
         failures.append(
-            f"gc object count grew {gc_delta:.0f} "
-            f"(limit {MAX_GC_OBJECTS_DELTA})",
+            f"gc object count grew {gc_delta:.0f} (limit {MAX_GC_OBJECTS_DELTA})",
         )
     if col_delta > MAX_COLOSSEUM_OBJECTS_DELTA:
         failures.append(
-            f"colosseum object count grew {col_delta:.0f} "
-            f"(limit {MAX_COLOSSEUM_OBJECTS_DELTA})",
+            f"colosseum object count grew {col_delta:.0f} (limit {MAX_COLOSSEUM_OBJECTS_DELTA})",
         )
     return failures
 
@@ -147,9 +154,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", type=Path, default=CONFIG)
     args = parser.parse_args(argv)
 
-    if args.repeat < WARMUP_ROWS + WINDOW_ROWS:
+    if args.repeat < MIN_GROWTH_ROWS:
         print(
-            f"--repeat must be at least {WARMUP_ROWS + WINDOW_ROWS}, got {args.repeat}",
+            f"--repeat must be at least {MIN_GROWTH_ROWS}, got {args.repeat}",
             file=sys.stderr,
         )
         return 2

@@ -245,7 +245,8 @@ def _stop_remaining_work(ctx: RuntimeContext, test_path: Path, reason: str) -> N
     except Exception:  # noqa: BLE001 - session stop must survive slot DB errors
         if ctx.logger is not None:
             ctx.logger.exception(
-                "fail_fast: could not record stop metadata for %s", test_path,
+                "fail_fast: could not record stop metadata for %s",
+                test_path,
             )
     if ctx.logger is not None:
         ctx.logger.error("fail_fast: stopping remaining tests after %s (%s)", test_path, reason)
@@ -289,7 +290,8 @@ def _record_slot_failure(
 
 def _mark_post_endex_slot_failure(ctx: RuntimeContext, script: Path, phase: str) -> None:
     """Update in-memory and on-disk slot result after endex() already finalized."""
-    from colosseum.runner.runtime import rename_run_directory_for_result
+    from colosseum.results.aggregation import build_run_summary
+    from colosseum.runner.runtime import refresh_slot_artifacts, rename_run_directory_for_result
 
     ctx.session.mark_suite_failed(f"post_endex_failure:{script}")
     for result in reversed(ctx.suite_slot_results):
@@ -297,10 +299,18 @@ def _mark_post_endex_slot_failure(ctx: RuntimeContext, script: Path, phase: str)
             result.exit_code = 1
             if result.affects_suite_result:
                 result.overall = "FAIL"
-            if result.output_dir is not None and result.output_dir.exists():
+            if not ctx.no_artifacts and result.output_dir.exists():
                 result.output_dir = rename_run_directory_for_result(
-                    result.output_dir, "FAIL",
+                    result.output_dir,
+                    "FAIL",
                 )
+            result.summary = build_run_summary(
+                ctx,
+                ctx.result_aggregator,
+                measurement_count=result.summary.get("measurement_count", 0),
+                command_count=result.summary.get("command_count", 0),
+            )
+            refresh_slot_artifacts(ctx, result)
             break
 
 
@@ -309,7 +319,9 @@ def _suite_is_cycling(suite: SuiteDefinition) -> bool:
 
 
 def _cycle_exhausted(
-    suite: SuiteDefinition, cycle_index: int, deadline: float | None,
+    suite: SuiteDefinition,
+    cycle_index: int,
+    deadline: float | None,
 ) -> bool:
     if cycle_index == 0:
         return False
@@ -319,7 +331,9 @@ def _cycle_exhausted(
 
 
 def _repeat_exhausted(
-    entry: SuiteTestEntry, repeat_index: int, deadline: float | None,
+    entry: SuiteTestEntry,
+    repeat_index: int,
+    deadline: float | None,
 ) -> bool:
     if repeat_index == 0:
         return False
@@ -345,7 +359,10 @@ def _run_script_slot(
     slot_started = False
     try:
         begin_script_slot(
-            ctx, script.stem, phase=phase, affects_suite_result=affects_suite_result,
+            ctx,
+            script.stem,
+            phase=phase,
+            affects_suite_result=affects_suite_result,
         )
         slot_started = True
     except Exception as exc:  # noqa: BLE001 - continue suite; signals propagate
@@ -367,9 +384,9 @@ def _run_script_slot(
 
     from colosseum.config.parameters import (
         ParametersError,
+        _attach_parameter_sources,
+        _suite_parameter_paths,
         attach_parameters,
-        attach_stacked_parameters,
-        resolve_parameters_path,
     )
 
     script_crash = False
@@ -383,26 +400,18 @@ def _run_script_slot(
         )
         params_ok = True
         try:
-            if phase == "test" and suite.parameter_stacking:
-                test_parameters = resolve_parameters_path(
-                    script_path=script,
-                    cli_path=None,
-                    entry_path=entry_parameters,
-                )
-                attach_stacked_parameters(
-                    ctx,
-                    suite_path=suite_level,
-                    test_path=test_parameters,
-                )
+            sources = _suite_parameter_paths(
+                script_path=script if phase == "test" else None,
+                entry_path=entry_parameters if phase == "test" else None,
+                suite_path=suite_level,
+                stacking=phase == "test" and suite.parameter_stacking,
+            )
+            if len(sources) > 1:
+                _attach_parameter_sources(ctx, sources)
             else:
-                resolved_parameters = resolve_parameters_path(
-                    script_path=script if phase == "test" else None,
-                    cli_path=suite_level,
-                    entry_path=entry_parameters if phase == "test" else None,
-                )
                 attach_parameters(
                     ctx,
-                    resolved_parameters,
+                    sources[0] if sources else None,
                     required=suite_level is not None
                     or (phase == "test" and entry_parameters is not None),
                 )
@@ -514,13 +523,13 @@ def _run_phase_scripts(
 
 
 def _run_test_schedule(
-    suite: SuiteDefinition, ctx: RuntimeContext, runner: _ScriptRunner,
+    suite: SuiteDefinition,
+    ctx: RuntimeContext,
+    runner: _ScriptRunner,
 ) -> bool:
     cycling = _suite_is_cycling(suite)
     cycle_deadline = (
-        time.monotonic() + suite.cycle_for.total_seconds()
-        if suite.cycle_for is not None
-        else None
+        time.monotonic() + suite.cycle_for.total_seconds() if suite.cycle_for is not None else None
     )
     cycle_index = 0
     while not _cycle_exhausted(suite, cycle_index, cycle_deadline):

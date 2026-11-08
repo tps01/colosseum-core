@@ -20,25 +20,56 @@ _FALSE_TOKENS = frozenset({"false", "f", "no", "n", "0"})
 _BARE_BOOL_LITERALS = {
     token: ("true" if token.lower() in _TRUE_TOKENS else "false")
     for token in (
-        "true", "True", "TRUE", "t", "T", "yes", "Yes", "YES", "y", "Y",
-        "false", "False", "FALSE", "f", "F", "no", "No", "NO", "n", "N",
+        "true",
+        "True",
+        "TRUE",
+        "t",
+        "T",
+        "yes",
+        "Yes",
+        "YES",
+        "y",
+        "Y",
+        "false",
+        "False",
+        "FALSE",
+        "f",
+        "F",
+        "no",
+        "No",
+        "NO",
+        "n",
+        "N",
     )
 }
 
 
-def _split_inline_comment(value_part: str) -> tuple[str, str]:
-    in_single = False
-    in_double = False
-    for index, char in enumerate(value_part):
-        if char == '"' and not in_single:
-            in_double = not in_double
-        elif char == "'" and not in_double:
-            in_single = not in_single
-        elif char == "#" and not in_single and not in_double:
-            value = value_part[:index].rstrip()
-            comment = value_part[index:].rstrip()
-            return value, f" {comment}" if comment else ""
-    return value_part.strip(), ""
+def _string_state(line: str, quote: str = "") -> tuple[int, str]:
+    """Locate an outside-string comment and retain only an open multiline string."""
+    index = 0
+    while index < len(line):
+        char = line[index]
+        if quote:
+            if char == "\\" and quote.startswith('"'):
+                index += 2
+                continue
+            if line.startswith(quote, index):
+                index += len(quote)
+                # Four/five quotes at a multiline close include one/two literal quotes.
+                if len(quote) == 3:
+                    for _ in range(2):
+                        if index < len(line) and line[index] == quote[0]:
+                            index += 1
+                quote = ""
+                continue
+        elif char == "#":
+            return index, ""
+        elif char in "'\"":
+            quote = char * 3 if line.startswith(char * 3, index) else char
+            index += len(quote)
+            continue
+        index += 1
+    return len(line), quote if len(quote) == 3 else ""
 
 
 def _is_numeric_literal(value: str) -> bool:
@@ -67,16 +98,6 @@ def _needs_quoting(value: str) -> bool:
     return not _is_numeric_literal(value)
 
 
-def _toggle_multiline(line: str, delimiter: str, *, active: bool) -> bool:
-    """Return whether ``delimiter`` leaves us inside a multiline string after ``line``."""
-    # TOML multiline delimiters are three quotes; count odd/even occurrences per line.
-    count = line.count(delimiter)
-    if count == 0:
-        return active
-    # Each delimiter toggles; odd count flips the active state.
-    return active if count % 2 == 0 else not active
-
-
 def prepare_toml_text(text: str) -> str:
     """Quote bare-word RHS values so ``model = keysight-e4407b`` is valid TOML.
 
@@ -86,15 +107,12 @@ def prepare_toml_text(text: str) -> str:
     multiline basic (``\"\"\"``) or literal (``'''``) strings is left unchanged.
     """
     lines: list[str] = []
-    in_multiline_basic = False
-    in_multiline_literal = False
+    multiline = ""
     for line in text.splitlines():
-        if in_multiline_basic or in_multiline_literal:
+        was_multiline = bool(multiline)
+        comment_index, multiline = _string_state(line, multiline)
+        if was_multiline or multiline:
             lines.append(line)
-            if in_multiline_basic:
-                in_multiline_basic = _toggle_multiline(line, '"""', active=True)
-            else:
-                in_multiline_literal = _toggle_multiline(line, "'''", active=True)
             continue
 
         stripped = line.strip()
@@ -107,23 +125,13 @@ def prepare_toml_text(text: str) -> str:
             lines.append(line)
             continue
 
-        raw_value, comment_suffix = _split_inline_comment(match.group("value"))
-        # Odd delimiter count on the RHS opens a multiline string that continues
-        # on following lines; leave those lines unchanged until it closes.
-        if raw_value.count('"""') % 2 == 1:
-            lines.append(line)
-            in_multiline_basic = True
-            continue
-        if raw_value.count("'''") % 2 == 1:
-            lines.append(line)
-            in_multiline_literal = True
-            continue
+        raw_value = line[match.start("value") : comment_index].strip()
+        comment_suffix = f" {line[comment_index:].rstrip()}" if comment_index < len(line) else ""
 
         bool_literal = _BARE_BOOL_LITERALS.get(raw_value)
         if bool_literal is not None:
             lines.append(
-                f"{match.group('indent')}{match.group('key')} = "
-                f"{bool_literal}{comment_suffix}",
+                f"{match.group('indent')}{match.group('key')} = {bool_literal}{comment_suffix}",
             )
             continue
         if not _needs_quoting(raw_value):

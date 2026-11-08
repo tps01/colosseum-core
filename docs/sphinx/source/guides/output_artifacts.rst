@@ -54,6 +54,44 @@ Every run with artifacts still writes ``debug.log``, ``execution.sqlite``,
 ``summary.txt``, and ``summary.json``. Opt-in report listeners never replace
 those defaults.
 
+Completed results in SQLite
+---------------------------
+
+Raw ``measurements`` retain their existing columns, append behavior, JSON
+encoding, and lookup/list ordering, including undecorated plugin series.
+Three core-owned tables add inspectable completion data:
+
+* ``verification_requirements`` attaches each requirement ID to its source
+  verification ID and zero-based ordinal. Repeated IDs and first-seen ordering
+  are retained. Owed-limit BLOCKED verifications retain their configured IDs.
+* ``run_result`` has at most one row (``id=1``), with ``kind``,
+  ``overall_result``, ``exit_code``, ``completed_at``, ``format_version=1``,
+  and ``payload_json``. The payload contains the existing summary JSON fields,
+  plus ``outcomes`` and ``optional_outcomes`` with scored kind, identity,
+  status, optionality, message, cause, description, and requirement IDs.
+  ``stored_status`` mirrors legacy status metadata (PASS/FAIL, or N/A for
+  supporting slots). Raw sample payloads
+  are not duplicated. The snapshot and legacy result metadata commit together.
+* The suite container's ``suite_slot_results`` has one row per occurrence,
+  identified by ``slot_id`` in execution order. Columns retain phase, script,
+  relative output directory, test/repeat/cycle indexes, scoring participation,
+  verdict, exit code, and the slot's compact result in ``payload_json``.
+  Raw measurements remain in each slot database.
+
+The suite's ``run_result`` payload has the existing suite summary fields:
+test counts, slot lists, common failed-verification ranking, requirement
+rollup, and provenance. Rollups use finalized test-slot facts, including
+no-artifacts runs, rather than reading child summary files. Supporting phases
+do not contribute to test statistics or requirement rollups. Requirement
+failures, including optional checks, retain their existing independent
+traceability semantics; they do not introduce another exit-code policy.
+
+A missing snapshot means completion data is unavailable, not PASS. Older
+supported databases remain readable without these tables. An exception after
+a slot's ``endex()`` replaces that occurrence's core result and artifacts;
+report callbacks are not replayed. In no-artifacts mode these facts stay in
+memory and no files are created.
+
 Query recorded evidence
 -----------------------
 

@@ -6,6 +6,8 @@ from colosseum.context import init_context
 from colosseum.database import CommandRow, MeasurementRow
 from colosseum.database.evidence_import import import_evidence_from_previous
 
+from tests.support.helpers import release_context
+
 
 def test_import_evidence_from_previous(tmp_path, isolated_cwd) -> None:
     source_dir = tmp_path / "prior-pass"
@@ -29,18 +31,21 @@ def test_import_evidence_from_previous(tmp_path, isolated_cwd) -> None:
     source_ctx.db.close()
 
     target_ctx = init_context(test_case_name="rerun", no_artifacts=False)
-    target_ctx.output_dir = isolated_cwd / "outputs" / "2026-01-01_120000_rerun"
-    target_ctx.output_dir.mkdir(parents=True)
-    target_ctx.db.initialize(target_ctx.output_dir / "execution.sqlite")
-    target_ctx.runtime_ready = True
+    try:
+        target_ctx.output_dir = isolated_cwd / "outputs" / "2026-01-01_120000_rerun"
+        target_ctx.output_dir.mkdir(parents=True)
+        target_ctx.db.initialize(target_ctx.output_dir / "execution.sqlite")
+        target_ctx.runtime_ready = True
 
-    import_evidence_from_previous(target_ctx, source_dir)
+        import_evidence_from_previous(target_ctx, source_dir)
 
-    row = target_ctx.db.get_measurement("core", "measure_value", "stored")
-    assert row is not None
-    assert row.value == 4.2
-    commands = target_ctx.db.fetch_table_rows("commands")
-    assert len(commands) == 1
-    assert commands[0]["cause"] == "procedural"
-    metadata = {item.key: item.value for item in target_ctx.db.fetch_run_metadata()}
-    assert metadata["imported_from"] == str(source_dir)
+        row = target_ctx.db.get_measurement("core", "measure_value", "stored")
+        assert row is not None
+        assert row.value == 4.2
+        commands = target_ctx.db.fetch_table_rows("commands")
+        assert len(commands) == 1
+        assert commands[0]["cause"] == "procedural"
+        metadata = {item.key: item.value for item in target_ctx.db.fetch_run_metadata()}
+        assert metadata["imported_from"] == str(source_dir)
+    finally:
+        release_context(target_ctx)

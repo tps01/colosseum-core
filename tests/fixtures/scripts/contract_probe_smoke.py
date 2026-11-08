@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from contextlib import closing
 from importlib.metadata import entry_points
 from pathlib import Path
 
@@ -26,6 +27,7 @@ def _eps_for_group(group: str) -> list[object]:
 def main() -> None:
     config = Path(os.environ["CONTRACT_PROBE_CONFIG"])
     col.config.load_config(str(config))
+    get_context().enabled_reports = frozenset({"contract_probe"})
 
     ep_names = sorted(ep.name for ep in _eps_for_group("colosseum.plugins"))
     if "contract_probe" not in ep_names:
@@ -47,6 +49,26 @@ def main() -> None:
     )
     if row is None or row.value != "token-ok":
         raise SystemExit(f"measurement missing or wrong: {row!r}")
+
+    ids = col.contract_probe.record_series()
+    db = get_context().db
+    rows = db.list_measurements("contract_probe", "series", "legacy")
+    assert [item.id for item in rows] == ids
+    assert [item.row_index for item in rows] == [4, 1, 4]
+    assert [item.value for item in rows] == [{"sample": 1}, None, [2, 3]]
+    assert db.get_measurement("contract_probe", "series", "legacy", 4).id == ids[-1]
+    assert [item.id for item in db.fetch_all_measurements()] == [row.id, *ids]
+    # Independent SQL writers retain their own commit responsibility.
+    import sqlite3
+
+    with closing(sqlite3.connect(get_context().output_dir / "execution.sqlite")) as connection:
+        connection.execute(
+            "INSERT INTO measurements(domain,command,key,row_index,value_json,status,timestamp) "
+            "VALUES ('contract_probe','series','legacy',0,'42','PASS','2026-01-01T00:00:00+00:00')",
+        )
+        connection.commit()
+    assert db.list_measurements("contract_probe", "series", "legacy")[-1].value == 42
+    assert get_context().result_aggregator.overall_pass()
 
     payload = {
         "ep_names": ep_names,

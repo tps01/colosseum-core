@@ -23,6 +23,45 @@ A ``bytes`` measurement is returned to the caller unchanged and serialized as
 ``{"encoding": "hex", "data": "<hex>", "nbytes": N}`` in SQLite. Other values
 must be suitable for the evidence serialization contract.
 
+Following a decorated call through core
+---------------------------------------
+
+For a voltage-style check, first follow ``@measurement`` in
+``decorators/measurement.py``, then ``@verification`` in
+``decorators/verification.py``. Each wrapper has three recognizable stages:
+
+1. **Before the body:** obtain the runtime, check the execution mode, resolve
+   the key, and handle parameter export or dry-run logging. Automatic keys are
+   assigned by ``resolve_auto_key`` in ``_common.py``. A skipped/exported/logged
+   call returns without running the body. A configured dry-run substitute can
+   return a value in place of the body.
+2. **Arguments at the body:** matching parameter fields override caller
+   keywords. Wrapper-owned fields such as ``optional`` and ``requirements``
+   are retained for recording and removed from the body call when undeclared.
+   An explicitly supplied measurement ``key`` is forwarded; only an automatic
+   measurement key can be stripped when the body does not declare it.
+   ``coerce_units`` resolves explicit unit values just before invocation.
+   Measurement wrappers only take ``optional`` from their parameter section;
+   explicit ``load_parameter`` collection coercion is a separate operation.
+3. **After the body:** a measurement records its value and returns the original
+   object. A verifier normalizes a measured value against supplied limits, a
+   boolean into PASS/FAIL, or an explicit ``VerificationResult`` directly.
+   It records and returns that result. Required FAIL/ERROR/BLOCKED outcomes
+   affect the final verdict; optional outcomes remain visible without failing it.
+
+A required command or measurement exception records ERROR and re-raises, so
+the script stops unless it catches the exception. With ``optional=True`` that
+exception records ERROR and returns ``None``, allowing the script to continue.
+Verification-body exceptions become ERROR results and return normally; a FAIL
+also returns normally. Argument/parameter validation has its own early error
+paths in the wrappers, before invocation. For example, an invalid verification
+parameter records ERROR without invoking the body.
+
+Direct insertion through the database manager or SQL remains evidence-only:
+an ERROR measurement row by itself does not add a scored decorator outcome.
+Working call policy and the aggregator stay in Python; finalization persists
+their completed conclusion for reports and later inspection.
+
 Implementing a verifier
 -----------------------
 
