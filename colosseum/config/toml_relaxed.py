@@ -73,6 +73,8 @@ def _string_state(line: str, quote: str = "") -> tuple[int, str]:
 
 
 def _is_numeric_literal(value: str) -> bool:
+    if value in {"inf", "+inf", "-inf", "nan", "+nan", "-nan"}:
+        return True
     try:
         if value.startswith(("0x", "0o", "0b")):
             int(value, 0)
@@ -108,7 +110,8 @@ def prepare_toml_text(text: str) -> str:
     """
     lines: list[str] = []
     multiline = ""
-    for line in text.splitlines():
+    # TOML lines end at LF; Unicode separators may be literal string content.
+    for line in text.split("\n"):
         was_multiline = bool(multiline)
         comment_index, multiline = _string_state(line, multiline)
         if was_multiline or multiline:
@@ -140,8 +143,6 @@ def prepare_toml_text(text: str) -> str:
 
         escaped = raw_value.replace("\\", "\\\\").replace('"', '\\"')
         lines.append(f'{match.group("indent")}{match.group("key")} = "{escaped}"{comment_suffix}')
-    if text.endswith("\n"):
-        return "\n".join(lines) + "\n"
     return "\n".join(lines)
 
 

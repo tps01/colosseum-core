@@ -1,0 +1,4 @@
+value = '''
+flag = yes
+''''' # comment
+flag = no

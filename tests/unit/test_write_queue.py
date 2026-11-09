@@ -158,3 +158,17 @@ def test_finalization_snapshots_after_pending_writes(tmp_path, monkeypatch) -> N
     finally:
         gate.set()
         ctx.db.close()
+
+
+@pytest.mark.parametrize("mode", [b"\x00", b"\x01"])
+def test_fuzz_failure_batch_rolls_back_and_propagates(mode):
+    from tests.fuzz.database import check_failures
+
+    check_failures(mode)
+
+
+@pytest.mark.parametrize("mode", [b"\x00", b"\x01"])
+def test_fuzz_close_boundary_preserves_accepted_jobs(mode):
+    from tests.fuzz.database import check_close_boundary
+
+    check_close_boundary(mode)

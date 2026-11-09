@@ -41,3 +41,5 @@ python tests/regression/run_docgen_check.py --skip-pdf
 ```
 
 See [docs/DEVELOPING.md](docs/DEVELOPING.md) for details.
+
+For core-only parser fuzzing, see [the fuzz instructions](tests/fuzz/README.md).
