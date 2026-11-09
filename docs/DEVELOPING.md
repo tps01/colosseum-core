@@ -60,3 +60,25 @@ HTML is the same sources: `python scripts/docgen/build_all.py --skip-pdf`.
 Release tags use `v<version>` and must match `project.version` in
 `pyproject.toml`.
 The release workflow publishes the core wheel, sdist, and core documentation.
+
+
+## Dependency license policy
+
+`python scripts/run_static.py --tool licenses` scans every installed Python
+distribution, including transitive and development dependencies. Run it in a
+clean project environment. This audit is manual and excluded from the default
+static suite and CI while policy findings are reviewed. Evidence is written to
+`build/license-report.json`.
+
+`tests/static/license_policy.json` maps the allowlist in `RULES.md` to SPDX
+identifiers; the check fails if their entries drift. Exact legacy aliases are
+supported, but generic BSD labels, unknown licenses, and unrecognized license
+text require review. SPDX `OR` permits an approved choice; `AND` requires every
+term to be approved. `WITH` exceptions are not stripped or implicitly approved.
+LGPL is not automatically approved: the unmodified-artifact condition requires
+review, which metadata alone cannot establish. No dependency exceptions are
+preapproved. Do not broaden mappings or ignore packages just to make CI pass.
+
+This checks declared package metadata. It does not scan copied source, verify
+license text, or discover native components omitted from that metadata. The
+allowlist is project policy, not a general permissive/copyleft classifier.
