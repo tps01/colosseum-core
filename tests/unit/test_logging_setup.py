@@ -39,29 +39,37 @@ def test_attach_console_logger_skips_identity_header(unit_runtime_context, capsy
 
 
 def test_session_reattach_after_finalize_skips_header(
-    unit_runtime_context, capsys, tmp_path,
+    unit_runtime_context,
+    capsys,
+    tmp_path,
 ) -> None:
     """finalize_script_slot reattach must not emit a second identity header."""
     from colosseum.runner.runtime import begin_script_slot, ensure_suite_runtime_ready
 
+    from tests.support.helpers import release_context
+
     ctx = unit_runtime_context
+    original = ctx.db
     ctx.session.kind = "suite"
     ctx.suite_name = "header_suite"
     ctx.no_artifacts = False
-    ensure_suite_runtime_ready(ctx, "header_suite")
-    begin_script_slot(ctx, "slot_a", phase="test", affects_suite_result=True)
-    ctx.slot_script_path = tmp_path / "slot_a.py"
-    ctx.slot_script_path.write_text("def main():\n    pass\n", encoding="utf-8")
+    try:
+        ensure_suite_runtime_ready(ctx, "header_suite")
+        begin_script_slot(ctx, "slot_a", phase="test", affects_suite_result=True)
+        ctx.slot_script_path = tmp_path / "slot_a.py"
+        ctx.slot_script_path.write_text("def main():\n    pass\n", encoding="utf-8")
 
-    from colosseum.runner.runtime import finalize_script_slot
+        from colosseum.runner.runtime import finalize_script_slot
 
-    capsys.readouterr()  # clear start/slot headers already emitted
-    finalize_script_slot(ctx, script_path=ctx.slot_script_path)
-    out = capsys.readouterr().out
-    assert "Colosseum version:" not in out
-    assert ctx.logger is not None
-    ctx.logger.info("post-finalize message")
-    assert "post-finalize message" in capsys.readouterr().out
+        capsys.readouterr()  # clear start/slot headers already emitted
+        finalize_script_slot(ctx, script_path=ctx.slot_script_path)
+        out = capsys.readouterr().out
+        assert "Colosseum version:" not in out
+        assert ctx.logger is not None
+        ctx.logger.info("post-finalize message")
+        assert "post-finalize message" in capsys.readouterr().out
+    finally:
+        release_context(None, original)
 
 
 def test_suite_header_uses_suite_container_path(unit_runtime_context, capsys, tmp_path) -> None:
@@ -88,20 +96,26 @@ def test_reattach_after_slot_writes_suite_debug_log(unit_runtime_context, tmp_pa
     """Between slots, suite container debug.log should keep receiving messages."""
     from colosseum.runner.runtime import begin_script_slot, ensure_suite_runtime_ready, finalize_script_slot
 
+    from tests.support.helpers import release_context
+
     ctx = unit_runtime_context
+    original = ctx.db
     ctx.session.kind = "suite"
     ctx.suite_name = "suite_debug"
     ctx.no_artifacts = False
-    ensure_suite_runtime_ready(ctx, "suite_debug")
-    assert ctx.suite_output_dir is not None
-    begin_script_slot(ctx, "slot_a", phase="test", affects_suite_result=True)
-    ctx.slot_script_path = tmp_path / "slot_a.py"
-    ctx.slot_script_path.write_text("def main():\n    pass\n", encoding="utf-8")
-    finalize_script_slot(ctx, script_path=ctx.slot_script_path)
-    assert ctx.logger is not None
-    ctx.logger.error("suite-level after slot")
-    log_text = (ctx.suite_output_dir / "debug.log").read_text(encoding="utf-8")
-    assert "suite-level after slot" in log_text
+    try:
+        ensure_suite_runtime_ready(ctx, "suite_debug")
+        assert ctx.suite_output_dir is not None
+        begin_script_slot(ctx, "slot_a", phase="test", affects_suite_result=True)
+        ctx.slot_script_path = tmp_path / "slot_a.py"
+        ctx.slot_script_path.write_text("def main():\n    pass\n", encoding="utf-8")
+        finalize_script_slot(ctx, script_path=ctx.slot_script_path)
+        assert ctx.logger is not None
+        ctx.logger.error("suite-level after slot")
+        log_text = (ctx.suite_output_dir / "debug.log").read_text(encoding="utf-8")
+        assert "suite-level after slot" in log_text
+    finally:
+        release_context(None, original)
 
 
 def test_suite_kind_without_paths_is_not_fake_no_artifacts(unit_runtime_context, capsys) -> None:

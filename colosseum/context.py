@@ -44,7 +44,6 @@ class RuntimeContext:
     resource_cache: dict[str, Any] = field(default_factory=dict)
     config_warnings: list[str] = field(default_factory=list)
     suite_output_dir: Path | None = None
-    suite_test_results: list[Any] = field(default_factory=list)
     suite_slot_results: list[Any] = field(default_factory=list)
     slot_finalized: bool = False
     slot_affects_suite_result: bool = False
@@ -73,12 +72,29 @@ class RuntimeContext:
     export_errors: list[str] = field(default_factory=list)
     # Measurements a dry-run log walk has already visited: domain, command, key, row_index.
     dry_run_measurements: set[tuple[str, str, str, int]] = field(default_factory=set)
-    # Keys referenced by any dry-run command/measurement/verification call.
+    # Keys referenced by dry-run decorated calls or load_parameter.
     dry_run_keys_seen: set[str] = field(default_factory=set)
     # Soft guidance collected during a dry-run walk (shown in summary.txt).
     dry_run_tips: list[str] = field(default_factory=list)
     # Platform, installed distributions, and input hashes for this run or suite.
     provenance: dict[str, object] | None = None
+
+    def note_parameter_use(self, key: str) -> None:
+        """Track explicit and decorated access through one dry-run usage boundary.
+
+        :param key: Parameter section used by the current call.
+        """
+        if self.run_options.dry_run:
+            self.dry_run_keys_seen.add(key)
+
+    @property
+    def suite_test_results(self) -> list[Any]:
+        """The scored subset of the single slot-occurrence collection."""
+        return [slot for slot in self.suite_slot_results if slot.affects_suite_result]
+
+    @suite_test_results.setter
+    def suite_test_results(self, slots: list[Any]) -> None:
+        self.suite_slot_results = [slot for slot in self.suite_slot_results if not slot.affects_suite_result] + slots
 
 
 def get_context() -> RuntimeContext:

@@ -4,7 +4,7 @@ import json
 import re
 import sqlite3
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -23,6 +23,9 @@ _TABLE_SELECT_SQL = {
     "events": "SELECT * FROM events",
     "commands": "SELECT * FROM commands",
     "provenance": "SELECT * FROM provenance",
+    "verification_requirements": "SELECT * FROM verification_requirements",
+    "run_result": "SELECT * FROM run_result",
+    "suite_slot_results": "SELECT * FROM suite_slot_results",
 }
 _TABLE_COUNT_SQL = {
     "run_metadata": "SELECT COUNT(*) FROM run_metadata",
@@ -74,6 +77,7 @@ class VerificationRow:
     description: str | None = None
     timestamp: str = ""
     id: int | None = None
+    requirements: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -102,16 +106,7 @@ class RunMetadataRecord:
 MeasurementRecord = MeasurementRow
 VerificationRecord = VerificationRow
 
-_ALLOWED_TABLES = frozenset(
-    {
-        "measurements",
-        "verifications",
-        "commands",
-        "events",
-        "run_metadata",
-        "provenance",
-    },
-)
+_ALLOWED_TABLES = frozenset(_TABLE_SELECT_SQL)
 
 
 def is_allowed_table(name: str) -> bool:
@@ -162,21 +157,6 @@ def _as_int(value: object) -> int:
     if isinstance(value, str):
         return int(value)
     raise TypeError(f"expected integer column value, got {type(value)!r}")
-
-
-def _measurement_from_lookup(item: tuple[object, ...]) -> MeasurementRow:
-    return MeasurementRow(
-        domain=str(item[0]),
-        command=str(item[1]),
-        key=str(item[2]),
-        row_index=_as_int(item[3]),
-        value=_loads_json(item[4]),
-        units=item[5],  # type: ignore[arg-type]
-        artifact_path=item[6],  # type: ignore[arg-type]
-        status=str(item[7]),
-        timestamp=str(item[8]),
-        id=_as_int(item[9]) if item[9] is not None else None,
-    )
 
 
 def _measurement_record(item: tuple[object, ...]) -> MeasurementRecord:
@@ -299,6 +279,7 @@ class DatabaseManager:
         self._write_queue = DatabaseWriteQueue(
             lock=self._lock,
             commit=self._queue_commit,
+            rollback=self._require_conn().rollback,
         )
         self._write_queue.start()
 
@@ -332,21 +313,45 @@ class DatabaseManager:
     def is_initialized(self) -> bool:
         return self._conn is not None
 
-    def close(self) -> None:
-        if self._write_queue is not None:
-            try:
+    def _stop_write_queue(self) -> BaseException | None:
+        failure: BaseException | None = None
+        try:
+            if self._write_queue is not None:
                 self._write_queue.stop()
-            finally:
+        except BaseException as exc:  # noqa: BLE001 — close after a stopped writer failed
+            if self._write_queue is not None and self._write_queue.started:
+                raise
+            failure = exc
+        finally:
+            if self._write_queue is not None and not self._write_queue.started:
                 self._write_queue = None
+        return failure
+
+    def _close_connection(self, failure: BaseException | None) -> None:
         with self._lock:
             if self._conn is not None:
-                if self.defer_commits:
-                    self._conn.commit()
-                self._conn.close()
-                self._conn = None
-                self._db_path = None
-                self.defer_commits = False
-                self._readonly = False
+                try:
+                    if self.defer_commits and failure is None:
+                        self._conn.commit()
+                except BaseException as exc:  # noqa: BLE001 - release after commit failure
+                    failure = exc
+                try:
+                    self._conn.close()
+                except BaseException as exc:  # noqa: BLE001 - retain a recoverable handle
+                    if failure is not None:
+                        raise failure from exc
+                    raise
+                else:
+                    self._conn = None
+                    self._db_path = None
+                    self.defer_commits = False
+                    self._readonly = False
+        if failure is not None:
+            raise failure
+
+    def close(self) -> None:
+        failure = self._stop_write_queue()
+        self._close_connection(failure)
 
     def _require_conn(self) -> sqlite3.Connection:
         if self._conn is None:
@@ -429,28 +434,126 @@ class DatabaseManager:
 
     def insert_verification(self, row: VerificationRow) -> int:
         ts = row.timestamp or _utc_now()
-        return self._execute_insert(
-            """
+        with self._lock:
+            conn = self._require_conn()
+            if not conn.in_transaction:
+                conn.execute("BEGIN")
+            conn.execute("SAVEPOINT verification")
+            try:
+                cur = conn.execute(
+                    """
             INSERT INTO verifications
             (domain, command, key, expected_json, actual_json, tolerance_json, compare_op,
              status, optional, message, description, timestamp)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (
-                row.domain,
-                row.command,
-                row.key,
-                _dumps_json(row.expected),
-                _dumps_json(row.actual),
-                _dumps_json(row.tolerance),
-                row.compare_op,
-                row.status,
-                1 if row.optional else 0,
-                row.message,
-                row.description,
-                ts,
-            ),
-        )
+                    (
+                        row.domain,
+                        row.command,
+                        row.key,
+                        _dumps_json(row.expected),
+                        _dumps_json(row.actual),
+                        _dumps_json(row.tolerance),
+                        row.compare_op,
+                        row.status,
+                        1 if row.optional else 0,
+                        row.message,
+                        row.description,
+                        ts,
+                    ),
+                )
+                rowid = _cursor_rowid(cur)
+                conn.executemany(
+                    "INSERT INTO verification_requirements VALUES (?, ?, ?)",
+                    [(rowid, requirement, index) for index, requirement in enumerate(row.requirements)],
+                )
+            except Exception:
+                conn.execute("ROLLBACK TO verification")
+                raise
+            finally:
+                conn.execute("RELEASE verification")
+            self._maybe_commit()
+            return rowid
+
+    def store_result(
+        self,
+        payload: dict[str, Any] | None,
+        *,
+        kind: str,
+        slots: list[dict[str, Any]] | None = None,
+    ) -> None:
+        """Persist the finalized conclusion and legacy status metadata together.
+
+        :param payload: Compact completed result, or None when publishing only slots.
+        :param kind: Single run, suite slot, or suite container.
+        :param slots: Completed suite occurrences to replace by occurrence ID.
+        """
+        with self._lock:
+            conn = self._require_conn()
+            with conn:
+                if payload is not None:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO run_result VALUES (1, ?, ?, ?, ?, 1, ?)",
+                        (
+                            kind,
+                            payload["overall_result"],
+                            payload["exit_code"],
+                            payload["end_time_utc"],
+                            _dumps_json(payload),
+                        ),
+                    )
+                    conn.executemany(
+                        "INSERT OR REPLACE INTO run_metadata VALUES (?, ?)",
+                        [
+                            (
+                                "overall_status",
+                                str(payload.get("stored_status", payload["overall_result"])),
+                            ),
+                            ("exit_code", str(payload["exit_code"])),
+                        ],
+                    )
+                for slot in slots or []:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO suite_slot_results VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (
+                            slot["slot_id"],
+                            slot["phase"],
+                            slot["script"],
+                            slot["output_directory"],
+                            slot["test_index"],
+                            slot["repeat_index"],
+                            slot["cycle_index"],
+                            int(slot["affects_suite_result"]),
+                            slot["overall_result"],
+                            slot["exit_code"],
+                            _dumps_json(slot["result"]),
+                        ),
+                    )
+
+    @classmethod
+    def persist_results(
+        cls,
+        path: Path,
+        payload: dict[str, Any] | None,
+        *,
+        kind: str,
+        slots: list[dict[str, Any]] | None = None,
+    ) -> None:
+        """Publish completed results after live writers close.
+
+        :param path: Existing evidence database; never create an empty file on failure.
+        :param payload: Compact finalized result, or None for slot-only publication.
+        :param kind: Result scope.
+        :param slots: Suite occurrences to publish in the same transaction.
+        """
+        from colosseum.paths import absolute_path
+
+        manager = cls()
+        manager._conn = sqlite3.connect(absolute_path(path).as_uri() + "?mode=rw", uri=True)
+        try:
+            manager.store_result(payload, kind=kind, slots=slots)
+        finally:
+            manager.close()
 
     def insert_event(self, level: str, source: str, message: str) -> int:
         return self._execute_insert(
@@ -472,14 +575,18 @@ class DatabaseManager:
         )
 
     def get_measurement(
-        self, domain: str, command: str, key: str, row_index: int = 0,
+        self,
+        domain: str,
+        command: str,
+        key: str,
+        row_index: int = 0,
     ) -> MeasurementRow | None:
         with self._lock:
             conn = self._require_conn()
             cur = conn.execute(
                 """
-                SELECT domain, command, key, row_index, value_json, units,
-                       artifact_path, status, timestamp, id
+                SELECT id, domain, command, key, row_index, value_json, units,
+                       artifact_path, status, timestamp
                 FROM measurements WHERE domain=? AND command=? AND key=? AND row_index=?
                 ORDER BY id DESC LIMIT 1
                 """,
@@ -488,20 +595,20 @@ class DatabaseManager:
             item = cur.fetchone()
             if item is None:
                 return None
-            return _measurement_from_lookup(item)
+            return _measurement_record(item)
 
     def list_measurements(self, domain: str, command: str, key: str) -> list[MeasurementRow]:
         with self._lock:
             conn = self._require_conn()
             cur = conn.execute(
                 """
-                SELECT domain, command, key, row_index, value_json, units,
-                       artifact_path, status, timestamp, id
+                SELECT id, domain, command, key, row_index, value_json, units,
+                       artifact_path, status, timestamp
                 FROM measurements WHERE domain=? AND command=? AND key=? ORDER BY id ASC
                 """,
                 (domain, command, key),
             )
-            return [_measurement_from_lookup(item) for item in cur.fetchall()]
+            return [_measurement_record(item) for item in cur.fetchall()]
 
     def fetch_all_measurements(self) -> list[MeasurementRecord]:
         with self._lock:
@@ -525,7 +632,23 @@ class DatabaseManager:
                 FROM verifications ORDER BY id ASC
                 """,
             )
-            return [_verification_record(item) for item in cur.fetchall()]
+            rows = [_verification_record(item) for item in cur.fetchall()]
+            # Older supported evidence predates requirement attachments.
+            if (
+                conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE name='verification_requirements'",
+                ).fetchone()
+                is None
+            ):
+                return rows
+            by_id = {row.id: row for row in rows}
+            for rowid, requirement in conn.execute(
+                "SELECT verification_id, requirement_id FROM verification_requirements "
+                "ORDER BY verification_id, ordinal",
+            ):
+                if rowid in by_id:
+                    by_id[rowid].requirements.append(requirement)
+            return rows
 
     def fetch_all_commands(self) -> list[CommandRecord]:
         with self._lock:
@@ -593,7 +716,10 @@ class DatabaseManager:
             return [dict(zip(columns, row)) for row in cur.fetchall()]
 
     def count_rows(
-        self, table: str, where: str = "", params: tuple[object, ...] = (),
+        self,
+        table: str,
+        where: str = "",
+        params: tuple[object, ...] = (),
     ) -> int:
         if where:
             if "".join(where.split()) != "key=?":

@@ -55,6 +55,9 @@ class ConfigStore:
         section = self._normalized.get(dotted)
         if section is None:
             raise ConfigError(f"Config section `{dotted}` is not registered")
+        # bool subclasses int; True aliases 1 and False aliases 0.
+        if isinstance(item_id, bool) or not isinstance(item_id, int):
+            raise ConfigError(f"Unknown id `{item_id}` in section `{dotted}`")
         if item_id not in section:
             raise ConfigError(f"Unknown id `{item_id}` in section `{dotted}`")
         return section[item_id]
@@ -82,7 +85,8 @@ def _get_dotted(raw: dict[str, Any], dotted: str) -> object | None:
 
 
 def normalize_sections(
-    raw: dict[str, Any], specs: list[ConfigSectionSpec],
+    raw: dict[str, Any],
+    specs: list[ConfigSectionSpec],
 ) -> dict[str, dict[int, dict[str, Any]]]:
     normalized: dict[str, dict[int, dict[str, Any]]] = {}
     for spec in specs:
@@ -103,7 +107,8 @@ def normalize_sections(
             row_id = row.get(spec.id_field)
             if row_id is None:
                 raise ValueError(f"Missing id field `{spec.id_field}` in `{spec.dotted_path}`")
-            if not isinstance(row_id, int):
+            # bool subclasses int; True aliases 1 and False aliases 0.
+            if isinstance(row_id, bool) or not isinstance(row_id, int):
                 raise ValueError(f"ID field `{spec.id_field}` in `{spec.dotted_path}` must be int")
             if row_id in by_id:
                 raise ValueError(f"Duplicate id `{row_id}` in `{spec.dotted_path}`")
@@ -227,10 +232,7 @@ def load_config(
     if ctx is not None and ctx.session.config_pinned and not force:
         if not ctx.session.config_pin_warned:
             ctx.session.config_pin_warned = True
-            message = (
-                "Ignoring load_config(%s): CLI/suite -g config is pinned; "
-                "pass force=True to replace"
-            )
+            message = "Ignoring load_config(%s): CLI/suite -g config is pinned; pass force=True to replace"
             if ctx.logger is not None:
                 ctx.logger.warning(message, path)
             else:

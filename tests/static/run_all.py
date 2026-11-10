@@ -22,8 +22,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run static analysis tools")
     parser.add_argument(
         "--tool",
-        choices=_TOOLS,
-        help="Run a single tool (default: all)",
+        choices=(*_TOOLS, "licenses"),
+        help="Run a single tool (licenses is opt-in; default: standard static checks)",
     )
     parser.add_argument("--fix", action="store_true", help="Pass --fix to ruff only")
     args, remainder = parser.parse_known_args(argv)

@@ -4,22 +4,13 @@ import argparse
 import faulthandler
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NoReturn
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-from colosseum.config import ConfigError, load_config
-from colosseum.context import RuntimeContext, init_context
-from colosseum.database.evidence_import import import_evidence_from_previous
+from colosseum.config import ConfigError
 from colosseum.paths import absolute_path
-from colosseum.results.exit_policy import endex
-from colosseum.runner.command_invoke import (
-    CommandInvokeError,
-    command_logical_name,
-    invoke_plugin_commands,
-)
-from colosseum.runner.provenance import record_single_provenance
 from colosseum.runner.run_options import (
     ExportKind,
     RunOptions,
@@ -28,14 +19,13 @@ from colosseum.runner.run_options import (
     resolve_input_path,
     validate_run_flags,
 )
-from colosseum.runner.runtime import OutputNotWritableError, ensure_runtime_ready
+from colosseum.runner.runtime import OutputNotWritableError
 
-from .single_test import ScriptRunError, run_script
-from .suite import SuiteError, run_suite
+from .single_run import _run_single_test
+from .suite import run_suite
+from .suite_toml import SuiteError
 
-_DESCRIPTION = (
-    "Colosseum test automation: run Python test scripts and suites with configuration."
-)
+_DESCRIPTION = "Colosseum test automation: run Python test scripts and suites with configuration."
 _EPILOG = """examples:
   colosseum run my_test.py -g config.toml
   colosseum run -c template.arm_device,key=dev1 -g config.toml
@@ -125,10 +115,7 @@ def _add_shared_run_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--no-sleep",
         action="store_true",
-        help=(
-            "Prevent system sleep until the run or suite completes "
-            "(screen may still blank or lock)"
-        ),
+        help=("Prevent system sleep until the run or suite completes (screen may still blank or lock)"),
     )
 
 
@@ -137,9 +124,7 @@ def _add_execution_mode_options(
     *,
     allow_verify_only: bool,
 ) -> None:
-    mode_choices: tuple[str, ...] = (
-        ("full", "procedure", "verify_only") if allow_verify_only else ("full", "procedure")
-    )
+    mode_choices: tuple[str, ...] = ("full", "procedure", "verify_only") if allow_verify_only else ("full", "procedure")
     parser.add_argument(
         "--mode",
         dest="execution_mode",
@@ -218,9 +203,7 @@ def _build_parser() -> argparse.ArgumentParser:
     suite_parser = sub.add_parser(
         "run-suite",
         help="Run a suite TOML (setup, tests, teardown)",
-        description=(
-            "Run setup scripts, test scripts, and teardown scripts in one output directory."
-        ),
+        description=("Run setup scripts, test scripts, and teardown scripts in one output directory."),
     )
     suite_parser.add_argument("suite_file", help="Path to the suite TOML file")
     _add_shared_run_options(suite_parser)
@@ -251,22 +234,6 @@ def _print_help(parser: argparse.ArgumentParser, topic: str | None = None) -> No
                 subparser.print_help()
                 return
     parser.error(f"unknown help topic: {topic}")
-
-
-def _load_run_config(config_path: str | None, metadata_path: str | None = None) -> None:
-    from colosseum.context import get_context
-
-    if config_path:
-        load_config(config_path, metadata_path=metadata_path)
-    elif metadata_path:
-        from colosseum.config.metadata import load_metadata
-
-        load_metadata(metadata_path)
-    ctx = get_context()
-    if config_path:
-        ctx.session.config_pinned = True
-    if metadata_path:
-        ctx.session.metadata_pinned = True
 
 
 def _shared_run_options(
@@ -326,131 +293,7 @@ def _maybe_enable_faulthandler(*, show_faults: bool) -> None:
         faulthandler.enable()
 
 
-def finish_parameter_export(ctx: RuntimeContext, *, failed: bool) -> int:
-    """Write ``parameters.toml`` when the walk succeeded, then close the runtime.
-
-    The run folder is left without a ``-pass`` or ``-fail`` suffix, and no scored
-    summary is written.
-    """
-    from colosseum.config.parameters import write_parameters_file
-    from colosseum.logging.setup import close_logger_handlers
-    from colosseum.results.finalize import close_resource_cache
-
-    errors = list(ctx.export_errors)
-    ready = not failed and not errors and ctx.parameter_export is not None
-    if ready and ctx.output_dir is None:
-        errors.append("parameter export has no output directory")
-        ready = False
-    if ready and ctx.output_dir is not None and ctx.parameter_export is not None:
-        path = ctx.output_dir / "parameters.toml"
-        write_parameters_file(path, ctx.parameter_export)
-        if ctx.logger is not None:
-            ctx.logger.info("Wrote parameters file: %s", path)
-    elif ctx.logger is not None:
-        for message in errors:
-            ctx.logger.error("Parameter export failed: %s", message)
-        if failed and not errors:
-            ctx.logger.error("Parameter export failed: script did not finish")
-    close_resource_cache(ctx.resource_cache, logger=ctx.logger)
-    if ctx.logger is not None:
-        close_logger_handlers(ctx.logger)
-    if ctx.db.is_initialized():
-        ctx.db.close()
-    return 0 if ready else 1
-
-
-def _import_previous_evidence(ctx: object, run_options: RunOptions) -> None:
-    if run_options.execution_mode != "verify_only":
-        return
-    if run_options.previous_output_dir is None:
-        raise RuntimeError("verify_only mode requires --use-previous-output")
-    import_evidence_from_previous(ctx, run_options.previous_output_dir)
-
-
-def _run_single_test(
-    test_path: Path | None,
-    config_path: str | None,
-    metadata_path: str | None,
-    *,
-    debug: bool = False,
-    no_artifacts: bool = False,
-    run_options: RunOptions | None = None,
-) -> None:
-    options = run_options or RunOptions()
-    logical_name = test_path.stem if test_path is not None else command_logical_name(
-        options.plugin_commands[0],
-    )
-    ctx = init_context(
-        test_case_name=logical_name,
-        config_path=absolute_path(config_path) if config_path else None,
-        metadata_path=absolute_path(metadata_path) if metadata_path else None,
-        no_artifacts=no_artifacts,
-        run_options=options,
-    )
-    ctx.debug_logging = debug
-    ctx.active_execution_mode = options.execution_mode
-    _load_run_config(config_path, metadata_path)
-    ensure_runtime_ready(ctx)
-    from colosseum.config.parameters import (
-        ParametersError,
-        attach_parameters,
-        resolve_parameters_path,
-    )
-    from colosseum.results.reports import apply_enabled_reports
-
-    apply_enabled_reports(ctx)
-    exporting = options.export == "parameters"
-    resolved_parameters = resolve_parameters_path(
-        script_path=test_path,
-        cli_path=options.parameters_path,
-    )
-    if exporting:
-        ctx.parameter_export = {}
-    else:
-        try:
-            attach_parameters(
-                ctx,
-                resolved_parameters,
-                required=options.parameters_path is not None,
-            )
-        except ParametersError as exc:
-            record_single_provenance(ctx, test_path, resolved_parameters)
-            ctx.result_aggregator.mark_suite_error(str(exc))
-            if ctx.logger is not None:
-                ctx.logger.error("Parameters load failed: %s", exc)
-            endex()
-            return
-    record_single_provenance(ctx, test_path, resolved_parameters)
-    _import_previous_evidence(ctx, options)
-    export_failed = False
-    try:
-        if options.plugin_commands:
-            invoke_plugin_commands(ctx, options.plugin_commands)
-        if test_path is not None:
-            run_script(test_path)
-    except (ScriptRunError, CommandInvokeError):
-        if exporting:
-            export_failed = True
-        else:
-            ctx.result_aggregator.mark_suite_error("test script failed")
-    except Exception as exc:
-        if exporting:
-            export_failed = True
-            if ctx.logger is not None:
-                ctx.logger.exception("Unhandled error during parameter export")
-        else:
-            ctx.result_aggregator.mark_suite_error(f"test run failed: {exc}")
-            if ctx.logger is not None:
-                ctx.logger.exception("Unhandled error during test run")
-    finally:
-        if exporting:
-            code = finish_parameter_export(ctx, failed=export_failed)
-            ctx.finalized = True
-            ctx.final_exit_code = code
-        endex()
-
-
-def _exit_with_message(message: str) -> None:
+def _exit_with_message(message: str) -> NoReturn:
     print(message, file=sys.stderr)
     raise SystemExit(1) from None
 
@@ -521,18 +364,18 @@ def _wrap_dispatch(
     if profile:
         from colosseum.runner.profiling import run_with_profile
 
-        inner = wrapped
+        profile_action = wrapped
 
         def wrapped() -> int:
-            return run_with_profile(inner, no_artifacts=no_artifacts)
+            return run_with_profile(profile_action, no_artifacts=no_artifacts)
 
     if no_sleep:
         from colosseum.runner.keep_awake import run_with_no_sleep
 
-        inner = wrapped
+        awake_action = wrapped
 
         def wrapped() -> int:
-            return run_with_no_sleep(inner)
+            return run_with_no_sleep(awake_action)
 
     return wrapped()
 
@@ -576,7 +419,7 @@ def run_cli(argv: list[str] | None = None) -> int:
         )
 
     parser.error(f"Unknown command: {args.command}")
-    return 1
+    raise SystemExit(2)
 
 
 def main(argv: list[str] | None = None) -> None:

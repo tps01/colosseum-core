@@ -69,27 +69,33 @@ def validate_run_flags(
         )
     if not dry_run and export is None:
         return
-    if command != "run" and export is not None:
-        raise RunOptionsError("--export is only supported by colosseum run")
-    if dry_run and export is not None:
-        raise RunOptionsError("--dry-run cannot be combined with --export")
-    if mode is not None or procedure or previous_output is not None:
-        raise RunOptionsError(
-            "--dry-run and --export cannot be combined with --mode, -p/--procedure, "
-            "or -u/--use-previous-output",
-        )
-    if no_artifacts:
-        raise RunOptionsError(
+
+    # First matching rule wins. ``None`` message means accept / early return.
+    rules: list[tuple[bool, str | None]] = [
+        (
+            command != "run" and export is not None,
+            "--export is only supported by colosseum run",
+        ),
+        (dry_run and export is not None, "--dry-run cannot be combined with --export"),
+        (
+            mode is not None or procedure or previous_output is not None,
+            ("--dry-run and --export cannot be combined with --mode, -p/--procedure, or -u/--use-previous-output"),
+        ),
+        (
+            no_artifacts,
             "--dry-run and --export cannot be combined with --no-artifacts",
-        )
-    if export is None:
-        return
-    if not has_test_file:
-        raise RunOptionsError("--export parameters requires a test file")
-    if plugin_commands:
-        raise RunOptionsError("--export cannot be combined with -c/--command")
-    if parameters_path is not None:
-        raise RunOptionsError("--export cannot be combined with --parameters")
+        ),
+        (export is None, None),
+        (not has_test_file, "--export parameters requires a test file"),
+        (bool(plugin_commands), "--export cannot be combined with -c/--command"),
+        (parameters_path is not None, "--export cannot be combined with --parameters"),
+    ]
+    for matches, message in rules:
+        if not matches:
+            continue
+        if message is None:
+            return
+        raise RunOptionsError(message)
 
 
 def resolve_execution_mode(
@@ -110,59 +116,92 @@ def resolve_execution_mode(
         )
 
     has_previous = previous_output is not None
-
     if command == "run-suite":
-        if mode == "verify_only" or has_previous:
-            raise RunOptionsError(
+        return _resolve_suite_execution_mode(
+            mode=mode,
+            procedure=procedure,
+            has_previous=has_previous,
+        )
+    return _resolve_run_execution_mode(
+        mode=mode,
+        procedure=procedure,
+        has_previous=has_previous,
+        previous_output=previous_output,
+    )
+
+
+def _resolve_suite_execution_mode(
+    *,
+    mode: str | None,
+    procedure: bool,
+    has_previous: bool,
+) -> tuple[ExecutionMode, Path | None]:
+    rules: list[tuple[bool, str]] = [
+        (
+            mode == "verify_only" or has_previous,
+            (
                 "run-suite does not support verify_only / --use-previous-output; "
-                "use colosseum run for evidence re-verification",
-            )
-        if procedure and mode is not None and mode != "procedure":
-            raise RunOptionsError(
-                f"--mode {mode} conflicts with -p/--procedure; they must agree",
-            )
-        if mode == "procedure" or (mode is None and procedure):
-            return "procedure", None
-        return "full", None
-
-    # --- single run ---
-    if mode is None:
-        if procedure and has_previous:
-            raise RunOptionsError(
-                "-p/--procedure cannot be combined with --use-previous-output",
-            )
-        if procedure:
-            return "procedure", None
-        if has_previous:
-            return "verify_only", previous_output
-        return "full", None
-
-    if mode == "full":
-        if procedure:
-            raise RunOptionsError(
-                "--mode full conflicts with -p/--procedure; omit -p or use --mode procedure",
-            )
-        if has_previous:
-            raise RunOptionsError(
-                "--mode full cannot be combined with --use-previous-output",
-            )
-        return "full", None
-
-    if mode == "procedure":
-        if has_previous:
-            raise RunOptionsError(
-                "--mode procedure cannot be combined with --use-previous-output",
-            )
-        # -p with --mode procedure is fine (agree)
+                "use colosseum run for evidence re-verification"
+            ),
+        ),
+        (
+            procedure and mode is not None and mode != "procedure",
+            f"--mode {mode} conflicts with -p/--procedure; they must agree",
+        ),
+    ]
+    for matches, message in rules:
+        if matches:
+            raise RunOptionsError(message)
+    if mode == "procedure" or (mode is None and procedure):
         return "procedure", None
+    return "full", None
 
-    # mode == verify_only
-    if procedure:
-        raise RunOptionsError(
+
+def _resolve_run_execution_mode(
+    *,
+    mode: str | None,
+    procedure: bool,
+    has_previous: bool,
+    previous_output: Path | None,
+) -> tuple[ExecutionMode, Path | None]:
+    # Ordered decision table: first matching predicate wins.
+    # str => raise RunOptionsError; tuple => return (mode, previous_dir).
+    rules: list[tuple[bool, str | tuple[ExecutionMode, Path | None]]] = [
+        (
+            mode is None and procedure and has_previous,
+            "-p/--procedure cannot be combined with --use-previous-output",
+        ),
+        (mode is None and procedure, ("procedure", None)),
+        (mode is None and has_previous, ("verify_only", previous_output)),
+        (mode is None, ("full", None)),
+        (
+            mode == "full" and procedure,
+            "--mode full conflicts with -p/--procedure; omit -p or use --mode procedure",
+        ),
+        (
+            mode == "full" and has_previous,
+            "--mode full cannot be combined with --use-previous-output",
+        ),
+        (mode == "full", ("full", None)),
+        (
+            mode == "procedure" and has_previous,
+            "--mode procedure cannot be combined with --use-previous-output",
+        ),
+        (mode == "procedure", ("procedure", None)),
+        (
+            mode == "verify_only" and procedure,
             "--mode verify_only conflicts with -p/--procedure",
-        )
-    if not has_previous:
-        raise RunOptionsError(
+        ),
+        (
+            mode == "verify_only" and not has_previous,
             "--mode verify_only requires --use-previous-output PATH",
-        )
-    return "verify_only", previous_output
+        ),
+        (mode == "verify_only", ("verify_only", previous_output)),
+    ]
+    for matches, outcome in rules:
+        if not matches:
+            continue
+        if isinstance(outcome, str):
+            raise RunOptionsError(outcome)
+        return outcome
+    raise RunOptionsError(f"Unknown --mode {mode!r}; expected one of: full, procedure, verify_only")

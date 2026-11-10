@@ -132,7 +132,8 @@ With artifacts on (the default):
 3. Print the run header: version, Python, platform, test name, config path,
    output dir.
 4. Create ``execution.sqlite`` with tables ``run_metadata``,
-   ``measurements``, ``verifications``, ``commands``, ``events``.
+   ``measurements``, ``verifications``, ``commands``, ``events``, ``provenance``,
+   and the completed-result tables described in :doc:`output_artifacts`.
 5. Stamp ``test_case_name``, ``suite_name``, ``config_path``.
 6. Log which config sections and ids loaded.
 
@@ -274,7 +275,8 @@ flow with console output and in-memory evidence.
 
 CLI ``-c namespace.function,key=val`` is the same ``@command`` path without a
 script: parse the spec, resolve the registered namespace, invoke, then
-finalize.
+finalize. Commas inside quoted strings or ``[]`` / ``()`` / ``{}`` literals
+belong to the value and are not treated as argument separators.
 
 While ``main()`` runs, plugins may stash live handles in
 :term:`resource cache`. Core does not know the types; at shutdown it calls
@@ -293,22 +295,18 @@ aggregator, writes artifacts, and raises ``SystemExit`` with 0 or 1.
 
 ``finalize_run(ctx, policy=policy_for_single(run_shutdown=True))`` then:
 
-1. **Score** via ``ResultAggregator.exit_code()``:
-
-   - required FAIL, ERROR, or BLOCKED fails the run
-   - optional FAIL/ERROR is ignored for the exit code
-   - uncaught script error (``mark_suite_error``) fails the run
-
-2. Write ``overall_status`` and ``exit_code`` into SQLite, flush, close the
-   database.
-3. Run plugin shutdown hooks, then ``resource_cache`` ``.close()``.
-4. Log ``Overall result: PASS|FAIL (exit 0|1)`` and close log handlers
-   (releases ``debug.log``).
-5. **Rename** the folder: ``..._my_test`` becomes ``..._my_test-pass`` or
-   ``..._my_test-fail``.
-6. Write artifacts into the renamed directory: ``summary.txt`` and
-   ``summary.json``, then call enabled report listeners (optional
-   ``wats_<UTC>_<script>.json`` and/or ``junit.xml``).
+1. Run the existing single-run plugin shutdown hooks, then close cached
+   resources. Suite slots close resources but leave plugin shutdown to the suite.
+2. Drain accepted listener writes, synthesize missing owed-limit checks, and
+   score the aggregator. Required FAIL/ERROR/BLOCKED or an uncaught script
+   error fails the run; optional failures do not.
+3. Read settled evidence for report callbacks and build one compact finalized
+   summary. Log the verdict, close log handlers, and stop/join the database
+   writer before closing its connection.
+4. Rename the result folder with ``-pass`` or ``-fail``. Commit the finalized
+   SQLite snapshot and legacy result metadata together, then render
+   ``summary.txt`` and ``summary.json`` from that conclusion and call enabled
+   report listeners once. See :doc:`output_artifacts` for the stored format.
 
 Exit is only 0 or 1. Optional verification failures stay 0. A required
 verification against a missing measurement is ERROR (or BLOCKED after a unit

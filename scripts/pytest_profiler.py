@@ -186,4 +186,3 @@ def profile_pytest(
         stats_path=save_stats,
         summary_text="\n".join(sections),
     )
-

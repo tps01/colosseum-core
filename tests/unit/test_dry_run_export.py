@@ -6,12 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from colosseum.config.parameters import write_parameters_file
+from colosseum.config.parameters import ParametersError, load_parameter, write_parameters_file
 from colosseum.results.finalize import _insert_blocked_owed_keys
 from colosseum.context import auto_key
 from colosseum.decorators import VerificationResult, command, measurement, verification
-from colosseum.decorators._common import DRY_RUN_ATTR
-from colosseum.runner.cli import finish_parameter_export
+from colosseum.decorators._common import DRY_RUN_ATTR, finalize_dry_run_tips
+from colosseum.runner.single_run import finish_parameter_export
 
 try:
     import tomllib
@@ -152,14 +152,46 @@ def test_dry_run_allows_verification_before_measurement(unit_runtime_context) ->
 
 
 def test_finalize_dry_run_tips_unused_parameters_and_empty_walk(unit_runtime_context) -> None:
-    from colosseum.decorators._common import finalize_dry_run_tips
-
     ctx = unit_runtime_context
     ctx.run_options.dry_run = True
     ctx.parameters_map = {"stale": {"value": 1.0}}
     finalize_dry_run_tips(ctx)
     assert any("unused section" in tip for tip in ctx.dry_run_tips)
     assert any("no command/measurement/verification" in tip for tip in ctx.dry_run_tips)
+
+
+def test_finalize_dry_run_tips_load_parameter_marks_section_used(
+    unit_runtime_context,
+) -> None:
+    ctx = unit_runtime_context
+    ctx.run_options.dry_run = True
+    ctx.parameters_map = {
+        "voltage": {"limit": "5V"},
+        "stale": {"value": 1.0},
+    }
+    assert load_parameter("voltage", field="limit") == "5V"
+    finalize_dry_run_tips(ctx)
+    unused_tips = [tip for tip in ctx.dry_run_tips if "unused section" in tip]
+    assert len(unused_tips) == 1
+    assert "'stale'" in unused_tips[0]
+    assert "'voltage'" not in unused_tips[0]
+
+    ctx.dry_run_tips.clear()
+    ctx.dry_run_keys_seen.clear()
+    assert load_parameter("voltage", field="limit") == "5V"
+    assert load_parameter("stale", field="value") == 1.0
+    finalize_dry_run_tips(ctx)
+    assert not any("unused section" in tip for tip in ctx.dry_run_tips)
+
+    ctx.dry_run_tips.clear()
+    ctx.dry_run_keys_seen.clear()
+    with pytest.raises(ParametersError, match=r"field 'missing' not found in \[voltage\]"):
+        load_parameter("voltage", field="missing")
+    finalize_dry_run_tips(ctx)
+    unused_tips = [tip for tip in ctx.dry_run_tips if "unused section" in tip]
+    assert len(unused_tips) == 1
+    assert "'stale'" in unused_tips[0]
+    assert "'voltage'" not in unused_tips[0]
 
 
 def test_dry_run_allows_keyless_verification(unit_runtime_context) -> None:
@@ -179,10 +211,7 @@ def test_dry_run_allows_keyless_verification(unit_runtime_context) -> None:
     log_text = (ctx.output_dir / "debug.log").read_text(encoding="utf-8")
     assert "verification omitted key=" in log_text
     assert "assigned an auto key" in log_text
-    records = [
-        row for row in ctx.result_aggregator._records  # noqa: SLF001
-        if row.get("kind") == "verification"
-    ]
+    records = [row for row in ctx.result_aggregator._records if row.get("kind") == "verification"]  # noqa: SLF001
     assert records and records[0].get("key") == "1"
 
 
@@ -275,11 +304,7 @@ def test_dry_run_owed_limit_blocks_only_unmeasured_keys(unit_runtime_context) ->
 
     assert capture(key="seen", value=1.0) is None
     _insert_blocked_owed_keys(ctx)
-    blocked = [
-        row["key"]
-        for row in ctx.result_aggregator._records  # noqa: SLF001
-        if row["status"] == "BLOCKED"
-    ]
+    blocked = [row["key"] for row in ctx.result_aggregator._records if row["status"] == "BLOCKED"]  # noqa: SLF001
     assert blocked == ["missed"]
 
 
@@ -315,14 +340,17 @@ def test_export_merges_keyed_kwargs_and_skips_bookkeeping(unit_runtime_context) 
 
     assert note(message="hello") is None
     assert capture(key="rx_level", value=0.0) is None
-    assert check(
-        key="rx_level",
-        expected_val=1.5,
-        tolerance=0.25,
-        optional=True,
-        description="level",
-        row_index=3,
-    ) is None
+    assert (
+        check(
+            key="rx_level",
+            expected_val=1.5,
+            tolerance=0.25,
+            optional=True,
+            description="level",
+            row_index=3,
+        )
+        is None
+    )
     assert ctx.parameter_export == {
         "rx_level": {
             "value": 0.0,
@@ -438,8 +466,7 @@ def test_finish_skips_the_file_when_export_failed(unit_runtime_context) -> None:
     ctx = unit_runtime_context
     ctx.parameter_export = {"rx_level": {"value": 1.0}}
     ctx.export_errors.append(
-        "`capture` measurement was missing a key; "
-        "pass key=... or call col.auto_key() near the start of main()"
+        "`capture` measurement was missing a key; " "pass key=... or call col.auto_key() near the start of main()"
     )
     assert ctx.output_dir is not None
     code = finish_parameter_export(ctx, failed=False)

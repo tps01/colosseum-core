@@ -1,18 +1,17 @@
-"""Runtime output paths, suite slots, and run-directory discovery."""
+"""Runtime output paths and suite slots."""
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 import sys
 import time
 import uuid
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from colosseum.database import DatabaseManager, initialize_database_if_needed
 from colosseum.results.aggregation import ResultAggregator
@@ -126,8 +125,7 @@ def rename_run_directory_for_result(
                 time.sleep(delay)
                 delay = min(delay * 2, 0.5)
     print(
-        f"Colosseum: failed to rename {output_dir} -> {candidate.name}: {last_error}; "
-        "leaving directory unrenamed",
+        f"Colosseum: failed to rename {output_dir} -> {candidate.name}: {last_error}; leaving directory unrenamed",
         file=sys.stderr,
     )
     return output_dir
@@ -136,25 +134,39 @@ def rename_run_directory_for_result(
 def ensure_runtime_ready(ctx: RuntimeContext, logical_name: str | None = None) -> None:
     if ctx.runtime_ready:
         return
+    # Suite slots allocate under suite_output_dir via begin_script_slot. After a
+    # slot clears, do not mint a sibling under the outputs root.
+    if ctx.suite_output_dir is not None and ctx.output_dir is None:
+        raise RuntimeError(
+            "suite script slot is not active; decorated evidence APIs require "
+            "an open suite script slot (the slot may already be finalized)",
+        )
     if logical_name is None:
         logical_name = ctx.suite_name or ctx.test_case_name
     console_level = logging.DEBUG if ctx.debug_logging else logging.INFO
     if ctx.no_artifacts:
         ctx.logger = ctx.session.start_logging(
-            ctx, console=True, console_level=console_level, file=False,
+            ctx,
+            console=True,
+            console_level=console_level,
+            file=False,
         )
         ctx.logger.debug("Runtime ready (no-artifacts mode)")
         initialize_database_if_needed(ctx)
     else:
-        outputs_root = resolve_outputs_root(ctx.run_options)
-        ensure_outputs_writable(outputs_root)
-        output_dir = allocate_run_directory(outputs_root, logical_name)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        ctx.output_dir = output_dir
+        if ctx.output_dir is None:
+            outputs_root = resolve_outputs_root(ctx.run_options)
+            ensure_outputs_writable(outputs_root)
+            output_dir = allocate_run_directory(outputs_root, logical_name)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            ctx.output_dir = output_dir
         ctx.logger = ctx.session.start_logging(
-            ctx, console=True, console_level=console_level, file=True,
+            ctx,
+            console=True,
+            console_level=console_level,
+            file=True,
         )
-        ctx.logger.debug("Allocated output directory: %s", output_dir)
+        ctx.logger.debug("Allocated output directory: %s", ctx.output_dir)
         initialize_database_if_needed(ctx)
     from colosseum.config.loader import log_loaded_config
 
@@ -194,6 +206,34 @@ class SuiteSlotResult:
     config_path: str | None = None
     parameters_path: str | None = None
     metadata_path: str | None = None
+    summary: dict[str, Any] = field(default_factory=dict)
+    slot_id: int = 0
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return the existing outward slot metadata."""
+        return {
+            "phase": self.phase,
+            "script": str(self.script_path),
+            "output_directory": str(self.output_dir),
+            "test_index": self.test_index,
+            "repeat_index": self.repeat_index,
+            "cycle_index": self.cycle_index,
+            "overall_result": self.overall,
+            "exit_code": self.exit_code,
+            "config_path": self.config_path,
+            "parameters_path": self.parameters_path,
+            "metadata_path": self.metadata_path,
+        }
+
+    def persisted(self, root: Path) -> dict[str, Any]:
+        """Include compact result facts and an occurrence ID for suite storage."""
+        return {
+            **self.as_dict(),
+            "slot_id": self.slot_id,
+            "output_directory": self.output_dir.relative_to(root).as_posix(),
+            "affects_suite_result": self.affects_suite_result,
+            "result": self.summary,
+        }
 
 
 def ensure_suite_runtime_ready(ctx: RuntimeContext, suite_name: str) -> None:
@@ -205,7 +245,10 @@ def ensure_suite_runtime_ready(ctx: RuntimeContext, suite_name: str) -> None:
     if ctx.no_artifacts:
         ctx.suite_output_dir = None
         ctx.logger = ctx.session.start_logging(
-            ctx, console=True, console_level=console_level, file=False,
+            ctx,
+            console=True,
+            console_level=console_level,
+            file=False,
         )
         return
     outputs_root = resolve_outputs_root(ctx.run_options)
@@ -213,8 +256,16 @@ def ensure_suite_runtime_ready(ctx: RuntimeContext, suite_name: str) -> None:
     container = allocate_run_directory(outputs_root, suite_name)
     container.mkdir(parents=True, exist_ok=True)
     ctx.suite_output_dir = container
+    database = DatabaseManager()
+    try:
+        database.initialize(container / "execution.sqlite")
+    finally:
+        database.close()
     ctx.logger = ctx.session.start_logging(
-        ctx, console=True, console_level=console_level, file=True,
+        ctx,
+        console=True,
+        console_level=console_level,
+        file=True,
     )
     if ctx.logger is not None:
         ctx.logger.info("Suite container: %s", container)
@@ -250,14 +301,15 @@ def begin_script_slot(
     # Mode/phase bookkeeping must run before the no-artifacts early return so
     # procedure applies only to test slots and supporting phases stay full.
     ctx.active_execution_mode = (
-        "procedure"
-        if phase == "test" and ctx.session.requested_execution_mode == "procedure"
-        else "full"
+        "procedure" if phase == "test" and ctx.session.requested_execution_mode == "procedure" else "full"
     )
     console_level = logging.DEBUG if ctx.debug_logging else logging.INFO
     if ctx.no_artifacts:
         ctx.logger = ctx.session.start_logging(
-            ctx, console=True, console_level=console_level, file=False,
+            ctx,
+            console=True,
+            console_level=console_level,
+            file=False,
         )
         initialize_database_if_needed(ctx)
         ctx.runtime_ready = True
@@ -273,7 +325,10 @@ def begin_script_slot(
     slot_dir.mkdir(parents=True, exist_ok=True)
     ctx.output_dir = slot_dir
     ctx.logger = ctx.session.start_logging(
-        ctx, console=True, console_level=console_level, file=True,
+        ctx,
+        console=True,
+        console_level=console_level,
+        file=True,
     )
     initialize_database_if_needed(ctx)
     ctx.db.insert_run_metadata("phase", phase)
@@ -300,7 +355,8 @@ def finalize_script_slot(
     finalize_error: BaseException | None = None
     try:
         result_data = finalize_run(
-            ctx, policy=policy_for_suite_slot(affects_suite_result=affects),
+            ctx,
+            policy=policy_for_suite_slot(affects_suite_result=affects),
         )
     except Exception as exc:  # noqa: BLE001 - slot must not abort the suite
         finalize_error = exc
@@ -328,10 +384,17 @@ def finalize_script_slot(
         config_path=_stored_path(ctx.config_path),
         parameters_path=_stored_path(ctx.parameters_path),
         metadata_path=_stored_path(ctx.metadata_path),
+        summary=result_data.summary if result_data is not None else {},
+        slot_id=len(ctx.suite_slot_results),
     )
     ctx.suite_slot_results.append(result)
-    if affects:
-        ctx.suite_test_results.append(result)
+    if ctx.suite_output_dir is not None and not ctx.no_artifacts:
+        DatabaseManager.persist_results(
+            ctx.suite_output_dir / "execution.sqlite",
+            None,
+            kind="suite",
+            slots=[result.persisted(ctx.suite_output_dir)],
+        )
     ctx.output_dir = None
     ctx.runtime_ready = False
     ctx.slot_finalized = True
@@ -347,102 +410,34 @@ def finalize_script_slot(
         ctx.logger = None
     if finalize_error is not None and ctx.logger is not None:
         ctx.logger.exception(
-            "Script slot finalize failed for %s: %s", script_path, finalize_error,
+            "Script slot finalize failed for %s: %s",
+            script_path,
+            finalize_error,
         )
     return result
 
 
-@dataclass(frozen=True)
-class RunDirectoryEntry:
-    path: Path
-    outputs_dir: Path
+def refresh_slot_artifacts(ctx: RuntimeContext, slot: SuiteSlotResult) -> None:
+    """Reconcile core-owned artifacts after a slot failure or container rename."""
+    if ctx.no_artifacts or not slot.summary:
+        return
+    from colosseum.summary.writer import SummaryWriter
 
-
-def list_run_directories(cwd: Path) -> list[Path]:
-    outputs_root = cwd / "outputs"
-    if not outputs_root.is_dir():
-        return []
-    runs = [p for p in outputs_root.iterdir() if p.is_dir()]
-    runs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-    return runs
-
-
-def find_output_directories(cwd: Path, *, max_depth: int = 2) -> list[Path]:
-    if max_depth < 0:
-        raise ValueError("max_depth must be non-negative")
-    outputs_dirs: list[Path] = []
-    seen: set[Path] = set()
-    frontier = [cwd]
-    for depth in range(max_depth + 1):
-        for parent in frontier:
-            outputs_dir = parent / "outputs"
-            if outputs_dir.is_dir() and outputs_dir not in seen:
-                outputs_dirs.append(outputs_dir)
-                seen.add(outputs_dir)
-        if depth == max_depth:
-            break
-        next_frontier: list[Path] = []
-        for parent in frontier:
-            try:
-                children = sorted(
-                    (path for path in parent.iterdir() if path.is_dir()),
-                    key=lambda path: path.name.lower(),
-                )
-            except OSError:
-                continue
-            next_frontier.extend(path for path in children if path.name != "outputs")
-        frontier = next_frontier
-    return outputs_dirs
-
-
-def list_run_directory_entries(cwd: Path, *, max_depth: int = 2) -> list[RunDirectoryEntry]:
-    entries: list[RunDirectoryEntry] = []
-    for outputs_dir in find_output_directories(cwd, max_depth=max_depth):
-        for run_dir in outputs_dir.iterdir():
-            if run_dir.is_dir():
-                entries.append(RunDirectoryEntry(path=run_dir, outputs_dir=outputs_dir))
-    entries.sort(key=lambda entry: entry.path.stat().st_mtime, reverse=True)
-    return entries
-
-
-def _matches_logical_name(dir_name: str, logical_name: str) -> bool:
-    sanitized = sanitize_logical_name(logical_name)
-    if dir_name.endswith(f"_{sanitized}"):
-        return True
-    pattern = rf"^.*_{re.escape(sanitized)}(?:_\d+)?(?:-(?:pass|fail)(?:_\d+)?)?$"
-    return bool(re.match(pattern, dir_name))
-
-
-def find_run_directory(cwd: Path, logical_name: str, since: float | None = None) -> Path | None:
-    outputs_root = cwd / "outputs"
-    if not outputs_root.is_dir():
-        return None
-    candidates: list[Path] = []
-    for run_dir in outputs_root.iterdir():
-        if not run_dir.is_dir():
-            continue
-        if since is not None and run_dir.stat().st_mtime < since:
-            continue
-        if _matches_logical_name(run_dir.name, logical_name):
-            candidates.append(run_dir)
-            continue
-        try:
-            children = [p for p in run_dir.iterdir() if p.is_dir()]
-        except OSError:
-            continue
-        for child in children:
-            if since is not None and child.stat().st_mtime < since:
-                continue
-            if _matches_logical_name(child.name, logical_name):
-                candidates.append(child)
-    if not candidates:
-        return None
-    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-    return candidates[0]
-
-
-def read_summary_json(run_dir: Path) -> dict[str, Any] | None:
-    summary_path = run_dir / "summary.json"
-    if not summary_path.is_file():
-        return None
-    return cast("dict[str, Any]", json.loads(summary_path.read_text(encoding="utf-8")))
+    slot.summary["output_directory"] = str(slot.output_dir)
+    DatabaseManager.persist_results(
+        slot.output_dir / "execution.sqlite",
+        {
+            **slot.summary,
+            "stored_status": slot.summary["overall_result"] if slot.affects_suite_result else "N/A",
+        },
+        kind="slot",
+    )
+    if (slot.output_dir / "summary.json").is_file():
+        SummaryWriter().write(slot.output_dir, ctx.result_aggregator, ctx, payload=slot.summary)
+    if ctx.suite_output_dir is not None:
+        DatabaseManager.persist_results(
+            ctx.suite_output_dir / "execution.sqlite",
+            None,
+            kind="suite",
+            slots=[slot.persisted(ctx.suite_output_dir)],
+        )

@@ -2,12 +2,25 @@
 
 from __future__ import annotations
 
+import threading
+
 from colosseum.context import init_context
 from colosseum.runner.run_options import RunOptions
 from colosseum.runner.runtime import begin_script_slot, ensure_suite_runtime_ready
 
+from tests.support.helpers import release_context
+
+
+def _writer_ids() -> set[int]:
+    return {
+        ident
+        for thread in threading.enumerate()
+        if thread.name == "colosseum-db-writer" and (ident := thread.ident) is not None
+    }
+
 
 def test_no_artifacts_procedure_applies_only_to_test_phase(core_config) -> None:
+    before = _writer_ids()
     ctx = init_context(
         test_case_name="mode_slot",
         suite_name="mode_slot",
@@ -15,16 +28,24 @@ def test_no_artifacts_procedure_applies_only_to_test_phase(core_config) -> None:
         no_artifacts=True,
         run_options=RunOptions(execution_mode="procedure"),
     )
-    ensure_suite_runtime_ready(ctx, "mode_slot")
+    opened = [ctx.db]
+    try:
+        ensure_suite_runtime_ready(ctx, "mode_slot")
 
-    begin_script_slot(ctx, "setup", phase="setup", affects_suite_result=False)
-    assert ctx.active_execution_mode == "full"
+        begin_script_slot(ctx, "setup", phase="setup", affects_suite_result=False)
+        opened.append(ctx.db)
+        assert ctx.active_execution_mode == "full"
 
-    begin_script_slot(ctx, "test", phase="test", affects_suite_result=True)
-    assert ctx.active_execution_mode == "procedure"
+        begin_script_slot(ctx, "test", phase="test", affects_suite_result=True)
+        opened.append(ctx.db)
+        assert ctx.active_execution_mode == "procedure"
 
-    begin_script_slot(ctx, "teardown", phase="teardown", affects_suite_result=False)
-    assert ctx.active_execution_mode == "full"
+        begin_script_slot(ctx, "teardown", phase="teardown", affects_suite_result=False)
+        opened.append(ctx.db)
+        assert ctx.active_execution_mode == "full"
+    finally:
+        release_context(ctx, *opened)
+    assert _writer_ids() <= before
 
 
 def test_endex_no_artifacts_suite_does_not_system_exit(core_config) -> None:
@@ -37,10 +58,15 @@ def test_endex_no_artifacts_suite_does_not_system_exit(core_config) -> None:
         config_path=core_config,
         no_artifacts=True,
     )
-    ensure_suite_runtime_ready(ctx, "endex_slot")
-    begin_script_slot(ctx, "pass", phase="test", affects_suite_result=True)
-    ctx.slot_script_path = core_config  # any path; finalize uses stem metadata only
-    # Must return without raising SystemExit (single-run endex would exit).
-    endex()
-    assert ctx.slot_finalized is True
-    assert ctx.finalized is False
+    opened = [ctx.db]
+    try:
+        ensure_suite_runtime_ready(ctx, "endex_slot")
+        begin_script_slot(ctx, "pass", phase="test", affects_suite_result=True)
+        opened.append(ctx.db)
+        ctx.slot_script_path = core_config  # any path; finalize uses stem metadata only
+        # Must return without raising SystemExit (single-run endex would exit).
+        endex()
+        assert ctx.slot_finalized is True
+        assert ctx.finalized is False
+    finally:
+        release_context(ctx, *opened)

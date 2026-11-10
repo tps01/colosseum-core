@@ -13,9 +13,7 @@ from colosseum.results import endex
 from tests.support.helpers import run_endex_expect_code
 
 
-def test_endex_runs_shutdown_hooks_then_closes_leftover_cache(
-    unit_runtime_context, tmp_path
-) -> None:
+def test_endex_runs_shutdown_hooks_then_closes_leftover_cache(unit_runtime_context, tmp_path) -> None:
     ctx = unit_runtime_context
     run_dir = tmp_path / "run"
     run_dir.mkdir()
@@ -39,9 +37,7 @@ def test_endex_runs_shutdown_hooks_then_closes_leftover_cache(
     assert ctx.final_exit_code == 0
 
 
-def test_endex_second_call_reuses_exit_code_without_rerunning_hooks(
-    unit_runtime_context, tmp_path
-) -> None:
+def test_endex_second_call_reuses_exit_code_without_rerunning_hooks(unit_runtime_context, tmp_path) -> None:
     ctx = unit_runtime_context
     run_dir = tmp_path / "run"
     run_dir.mkdir()
@@ -162,4 +158,3 @@ def test_plugin_table_read_round_trip(unit_runtime_context) -> None:
     assert rows == [{"id": 1, "note": "hello"}]
     with pytest.raises(ValueError, match="Unknown plugin table"):
         read_api.read_table("plugin_missing")
-

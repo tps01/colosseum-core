@@ -64,4 +64,35 @@ CREATE TABLE IF NOT EXISTS provenance (
   section TEXT PRIMARY KEY,
   payload_json TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS verification_requirements (
+  verification_id INTEGER NOT NULL REFERENCES verifications(id),
+  requirement_id TEXT NOT NULL,
+  ordinal INTEGER NOT NULL,
+  PRIMARY KEY (verification_id, ordinal)
+);
+
+CREATE TABLE IF NOT EXISTS run_result (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  kind TEXT NOT NULL,
+  overall_result TEXT NOT NULL,
+  exit_code INTEGER NOT NULL,
+  completed_at TEXT NOT NULL,
+  format_version INTEGER NOT NULL,
+  payload_json TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS suite_slot_results (
+  slot_id INTEGER PRIMARY KEY,
+  phase TEXT NOT NULL,
+  script TEXT NOT NULL,
+  output_directory TEXT NOT NULL,
+  test_index INTEGER,
+  repeat_index INTEGER,
+  cycle_index INTEGER,
+  affects_suite_result INTEGER NOT NULL,
+  overall_result TEXT,
+  exit_code INTEGER,
+  payload_json TEXT NOT NULL
+);
 """

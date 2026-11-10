@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import math
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from colosseum.config.toml_relaxed import coerce_config_bool, read_relaxed_toml
@@ -162,9 +163,7 @@ def toml_value_supported(value: object) -> bool:
     if isinstance(value, list):
         return all(toml_value_supported(item) for item in value)
     if isinstance(value, dict):
-        return all(
-            isinstance(key, str) and toml_value_supported(item) for key, item in value.items()
-        )
+        return all(isinstance(key, str) and toml_value_supported(item) for key, item in value.items())
     return False
 
 
@@ -196,9 +195,7 @@ def _toml_quoted(text: str) -> str:
 
 def _toml_key(name: str) -> str:
     """Format a key; bare keys are ASCII letters/digits/underscore/dash only."""
-    if name and all(
-        char.isascii() and (char.isalnum() or char in {"_", "-"}) for char in name
-    ):
+    if name and all(char.isascii() and (char.isalnum() or char in {"_", "-"}) for char in name):
         return name
     return _toml_quoted(name)
 
@@ -215,9 +212,7 @@ def _toml_value(value: object) -> str:
     if isinstance(value, list):
         return "[" + ", ".join(_toml_value(item) for item in value) + "]"
     if isinstance(value, dict):
-        fields = ", ".join(
-            f"{_toml_key(str(key))} = {_toml_value(item)}" for key, item in value.items()
-        )
+        fields = ", ".join(f"{_toml_key(str(key))} = {_toml_value(item)}" for key, item in value.items())
         return "{ " + fields + " }"
     raise ParametersError(
         f"cannot export value of type {type(value).__name__}",
@@ -239,30 +234,51 @@ def write_parameters_file(path: Path, tables: dict[str, dict[str, Any]]) -> None
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
-def attach_parameters(
-    ctx: RuntimeContext,
-    path: Path | None,
+def _suite_parameter_paths(
     *,
-    required: bool = False,
-) -> None:
-    """Load parameters onto the runtime context and record the path in metadata."""
+    script_path: Path | None,
+    entry_path: Path | None,
+    suite_path: Path | None,
+    stacking: bool,
+) -> list[Path]:
+    """Select ordered sources for both execution and provenance."""
+    test = resolve_parameters_path(script_path=script_path, entry_path=entry_path)
+    if suite_path is not None and not stacking:
+        return [suite_path]
+    return [path for path in (test, suite_path) if path is not None]
+
+
+def _attach_parameter_sources(ctx: RuntimeContext, sources: list[Path]) -> None:
     from colosseum.paths import absolute_path
 
     ctx.parameters_map = None
     ctx.parameters_path = None
-    if path is None:
+    if not sources:
         return
-    resolved = absolute_path(path)
-    if not resolved.is_file():
-        if required:
-            raise ParametersError(f"Parameters file not found: {resolved}")
-        return
-    ctx.parameters_map = load_parameters_file(resolved)
-    ctx.parameters_path = resolved
+    sources = [absolute_path(path) for path in sources]
+    tables: dict[str, dict[str, Any]] = {}
+    for path in sources:
+        tables = merge_parameter_tables(tables, load_parameters_file(path))
+    ctx.parameters_map = tables
+    ctx.parameters_path = sources[-1]
     if ctx.db.is_initialized():
-        ctx.db.insert_run_metadata("parameters_file", str(resolved))
+        ctx.db.insert_run_metadata("parameters_file", str(sources[-1]))
+        if len(sources) > 1:
+            ctx.db.insert_run_metadata("parameters_file_test", str(sources[0]))
     if ctx.logger is not None:
-        ctx.logger.info("Parameters file: %s (%d section(s))", resolved, len(ctx.parameters_map))
+        ctx.logger.info("Parameters file: %s (%d section(s))", sources[-1], len(tables))
+        if len(sources) > 1:
+            ctx.logger.info("Parameters file (test): %s", sources[0])
+
+
+def attach_parameters(ctx: RuntimeContext, path: Path | None, *, required: bool = False) -> None:
+    """Attach one file, preserving optional sibling-file behavior."""
+    from colosseum.paths import absolute_path
+
+    resolved = absolute_path(path) if path is not None else None
+    if resolved is not None and not required and not resolved.is_file():
+        resolved = None
+    _attach_parameter_sources(ctx, [resolved] if resolved is not None else [])
 
 
 def attach_stacked_parameters(
@@ -271,51 +287,8 @@ def attach_stacked_parameters(
     suite_path: Path | None,
     test_path: Path | None,
 ) -> None:
-    """Load test tables, then replace same-key tables from the suite-level file.
-
-    Either path may be omitted. A path that is set must exist. When both files
-    load, ``ctx.parameters_path`` is the suite-level file and the test path is
-    recorded as ``parameters_file_test``.
-    """
-    from colosseum.paths import absolute_path
-
-    ctx.parameters_map = None
-    ctx.parameters_path = None
-    if suite_path is None and test_path is None:
-        return
-
-    test_tables: dict[str, dict[str, Any]] = {}
-    resolved_test: Path | None = None
-    if test_path is not None:
-        resolved_test = absolute_path(test_path)
-        test_tables = load_parameters_file(resolved_test)
-
-    suite_tables: dict[str, dict[str, Any]] = {}
-    resolved_suite: Path | None = None
-    if suite_path is not None:
-        resolved_suite = absolute_path(suite_path)
-        suite_tables = load_parameters_file(resolved_suite)
-
-    if resolved_suite is not None:
-        ctx.parameters_map = merge_parameter_tables(test_tables, suite_tables)
-        ctx.parameters_path = resolved_suite
-    else:
-        ctx.parameters_map = test_tables
-        ctx.parameters_path = resolved_test
-
-    if ctx.db.is_initialized():
-        if ctx.parameters_path is not None:
-            ctx.db.insert_run_metadata("parameters_file", str(ctx.parameters_path))
-        if resolved_suite is not None and resolved_test is not None:
-            ctx.db.insert_run_metadata("parameters_file_test", str(resolved_test))
-    if ctx.logger is not None:
-        ctx.logger.info(
-            "Parameters file: %s (%d section(s))",
-            ctx.parameters_path,
-            len(ctx.parameters_map),
-        )
-        if resolved_suite is not None and resolved_test is not None:
-            ctx.logger.info("Parameters file (test): %s", resolved_test)
+    """Replace whole test tables with suite tables and retain both source identities."""
+    _attach_parameter_sources(ctx, [path for path in (test_path, suite_path) if path is not None])
 
 
 _CONTAINER_CLOSERS = {"[": "]", "{": "}", "(": ")"}
@@ -339,6 +312,7 @@ def load_parameter(key: str, *, field: str) -> Any:  # noqa: ANN401
     table = ctx.parameters_map.get(key)
     if table is None:
         return None
+    ctx.note_parameter_use(key)
     if field not in table:
         raise ParametersError(f"parameters field {field!r} not found in [{key}]")
     try:
@@ -390,39 +364,74 @@ def _coerce_parameter_string(raw: str) -> object:
     return parsed
 
 
+@dataclass
+class _ScanState:
+    closers: list[str] = field(default_factory=list)
+    in_single: bool = False
+    in_double: bool = False
+    escaped: bool = False
+
+    @property
+    def in_quote(self) -> bool:
+        return self.in_single or self.in_double
+
+    @property
+    def unfinished(self) -> bool:
+        return bool(self.closers) or self.in_quote
+
+
+def _step_quoted(state: _ScanState, char: str) -> bool:
+    if char == "\\":
+        state.escaped = True
+        return False
+    if char == "'" and state.in_single:
+        state.in_single = False
+    elif char == '"' and state.in_double:
+        state.in_double = False
+    return False
+
+
+def _step_unquoted(
+    state: _ScanState,
+    char: str,
+    *,
+    separator: str,
+    source: str,
+) -> bool:
+    if char == "'":
+        state.in_single = True
+        return False
+    if char == '"':
+        state.in_double = True
+        return False
+    if char in _CONTAINER_CLOSERS:
+        state.closers.append(_CONTAINER_CLOSERS[char])
+        return False
+    if char in _CONTAINER_CLOSERS.values():
+        if not state.closers or state.closers.pop() != char:
+            raise _parse_error(source)
+        return False
+    return char == separator and not state.closers
+
+
+def _step_scan(state: _ScanState, char: str, *, separator: str, source: str) -> bool:
+    """Advance the scan FSM one character; True means a top-level separator."""
+    if state.escaped:
+        state.escaped = False
+        return False
+    if state.in_quote:
+        return _step_quoted(state, char)
+    return _step_unquoted(state, char, separator=separator, source=source)
+
+
 def _top_level_indexes(text: str, *, separator: str, source: str) -> list[int]:
     """Return indexes of ``separator`` outside quotes and nested brackets."""
     indexes: list[int] = []
-    depth = 0
-    in_single = False
-    in_double = False
-    escaped = False
+    state = _ScanState()
     for index, char in enumerate(text):
-        if escaped:
-            escaped = False
-            continue
-        if char == "\\" and (in_single or in_double):
-            escaped = True
-            continue
-        if char == "'" and not in_double:
-            in_single = not in_single
-            continue
-        if char == '"' and not in_single:
-            in_double = not in_double
-            continue
-        if in_single or in_double:
-            continue
-        if char in _CONTAINER_CLOSERS:
-            depth += 1
-            continue
-        if char in _CONTAINER_CLOSERS.values():
-            depth -= 1
-            if depth < 0:
-                raise _parse_error(source)
-            continue
-        if char == separator and depth == 0:
+        if _step_scan(state, char, separator=separator, source=source):
             indexes.append(index)
-    if depth != 0 or in_single or in_double:
+    if state.unfinished:
         raise _parse_error(source)
     return indexes
 

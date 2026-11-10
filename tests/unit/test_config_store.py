@@ -10,7 +10,6 @@ from colosseum.config.sections import ConfigSectionSpec
 from colosseum.context import init_context, get_context
 from colosseum.runner.runtime import ensure_output_dir
 
-
 SPEC = ConfigSectionSpec(
     dotted_path="acme.device",
     id_field="device_id",
@@ -58,13 +57,13 @@ def test_load_config_wraps_normalization_errors(tmp_path) -> None:
     config_path.write_text(
         "[[acme.device]]\n"
         "device_id = 1\n"
-        "driver = \"sim\"\n"
-        "resource = \"A\"\n"
+        'driver = "sim"\n'
+        'resource = "A"\n'
         "\n"
         "[[acme.device]]\n"
         "device_id = 1\n"
-        "driver = \"sim\"\n"
-        "resource = \"B\"\n",
+        'driver = "sim"\n'
+        'resource = "B"\n',
         encoding="utf-8",
     )
     _register_spec()
@@ -75,11 +74,7 @@ def test_load_config_wraps_normalization_errors(tmp_path) -> None:
 def test_load_config_accepts_utf8_bom(tmp_path) -> None:
     config_path = tmp_path / "bom.toml"
     config_path.write_bytes(
-        b"\xef\xbb\xbf"
-        b"[acme.device]\n"
-        b"device_id = 1\n"
-        b"driver = \"sim\"\n"
-        b"resource = \"SIM::1\"\n"
+        b"\xef\xbb\xbf" b"[acme.device]\n" b"device_id = 1\n" b'driver = "sim"\n' b'resource = "SIM::1"\n'
     )
 
     _register_spec()
@@ -118,17 +113,21 @@ def test_apply_raw_config_attaches_store() -> None:
 
 
 def test_load_config_reload_updates_run_metadata(core_config, isolated_cwd, tmp_path) -> None:
+    from tests.support.helpers import release_context
+
     load_config(core_config)
     ctx = get_context()
-    ensure_output_dir(ctx)
-    replacement = tmp_path / "replacement.toml"
-    replacement.write_text(
-        "[runtime]\n"
-        "label = \"replacement\"\n",
-        encoding="utf-8",
-    )
+    try:
+        ensure_output_dir(ctx)
+        replacement = tmp_path / "replacement.toml"
+        replacement.write_text(
+            "[runtime]\n" 'label = "replacement"\n',
+            encoding="utf-8",
+        )
 
-    load_config(replacement)
+        load_config(replacement)
 
-    metadata = {row.key: row.value for row in ctx.db.fetch_run_metadata()}
-    assert metadata["config_path"] == str(replacement.resolve())
+        metadata = {row.key: row.value for row in ctx.db.fetch_run_metadata()}
+        assert metadata["config_path"] == str(replacement.resolve())
+    finally:
+        release_context(ctx)

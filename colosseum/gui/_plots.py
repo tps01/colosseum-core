@@ -51,7 +51,7 @@ def limit_view(
         return LimitView(actual=actual, low=None, high=expected, units=units)
     if op != "GELE":
         return None
-    from colosseum.decorators.verification import gele_limits
+    from colosseum.decorators.tolerance import gele_limits
 
     try:
         low, high = gele_limits(expected, _parse(tolerance_raw))
@@ -138,11 +138,7 @@ def reduce_xy(
     reduced: list[Point] = []
     for start in range(0, len(points), width):
         bucket = points[start : start + width]
-        finite = [
-            (index, x, y)
-            for index, (x, y) in enumerate(bucket)
-            if x is not None and y is not None
-        ]
+        finite = [(index, x, y) for index, (x, y) in enumerate(bucket) if x is not None and y is not None]
         if not finite:
             reduced.append((None, None))
             continue

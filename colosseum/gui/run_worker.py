@@ -10,8 +10,8 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Any
 
-from colosseum.runner.runtime import find_run_directory
-from colosseum.runner.suite import load_suite_toml
+from colosseum.runner.run_discovery import find_run_directory
+from colosseum.runner.suite_toml import load_suite_toml
 
 
 class RunKind(Enum):
@@ -78,7 +78,9 @@ class RunWorker:
         return suite.name
 
     def _build_argv(self, request: RunRequest) -> list[str]:
-        argv = [sys.executable, "-u", "-m", "colosseum.runner.cli"]
+        argv = [sys.executable]
+        if not getattr(sys, "frozen", False):
+            argv.extend(["-u", "-m", "colosseum.runner.cli"])
         if request.kind == RunKind.TEST:
             argv.extend(["run", str(request.path)])
         else:

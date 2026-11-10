@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import unquote, urlparse
 
-from colosseum.config.parameters import resolve_parameters_path
+from colosseum.config.parameters import _suite_parameter_paths
 from colosseum.database.manager import DatabaseManager
 
 if TYPE_CHECKING:
@@ -110,7 +110,7 @@ def _resolve_git_dir(work_tree: Path, git_entry: Path) -> Path | None:
     target = text.split(":", 1)[1].strip()
     git_dir = Path(target)
     if not git_dir.is_absolute():
-        git_dir = (work_tree / git_dir)
+        git_dir = work_tree / git_dir
     try:
         return git_dir.resolve()
     except OSError:
@@ -320,9 +320,7 @@ def installed_packages() -> tuple[dict[str, str], list[str], list[dict[str, obje
                 "name": name,
                 "version": str(copy.version),
                 "location": _location(copy),
-                "selected": copy is selected or (
-                    bool(selected_location) and _location(copy) == selected_location
-                ),
+                "selected": copy is selected or (bool(selected_location) and _location(copy) == selected_location),
             }
             checkout = _editable_checkout(copy)
             if checkout is not None:
@@ -387,6 +385,25 @@ def single_input_files(
     return files
 
 
+def _append_suite_test_inputs(
+    files: list[InputFile],
+    tests: Sequence[tuple[Path, Path | None]],
+    *,
+    suite_parameters: Path | None,
+    parameter_stacking: bool,
+) -> None:
+    for script_path, entry_parameters in tests:
+        files.append(InputFile("test", script_path))
+        for resolved in _suite_parameter_paths(
+            script_path=script_path,
+            entry_path=entry_parameters,
+            suite_path=suite_parameters,
+            stacking=parameter_stacking,
+        ):
+            if resolved != suite_parameters:
+                files.append(InputFile("parameters", resolved))
+
+
 def suite_input_files(
     ctx: RuntimeContext,
     *,
@@ -421,17 +438,12 @@ def suite_input_files(
         files.append(InputFile("between_tests", script_path))
     for script_path in teardown:
         files.append(InputFile("teardown", script_path))
-    for script_path, entry_parameters in tests:
-        files.append(InputFile("test", script_path))
-        if suite_parameters is not None and not parameter_stacking:
-            continue
-        resolved = resolve_parameters_path(
-            script_path=script_path,
-            cli_path=None,
-            entry_path=entry_parameters,
-        )
-        if resolved is not None:
-            files.append(InputFile("parameters", resolved))
+    _append_suite_test_inputs(
+        files,
+        tests,
+        suite_parameters=suite_parameters,
+        parameter_stacking=parameter_stacking,
+    )
     return files
 
 
@@ -460,6 +472,7 @@ def _repositories(paths: Sequence[Path]) -> list[dict[str, object]]:
 
 def collect_provenance(files: Sequence[InputFile]) -> dict[str, object]:
     """Build the snapshot stored in the log, database, and summary."""
+    _git_repository_cache.clear()
     versions, plugins, installs = installed_packages()
     hashed = hash_inputs(files)
     found: dict[str, dict[str, object]] = {}
@@ -507,11 +520,7 @@ def _provenance_line(section: str, payload: object) -> str:
 
 def append_provenance_log(path: Path, snapshot: Mapping[str, object]) -> None:
     """Append the snapshot to ``debug.log`` without sending it to the console."""
-    lines = [
-        _provenance_line(section, snapshot[section])
-        for section in _PROVENANCE_SECTIONS
-        if section in snapshot
-    ]
+    lines = [_provenance_line(section, snapshot[section]) for section in _PROVENANCE_SECTIONS if section in snapshot]
     with path.open("a", encoding="utf-8") as handle:
         handle.write("\n".join(lines) + "\n")
 

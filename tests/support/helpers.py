@@ -34,11 +34,25 @@ def latest_run_in(root: Path) -> Path:
 
 def latest_output_dir(cwd: Path) -> Path:
     """Return the newest top-level entry under ``outputs/`` (usually a suite container)."""
-    outputs = cwd / "outputs"
-    assert outputs.is_dir(), f"outputs/ was not created under {cwd}"
-    runs = sorted(outputs.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True)
-    assert runs, f"outputs/ is empty under {cwd}"
-    return runs[0]
+    return latest_run_in(cwd / "outputs")
+
+
+def release_context(ctx, *replaced) -> None:
+    """Close a test-owned runtime, including databases replaced by a later slot."""
+    import logging
+
+    from colosseum.logging.setup import _detach_handlers
+
+    if ctx is not None and isinstance(ctx.logger, logging.Logger):
+        _detach_handlers(ctx.logger)
+        ctx.logger = None
+    managers = []
+    if ctx is not None:
+        managers.append(ctx.db)
+    managers.extend(replaced)
+    for manager in managers:
+        if manager is not None and manager.is_initialized():
+            manager.close()
 
 
 def latest_suite_container(cwd: Path) -> Path:
@@ -57,13 +71,6 @@ def slot_dirs_matching(container: Path, script_stem: str) -> list[Path]:
     return [p for p in list_slot_dirs(container) if f"_{sanitized}" in p.name or p.name.endswith(sanitized)]
 
 
-def query_db_optional(run_dir: Path, sql: str, params: tuple = ()) -> list[tuple[Any, ...]]:
-    db_path = run_dir / "execution.sqlite"
-    if not db_path.is_file():
-        return []
-    return query_db(run_dir, sql, params)
-
-
 def query_db(run_dir: Path, sql: str, params: tuple = ()) -> list[tuple[Any, ...]]:
     db_path = run_dir / "execution.sqlite"
     assert db_path.is_file(), f"missing database in {run_dir}"
@@ -72,12 +79,3 @@ def query_db(run_dir: Path, sql: str, params: tuple = ()) -> list[tuple[Any, ...
         return list(conn.execute(sql, params).fetchall())
     finally:
         conn.close()
-
-
-def verification_row(run_dir: Path, key: str) -> tuple[Any, ...] | None:
-    rows = query_db(
-        run_dir,
-        "SELECT status, optional, domain FROM verifications WHERE key=? ORDER BY id DESC LIMIT 1",
-        (key,),
-    )
-    return rows[0] if rows else None

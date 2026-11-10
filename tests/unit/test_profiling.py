@@ -104,3 +104,35 @@ def test_cli_profile_flag_registered() -> None:
     for command in ("run", "run-suite"):
         ns = parser.parse_args([command, "x.py" if command == "run" else "s.toml", "--profile"])
         assert ns.profile is True
+
+
+@pytest.mark.parametrize("profile,no_sleep", [(False, False), (True, False), (False, True), (True, True)])
+@pytest.mark.parametrize("dispatch", ["run", "run-suite"])
+def test_dispatch_wrappers_compose(monkeypatch, profile, no_sleep, dispatch) -> None:
+    import colosseum.runner.cli as cli
+
+    calls = []
+
+    def run_profile(action, **kwargs):
+        calls.append("profile")
+        return action()
+
+    def run_awake(action):
+        calls.append("awake")
+        return action()
+
+    def action():
+        calls.append("action")
+        return 3
+
+    monkeypatch.setattr(profiling, "run_with_profile", run_profile)
+    monkeypatch.setattr("colosseum.runner.keep_awake.run_with_no_sleep", run_awake)
+    monkeypatch.setattr(cli, "_dispatch_run", lambda parser, args: action())
+    monkeypatch.setattr(cli, "_dispatch_run_suite", lambda args: action())
+    argv = [dispatch, "x.py" if dispatch == "run" else "s.toml", "--no-artifacts"]
+    if profile:
+        argv.append("--profile")
+    if no_sleep:
+        argv.append("--no-sleep")
+    assert cli.run_cli(argv) == 3
+    assert calls == (["awake"] if no_sleep else []) + (["profile"] if profile else []) + ["action"]

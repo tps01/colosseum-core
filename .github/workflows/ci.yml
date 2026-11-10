@@ -29,6 +29,59 @@ jobs:
       - run: python -m pip install -r requirements.txt
       - run: python scripts/run_tests.py --durations=15
 
+  fuzz:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: toml_relaxed
+            corpus: tests/fuzz/corpus
+            max_len: 4096
+            timeout: 5
+          - target: database
+            corpus: tests/fuzz/database_corpus
+            max_len: 512
+            timeout: 5
+          - target: results
+            corpus: tests/fuzz/results_corpus
+            max_len: 512
+            timeout: 5
+          - target: finalization
+            corpus: tests/fuzz/finalization_corpus
+            max_len: 128
+            timeout: 5
+          - target: disk_finalization
+            corpus: tests/fuzz/disk_finalization_corpus
+            max_len: 64
+            timeout: 15
+          - target: suite_finalization
+            corpus: tests/fuzz/suite_finalization_corpus
+            max_len: 64
+            timeout: 15
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements.txt
+      - run: python -m pip check
+      - name: Fuzz ${{ matrix.target }}
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p .fuzz-work/corpus .fuzz-work/artifacts
+          cp ${{ matrix.corpus }}/* .fuzz-work/corpus/
+          python -m tests.fuzz.${{ matrix.target }} .fuzz-work/corpus -max_total_time=30 -max_len=${{ matrix.max_len }} -timeout=${{ matrix.timeout }} -artifact_prefix=.fuzz-work/artifacts/ 2>&1 | tee .fuzz-work/fuzz.log
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: core-fuzz-failure-${{ matrix.target }}
+          path: .fuzz-work/
+          include-hidden-files: true
+          if-no-files-found: ignore
+
   static-analysis:
     runs-on: ubuntu-24.04
     steps:

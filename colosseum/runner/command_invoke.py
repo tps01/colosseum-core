@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 from typing import TYPE_CHECKING, Any, cast
 
+from colosseum.config.parameters import ParametersError, _split_top_level
 from colosseum.decorators.command import COLOSSEUM_DECORATOR
 from colosseum.plugins.loader import ensure_plugins_loaded
 
@@ -18,12 +19,20 @@ class CommandInvokeError(RuntimeError):
     pass
 
 
+def _split_top_level_commas(text: str) -> list[str]:
+    """Split on commas outside quotes and outside ``[]`` / ``()`` / ``{}``."""
+    try:
+        return [part.strip() for part in _split_top_level(text, separator=",", source=text) if part.strip()]
+    except ParametersError as exc:
+        raise CommandInvokeError(str(exc)) from exc
+
+
 def parse_plugin_command(spec: str) -> tuple[str, str, dict[str, Any]]:
     """Parse ``namespace.function,key=val,...`` into namespace, function, kwargs."""
     text = spec.strip()
     if not text:
         raise CommandInvokeError("command specification must not be empty")
-    parts = [part.strip() for part in text.split(",") if part.strip()]
+    parts = _split_top_level_commas(text)
     if not parts:
         raise CommandInvokeError("command specification must not be empty")
     target = parts[0]

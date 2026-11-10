@@ -48,6 +48,8 @@ def test_command_error_records_and_raises(ctx) -> None:
     assert "bench action failed" in row["message"]
     events = ctx.db.fetch_table_rows("events")
     assert any(e["level"] == "ERROR" and "bench action failed" in e["message"] for e in events)
+    assert ctx.result_aggregator.exit_code() == 1
+    assert ResultAggregator().exit_code() == 0
 
 
 def test_optional_command_error_does_not_fail_run(ctx) -> None:
@@ -100,10 +102,3 @@ def test_debug_log_lists_call_arguments(ctx) -> None:
     text = (ctx.output_dir / "debug.log").read_text(encoding="utf-8")
     assert "super-secret" not in text
     assert "***" in text
-
-
-def test_aggregator_exit_code_with_command_error(ctx) -> None:
-    with pytest.raises(RuntimeError, match="bench action failed"):
-        _failing()
-    assert ResultAggregator().exit_code() == 0
-    assert ctx.result_aggregator.exit_code() == 1

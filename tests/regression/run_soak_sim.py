@@ -19,9 +19,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 SUITE = REPO / "tests" / "fixtures" / "suites" / "smoke.toml"
 CONFIG = REPO / "tests" / "fixtures" / "core.toml"
-FAIL_PATTERNS = (
-    "Traceback",
-)
+FAIL_PATTERNS = ("Traceback",)
 SUMMARY_PASS = "Overall result: PASS"
 
 
@@ -37,6 +35,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", type=Path, default=CONFIG)
     args = parser.parse_args(argv)
 
+    if args.count < 1:
+        print(f"--count must be at least 1, got {args.count}", file=sys.stderr)
+        return 2
     if not args.suite.is_file():
         print(f"Suite not found: {args.suite}", file=sys.stderr)
         return 2

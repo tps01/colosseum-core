@@ -81,3 +81,6 @@ Desktop.ini
 
 # Local notes and agent scratch (normative docs: docs/, examples/)
 scratchpad/
+
+# Generated fuzz corpus and failures
+.fuzz-work/

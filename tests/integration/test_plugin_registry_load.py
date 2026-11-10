@@ -16,9 +16,7 @@ class _EntryPoint:
     @staticmethod
     def load():
         def register(registry: PluginRegistry) -> None:
-            registry.register_config_section(
-                ConfigSectionSpec(dotted_path="acme.device", id_field="device_id")
-            )
+            registry.register_config_section(ConfigSectionSpec(dotted_path="acme.device", id_field="device_id"))
             registry.register_namespace("acme", types.ModuleType("acme_api"))
 
         return register

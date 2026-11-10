@@ -1,18 +1,22 @@
 from __future__ import annotations
 
-import re
 import time
 from dataclasses import dataclass
-from datetime import timedelta
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Callable
 
-from colosseum.config.toml_relaxed import coerce_config_bool, read_relaxed_toml
 from colosseum.paths import absolute_path
 from colosseum.runner.provenance import record_suite_provenance
 from colosseum.runner.runtime import (
     begin_script_slot,
     ensure_suite_runtime_ready,
     finalize_script_slot,
+)
+from colosseum.runner.suite_toml import (
+    SuiteDefinition,
+    SuiteError,
+    SuiteTestEntry,
+    load_suite_toml,
+    parse_repeat_duration,
 )
 
 if TYPE_CHECKING:
@@ -21,218 +25,20 @@ if TYPE_CHECKING:
     from colosseum.context import RuntimeContext
     from colosseum.runner.run_options import RunOptions
 
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover
-    import tomli as tomllib  # type: ignore[no-redef]
-
-_DURATION_RE = re.compile(
-    r"^(?:(?P<days>\d+)d)?(?:(?P<hours>\d+)h)?(?:(?P<minutes>\d+)m)?(?:(?P<seconds>\d+)s?)?$",
-    re.IGNORECASE,
-)
-
-
-@dataclass
-class SuiteTestEntry:
-    path: Path
-    repeat_count: int = 1
-    repeat_for: timedelta | None = None
-    parameters: Path | None = None
-
-
-@dataclass
-class SuiteDefinition:
-    name: str
-    setup: list[Path]
-    tests: list[SuiteTestEntry]
-    between_tests: list[Path]
-    teardown: list[Path]
-    fail_fast: bool = False
-    cycle_count: int = 1
-    cycle_for: timedelta | None = None
-    parameters: Path | None = None
-    parameter_stacking: bool = True
+__all__ = [
+    "SuiteDefinition",
+    "SuiteError",
+    "SuiteTestEntry",
+    "load_suite_toml",
+    "parse_repeat_duration",
+    "run_suite",
+]
 
 
 @dataclass(frozen=True)
 class _ScriptRunner:
     run: Callable[[Path], None]
     error_type: type[BaseException]
-
-
-class SuiteError(RuntimeError):
-    pass
-
-
-def parse_repeat_duration(value: str, *, field: str = "repeat_for") -> timedelta:
-    text = value.strip()
-    if not text:
-        raise SuiteError(f"{field} duration must not be empty")
-    match = _DURATION_RE.fullmatch(text)
-    if not match or not any(match.group(n) for n in ("days", "hours", "minutes", "seconds")):
-        raise SuiteError(
-            f"Invalid {field} duration {value!r}; use suffixes s, m, h, d (e.g. 30s, 24h)",
-        )
-    return timedelta(
-        days=int(match.group("days") or 0),
-        hours=int(match.group("hours") or 0),
-        minutes=int(match.group("minutes") or 0),
-        seconds=int(match.group("seconds") or 0),
-    )
-
-
-def _as_path_list(value: object, field: str, base_dir: Path) -> list[Path]:
-    if value is None:
-        return []
-    if not isinstance(value, list):
-        raise SuiteError(f"Suite field `{field}` must be a list of paths")
-    paths: list[Path] = []
-    for item in value:
-        if not isinstance(item, str):
-            raise SuiteError(f"Suite field `{field}` entries must be strings")
-        paths.append(absolute_path(base_dir / item))
-    return paths
-
-
-def _parse_parameters_field(item: dict[str, object], base_dir: Path, *, index: int) -> Path | None:
-    raw = item.get("parameters")
-    if raw is None:
-        return None
-    if not isinstance(raw, str) or not raw.strip():
-        raise SuiteError(f"Suite tests[{index}] parameters must be a non-empty string path")
-    return absolute_path(base_dir / raw)
-
-
-def _parse_test_entry(item: object, base_dir: Path, *, index: int) -> SuiteTestEntry:
-    if isinstance(item, str):
-        return SuiteTestEntry(path=absolute_path(base_dir / item))
-    if not isinstance(item, dict):
-        raise SuiteError(f"Suite tests[{index}] must be a path string or inline table")
-    path = item.get("path")
-    if not path or not isinstance(path, str):
-        raise SuiteError(f"Suite tests[{index}] table requires string field `path`")
-    resolved = absolute_path(base_dir / path)
-    parameters = _parse_parameters_field(item, base_dir, index=index)
-    repeat_count = item.get("repeat_count")
-    repeat_for = item.get("repeat_for")
-    if repeat_count is not None and repeat_for is not None:
-        raise SuiteError(f"Suite tests[{index}] cannot set both repeat_count and repeat_for")
-    if repeat_count is not None:
-        if not isinstance(repeat_count, int) or isinstance(repeat_count, bool):
-            raise SuiteError(f"Suite tests[{index}] repeat_count must be an integer")
-        if repeat_count < 1:
-            raise SuiteError(f"Suite tests[{index}] repeat_count must be >= 1")
-        return SuiteTestEntry(path=resolved, repeat_count=repeat_count, parameters=parameters)
-    if repeat_for is not None:
-        if not isinstance(repeat_for, str):
-            raise SuiteError(f"Suite tests[{index}] repeat_for must be a string")
-        return SuiteTestEntry(
-            path=resolved,
-            repeat_for=parse_repeat_duration(repeat_for),
-            parameters=parameters,
-        )
-    return SuiteTestEntry(path=resolved, parameters=parameters)
-
-
-def _parse_tests(value: object, base_dir: Path) -> list[SuiteTestEntry]:
-    if value is None:
-        return []
-    if not isinstance(value, list):
-        raise SuiteError("Suite field `tests` must be a list")
-    return [_parse_test_entry(item, base_dir, index=index) for index, item in enumerate(value)]
-
-
-def _parse_cycle(raw: dict[str, Any]) -> tuple[int, timedelta | None]:
-    cycle_count = raw.get("cycle_count")
-    cycle_for = raw.get("cycle_for")
-    if cycle_count is not None and cycle_for is not None:
-        raise SuiteError("Suite cannot set both cycle_count and cycle_for")
-    if cycle_count is not None:
-        if not isinstance(cycle_count, int) or isinstance(cycle_count, bool):
-            raise SuiteError("Suite field `cycle_count` must be an integer")
-        if cycle_count < 1:
-            raise SuiteError("Suite field `cycle_count` must be >= 1")
-        return cycle_count, None
-    if cycle_for is not None:
-        if not isinstance(cycle_for, str):
-            raise SuiteError("Suite field `cycle_for` must be a string")
-        return 1, parse_repeat_duration(cycle_for, field="cycle_for")
-    return 1, None
-
-
-def _as_bool(value: object, field: str) -> bool:
-    if value is None:
-        return False
-    parsed = coerce_config_bool(value)
-    if parsed is None:
-        raise SuiteError(f"Suite field `{field}` must be a boolean")
-    return parsed
-
-
-def _parse_suite_parameters(raw: object, base_dir: Path) -> Path | None:
-    if raw is None:
-        return None
-    if not isinstance(raw, str) or not raw.strip():
-        raise SuiteError("Suite field `parameters` must be a non-empty string path")
-    return absolute_path(base_dir / raw)
-
-
-def _parse_parameter_stacking(raw: object) -> bool:
-    if raw is None:
-        return True
-    parsed = coerce_config_bool(raw)
-    if parsed is None:
-        raise SuiteError("Suite field `parameter_stacking` must be a boolean")
-    return parsed
-
-
-def load_suite_toml(path: Path) -> SuiteDefinition:
-    suite_path = absolute_path(path)
-    if not suite_path.exists():
-        raise SuiteError(f"Suite file not found: {suite_path}")
-    try:
-        raw = read_relaxed_toml(suite_path)
-    except UnicodeDecodeError as exc:
-        raise SuiteError(f"Suite file is not valid UTF-8: {suite_path}: {exc}") from exc
-    except tomllib.TOMLDecodeError as exc:
-        raise SuiteError(f"Invalid suite TOML: {exc}") from exc
-
-    if "rip_cord" in raw:
-        raise SuiteError(
-            "Suite field `rip_cord` was removed; use `fail_fast = true` instead "
-            "(abort remaining setup/between/test work after any of those slots fail, "
-            "always run teardown, and fail the suite)",
-        )
-
-    name = raw.get("name")
-    if not name or not isinstance(name, str):
-        raise SuiteError("Suite TOML requires string field `name`")
-    base = suite_path.parent
-    tests = _parse_tests(raw.get("tests"), base)
-    if not tests:
-        raise SuiteError("Suite TOML requires non-empty `tests` list")
-    for entry in tests:
-        if not entry.path.exists():
-            raise SuiteError(f"Test script not found: {entry.path}")
-    setup = _as_path_list(raw.get("setup"), "setup", base)
-    between_tests = _as_path_list(raw.get("between_tests"), "between_tests", base)
-    teardown = _as_path_list(raw.get("teardown"), "teardown", base)
-    for script_path in setup + between_tests + teardown:
-        if not script_path.exists():
-            raise SuiteError(f"Suite script not found: {script_path}")
-    cycle_count, cycle_for = _parse_cycle(raw)
-    return SuiteDefinition(
-        name=name,
-        setup=setup,
-        tests=tests,
-        between_tests=between_tests,
-        teardown=teardown,
-        fail_fast=_as_bool(raw.get("fail_fast"), "fail_fast"),
-        cycle_count=cycle_count,
-        cycle_for=cycle_for,
-        parameters=_parse_suite_parameters(raw.get("parameters"), base),
-        parameter_stacking=_parse_parameter_stacking(raw.get("parameter_stacking")),
-    )
 
 
 def _stop_remaining_work(ctx: RuntimeContext, test_path: Path, reason: str) -> None:
@@ -245,7 +51,8 @@ def _stop_remaining_work(ctx: RuntimeContext, test_path: Path, reason: str) -> N
     except Exception:  # noqa: BLE001 - session stop must survive slot DB errors
         if ctx.logger is not None:
             ctx.logger.exception(
-                "fail_fast: could not record stop metadata for %s", test_path,
+                "fail_fast: could not record stop metadata for %s",
+                test_path,
             )
     if ctx.logger is not None:
         ctx.logger.error("fail_fast: stopping remaining tests after %s (%s)", test_path, reason)
@@ -289,7 +96,8 @@ def _record_slot_failure(
 
 def _mark_post_endex_slot_failure(ctx: RuntimeContext, script: Path, phase: str) -> None:
     """Update in-memory and on-disk slot result after endex() already finalized."""
-    from colosseum.runner.runtime import rename_run_directory_for_result
+    from colosseum.results.aggregation import build_run_summary
+    from colosseum.runner.runtime import refresh_slot_artifacts, rename_run_directory_for_result
 
     ctx.session.mark_suite_failed(f"post_endex_failure:{script}")
     for result in reversed(ctx.suite_slot_results):
@@ -297,10 +105,18 @@ def _mark_post_endex_slot_failure(ctx: RuntimeContext, script: Path, phase: str)
             result.exit_code = 1
             if result.affects_suite_result:
                 result.overall = "FAIL"
-            if result.output_dir is not None and result.output_dir.exists():
+            if not ctx.no_artifacts and result.output_dir.exists():
                 result.output_dir = rename_run_directory_for_result(
-                    result.output_dir, "FAIL",
+                    result.output_dir,
+                    "FAIL",
                 )
+            result.summary = build_run_summary(
+                ctx,
+                ctx.result_aggregator,
+                measurement_count=result.summary.get("measurement_count", 0),
+                command_count=result.summary.get("command_count", 0),
+            )
+            refresh_slot_artifacts(ctx, result)
             break
 
 
@@ -309,7 +125,9 @@ def _suite_is_cycling(suite: SuiteDefinition) -> bool:
 
 
 def _cycle_exhausted(
-    suite: SuiteDefinition, cycle_index: int, deadline: float | None,
+    suite: SuiteDefinition,
+    cycle_index: int,
+    deadline: float | None,
 ) -> bool:
     if cycle_index == 0:
         return False
@@ -319,13 +137,108 @@ def _cycle_exhausted(
 
 
 def _repeat_exhausted(
-    entry: SuiteTestEntry, repeat_index: int, deadline: float | None,
+    entry: SuiteTestEntry,
+    repeat_index: int,
+    deadline: float | None,
 ) -> bool:
     if repeat_index == 0:
         return False
     if entry.repeat_for is not None:
         return deadline is not None and time.monotonic() >= deadline
     return repeat_index >= entry.repeat_count
+
+
+def _attach_slot_parameters(
+    suite: SuiteDefinition,
+    ctx: RuntimeContext,
+    script: Path,
+    *,
+    phase: str,
+    entry: SuiteTestEntry | None,
+) -> bool:
+    """Attach parameters for one slot. Returns False when load failed."""
+    from colosseum.config.parameters import (
+        ParametersError,
+        _attach_parameter_sources,
+        _suite_parameter_paths,
+        attach_parameters,
+    )
+
+    entry_parameters = entry.parameters if entry is not None else None
+    suite_level = ctx.run_options.parameters_path if ctx.run_options.parameters_path is not None else suite.parameters
+    try:
+        sources = _suite_parameter_paths(
+            script_path=script if phase == "test" else None,
+            entry_path=entry_parameters if phase == "test" else None,
+            suite_path=suite_level,
+            stacking=phase == "test" and suite.parameter_stacking,
+        )
+        if len(sources) > 1:
+            _attach_parameter_sources(ctx, sources)
+        else:
+            attach_parameters(
+                ctx,
+                sources[0] if sources else None,
+                required=suite_level is not None or (phase == "test" and entry_parameters is not None),
+            )
+    except ParametersError as exc:
+        ctx.result_aggregator.mark_suite_error(str(exc))
+        if ctx.logger is not None:
+            ctx.logger.error("Parameters load failed: %s", exc)
+        return False
+    return True
+
+
+def _insert_repeat_metadata(
+    ctx: RuntimeContext,
+    script: Path,
+    *,
+    test_index: int,
+    repeat_index: int,
+    cycle_index: int | None,
+    entry: SuiteTestEntry,
+) -> None:
+    repeat_meta = {
+        "test_index": str(test_index),
+        "test_repeat_index": str(repeat_index),
+    }
+    if cycle_index is not None:
+        repeat_meta["cycle_index"] = str(cycle_index)
+    if entry.repeat_for is not None:
+        repeat_meta.update(
+            repeat_mode="duration",
+            repeat_limit=str(int(entry.repeat_for.total_seconds())),
+        )
+    elif entry.repeat_count > 1:
+        repeat_meta.update(
+            repeat_mode="count",
+            repeat_limit=str(entry.repeat_count),
+        )
+    for key, value in repeat_meta.items():
+        ctx.db.insert_run_metadata(key, value)
+    ctx.db.insert_event(
+        "INFO",
+        "runner",
+        f"test_repeat_start:{script}:test={test_index}:repeat={repeat_index}",
+    )
+
+
+def _invoke_slot_script(
+    ctx: RuntimeContext,
+    script: Path,
+    runner: _ScriptRunner,
+    *,
+    phase: str,
+) -> bool:
+    """Run the slot script. Returns True when the script crashed."""
+    try:
+        runner.run(script)
+    except runner.error_type:
+        ctx.result_aggregator.mark_suite_error(f"{phase} script failed")
+        if ctx.slot_finalized:
+            _mark_post_endex_slot_failure(ctx, script, phase)
+        return True
+    return False
 
 
 def _run_script_slot(
@@ -345,7 +258,10 @@ def _run_script_slot(
     slot_started = False
     try:
         begin_script_slot(
-            ctx, script.stem, phase=phase, affects_suite_result=affects_suite_result,
+            ctx,
+            script.stem,
+            phase=phase,
+            affects_suite_result=affects_suite_result,
         )
         slot_started = True
     except Exception as exc:  # noqa: BLE001 - continue suite; signals propagate
@@ -365,87 +281,29 @@ def _run_script_slot(
     ctx.slot_repeat_index = repeat_index
     ctx.slot_cycle_index = cycle_index
 
-    from colosseum.config.parameters import (
-        ParametersError,
-        attach_parameters,
-        attach_stacked_parameters,
-        resolve_parameters_path,
-    )
-
     script_crash = False
     stop_fail_fast = False
     try:
-        entry_parameters = entry.parameters if entry is not None else None
-        suite_level = (
-            ctx.run_options.parameters_path
-            if ctx.run_options.parameters_path is not None
-            else suite.parameters
+        params_ok = _attach_slot_parameters(
+            suite,
+            ctx,
+            script,
+            phase=phase,
+            entry=entry,
         )
-        params_ok = True
-        try:
-            if phase == "test" and suite.parameter_stacking:
-                test_parameters = resolve_parameters_path(
-                    script_path=script,
-                    cli_path=None,
-                    entry_path=entry_parameters,
-                )
-                attach_stacked_parameters(
-                    ctx,
-                    suite_path=suite_level,
-                    test_path=test_parameters,
-                )
-            else:
-                resolved_parameters = resolve_parameters_path(
-                    script_path=script if phase == "test" else None,
-                    cli_path=suite_level,
-                    entry_path=entry_parameters if phase == "test" else None,
-                )
-                attach_parameters(
-                    ctx,
-                    resolved_parameters,
-                    required=suite_level is not None
-                    or (phase == "test" and entry_parameters is not None),
-                )
-        except ParametersError as exc:
-            params_ok = False
+        if not params_ok:
             script_crash = True
-            ctx.result_aggregator.mark_suite_error(str(exc))
-            if ctx.logger is not None:
-                ctx.logger.error("Parameters load failed: %s", exc)
-
-        if params_ok:
+        else:
             if test_index is not None and repeat_index is not None and entry is not None:
-                repeat_meta = {
-                    "test_index": str(test_index),
-                    "test_repeat_index": str(repeat_index),
-                }
-                if cycle_index is not None:
-                    repeat_meta["cycle_index"] = str(cycle_index)
-                if entry.repeat_for is not None:
-                    repeat_meta.update(
-                        repeat_mode="duration",
-                        repeat_limit=str(int(entry.repeat_for.total_seconds())),
-                    )
-                elif entry.repeat_count > 1:
-                    repeat_meta.update(
-                        repeat_mode="count",
-                        repeat_limit=str(entry.repeat_count),
-                    )
-                for key, value in repeat_meta.items():
-                    ctx.db.insert_run_metadata(key, value)
-                ctx.db.insert_event(
-                    "INFO",
-                    "runner",
-                    f"test_repeat_start:{script}:test={test_index}:repeat={repeat_index}",
+                _insert_repeat_metadata(
+                    ctx,
+                    script,
+                    test_index=test_index,
+                    repeat_index=repeat_index,
+                    cycle_index=cycle_index,
+                    entry=entry,
                 )
-
-            try:
-                runner.run(script)
-            except runner.error_type:
-                script_crash = True
-                ctx.result_aggregator.mark_suite_error(f"{phase} script failed")
-                if ctx.slot_finalized:
-                    _mark_post_endex_slot_failure(ctx, script, phase)
+            script_crash = _invoke_slot_script(ctx, script, runner, phase=phase)
 
         slot_has_failure = script_crash or not ctx.result_aggregator.overall_pass()
         if slot_has_failure:
@@ -514,22 +372,18 @@ def _run_phase_scripts(
 
 
 def _run_test_schedule(
-    suite: SuiteDefinition, ctx: RuntimeContext, runner: _ScriptRunner,
+    suite: SuiteDefinition,
+    ctx: RuntimeContext,
+    runner: _ScriptRunner,
 ) -> bool:
     cycling = _suite_is_cycling(suite)
-    cycle_deadline = (
-        time.monotonic() + suite.cycle_for.total_seconds()
-        if suite.cycle_for is not None
-        else None
-    )
+    cycle_deadline = time.monotonic() + suite.cycle_for.total_seconds() if suite.cycle_for is not None else None
     cycle_index = 0
     while not _cycle_exhausted(suite, cycle_index, cycle_deadline):
         recorded_cycle = cycle_index if cycling else None
         for test_index, entry in enumerate(suite.tests):
             entry_deadline = (
-                time.monotonic() + entry.repeat_for.total_seconds()
-                if entry.repeat_for is not None
-                else None
+                time.monotonic() + entry.repeat_for.total_seconds() if entry.repeat_for is not None else None
             )
             repeat_index = 0
             while not _repeat_exhausted(entry, repeat_index, entry_deadline):
@@ -549,9 +403,7 @@ def _run_test_schedule(
                 if stop:
                     return True
                 if entry.repeat_for is not None:
-                    another_in_entry = (
-                        entry_deadline is not None and time.monotonic() < entry_deadline
-                    )
+                    another_in_entry = entry_deadline is not None and time.monotonic() < entry_deadline
                 else:
                     another_in_entry = repeat_index < entry.repeat_count
                 another_test = test_index + 1 < len(suite.tests)
@@ -574,19 +426,19 @@ def _run_test_schedule(
     return False
 
 
-def run_suite(
+def _bootstrap_suite(
     suite_path: Path,
-    config_path: Path | None = None,
-    metadata_path: Path | None = None,
+    config_path: Path | None,
+    metadata_path: Path | None,
     *,
-    debug: bool = False,
-    no_artifacts: bool = False,
-    run_options: RunOptions | None = None,
-) -> int:
+    debug: bool,
+    no_artifacts: bool,
+    run_options: RunOptions | None,
+) -> tuple[SuiteDefinition, RuntimeContext, _ScriptRunner]:
     from colosseum.config import load_config
     from colosseum.config.metadata import load_metadata
     from colosseum.context import get_context, init_context
-    from colosseum.results.exit_policy import finalize_suite
+    from colosseum.results.reports import apply_enabled_reports
     from colosseum.runner.run_options import RunOptions
 
     from .single_test import ScriptRunError, run_script
@@ -612,13 +464,9 @@ def run_suite(
         load_metadata(metadata_path)
         ctx.session.metadata_pinned = True
 
-    from colosseum.results.reports import apply_enabled_reports
-
     apply_enabled_reports(ctx)
     ensure_suite_runtime_ready(ctx, suite.name)
-    suite_level = (
-        options.parameters_path if options.parameters_path is not None else suite.parameters
-    )
+    suite_level = options.parameters_path if options.parameters_path is not None else suite.parameters
     record_suite_provenance(
         ctx,
         suite_path=suite_path,
@@ -644,7 +492,15 @@ def run_suite(
             suite.cycle_for,
             suite.parameter_stacking,
         )
+    return suite, ctx, runner
 
+
+def _run_suite_body(
+    suite: SuiteDefinition,
+    ctx: RuntimeContext,
+    runner: _ScriptRunner,
+) -> BaseException | None:
+    """Run setup and the test schedule. Returns a deferred interrupt, if any."""
     interrupt: BaseException | None = None
     try:
         stop = False
@@ -669,21 +525,55 @@ def run_suite(
         if ctx.logger is not None:
             ctx.logger.exception("Suite execution interrupted: %s", exc)
         ctx.session.mark_suite_failed(f"suite_interrupt:{exc}")
+    return interrupt
+
+
+def _run_suite_teardown(
+    suite: SuiteDefinition,
+    ctx: RuntimeContext,
+    runner: _ScriptRunner,
+) -> None:
+    try:
+        if suite.teardown:
+            _run_phase_scripts(
+                suite,
+                ctx,
+                suite.teardown,
+                runner,
+                phase="teardown",
+                affects_suite_result=False,
+                stop_on_fail_fast=False,
+            )
+    except Exception as exc:  # noqa: BLE001 - finalize anyway
+        if ctx.logger is not None:
+            ctx.logger.exception("Suite teardown failed: %s", exc)
+
+
+def run_suite(
+    suite_path: Path,
+    config_path: Path | None = None,
+    metadata_path: Path | None = None,
+    *,
+    debug: bool = False,
+    no_artifacts: bool = False,
+    run_options: RunOptions | None = None,
+) -> int:
+    from colosseum.results.exit_policy import finalize_suite
+
+    suite, ctx, runner = _bootstrap_suite(
+        suite_path,
+        config_path,
+        metadata_path,
+        debug=debug,
+        no_artifacts=no_artifacts,
+        run_options=run_options,
+    )
+
+    interrupt: BaseException | None = None
+    try:
+        interrupt = _run_suite_body(suite, ctx, runner)
     finally:
-        try:
-            if suite.teardown:
-                _run_phase_scripts(
-                    suite,
-                    ctx,
-                    suite.teardown,
-                    runner,
-                    phase="teardown",
-                    affects_suite_result=False,
-                    stop_on_fail_fast=False,
-                )
-        except Exception as exc:  # noqa: BLE001 - finalize anyway
-            if ctx.logger is not None:
-                ctx.logger.exception("Suite teardown failed: %s", exc)
+        _run_suite_teardown(suite, ctx, runner)
         code = finalize_suite(ctx)
 
     if interrupt is not None:

@@ -6,7 +6,7 @@ from datetime import timedelta
 
 import pytest
 
-from colosseum.runner.suite import (
+from colosseum.runner.suite_toml import (
     SuiteError,
     load_suite_toml,
     parse_repeat_duration,
@@ -92,11 +92,6 @@ def test_load_repeat_count_table(fixtures_dir) -> None:
     assert len(suite.tests) == 1
     assert suite.tests[0].repeat_count == 3
     assert suite.tests[0].repeat_for is None
-
-
-def test_load_repeat_for_table(fixtures_dir) -> None:
-    suite = load_suite_toml(fixtures_dir / "suites" / "repeat_for.toml")
-    assert suite.tests[0].repeat_for == timedelta(seconds=1)
 
 
 def test_load_repeat_for_table(fixtures_dir) -> None:
@@ -270,4 +265,3 @@ def test_invalid_cycle_for_duration(tmp_path, fixtures_dir) -> None:
     )
     with pytest.raises(SuiteError, match="Invalid cycle_for duration"):
         load_suite_toml(path)
-

@@ -47,4 +47,3 @@ def policy_for_suite_slot(*, affects_suite_result: bool) -> FinalizePolicy:
         close_resources=True,
         log_overall=affects_suite_result,
     )
-
