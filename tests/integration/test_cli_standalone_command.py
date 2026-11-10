@@ -38,12 +38,12 @@ def test_unexpected_error_during_command_invoke_exits_one(
 ) -> None:
     """Unexpected exceptions during ``-c`` mark FAIL and exit 1 via endex."""
     _ = isolated_cwd
-    import colosseum.runner.cli as cli_mod
+    import colosseum.runner.single_run as single_run_mod
 
     def _boom(_ctx, _specs):
         raise RuntimeError("unexpected boom")
 
-    monkeypatch.setattr(cli_mod, "invoke_plugin_commands", _boom)
+    monkeypatch.setattr(single_run_mod, "invoke_plugin_commands", _boom)
     with pytest.raises(SystemExit) as exc:
         run_cli(
             [

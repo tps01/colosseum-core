@@ -348,7 +348,7 @@ def comparison_label(compare_op: str, expected: str, tolerance: str) -> str:
         return f"<= {_plain(expected_value)}"
     if op == "GELE" and _is_number(expected_value):
         if isinstance(tolerance_value, str):
-            from colosseum.decorators.verification import parse_signed_band
+            from colosseum.decorators.tolerance import parse_signed_band
 
             text = tolerance_value.strip()
             if parse_signed_band(text) is not None:

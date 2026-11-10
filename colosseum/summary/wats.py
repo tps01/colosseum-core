@@ -256,7 +256,7 @@ def _numeric_extra(
     expected: object,
     tolerance: object,
 ) -> dict[str, Any]:
-    from colosseum.decorators.verification import gele_limits
+    from colosseum.decorators.tolerance import gele_limits
 
     if compare_op == "LOG":
         return {"compOp": "LOG", "lowLimit": None, "highLimit": None}

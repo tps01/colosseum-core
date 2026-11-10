@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, Any, TypeVar, overload
 from colosseum.config.parameters import (
     ParametersError,
     apply_parameters_to_kwargs,
-    coerce_bool,
     coerce_optional_kwarg,
 )
 from colosseum.database import CommandRow
@@ -18,6 +17,7 @@ from colosseum.exceptions import ProceduralFault
 
 from ._common import (
     bind_dry_run_policy,
+    optional_from_caller,
     publish_optional_parameter,
     resolve_command,
     resolve_domain,
@@ -132,7 +132,7 @@ class _CommandBinding:
         call_kwargs: dict[str, Any],
         exc: ParametersError,
     ) -> EarlyReturn:
-        optional = _optional_from_caller(kwargs)
+        optional = optional_from_caller(kwargs)
         self._persist_error_row(
             ctx,
             identity,
@@ -271,16 +271,6 @@ class _CommandBinding:
             persist_success=self.persist_success,
             persist_error=self.persist_error,
         )
-
-
-def _optional_from_caller(kwargs: dict[str, Any]) -> bool:
-    optional = False
-    if "optional" not in kwargs:
-        return optional
-    try:
-        return coerce_bool(kwargs["optional"])
-    except ParametersError:
-        return False
 
 
 @overload
