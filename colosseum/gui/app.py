@@ -397,7 +397,7 @@ class ColosseumApp:
                     self._debug.get(),
                     parameters_path=self._parameters_value(),
                     no_sleep=self._no_sleep.get(),
-                )
+                ),
             )
 
     def _run_suite(self) -> None:
@@ -417,7 +417,7 @@ class ColosseumApp:
                     self._debug.get(),
                     parameters_path=self._parameters_value(),
                     no_sleep=self._no_sleep.get(),
-                )
+                ),
             )
 
     def _start_run(self, request: RunRequest) -> None:
@@ -464,7 +464,7 @@ class ColosseumApp:
         self._browser_generation += 1
         gen = self._browser_generation
         threading.Thread(
-            target=lambda: self._ui_events.put(("browser", gen, load_run_browser_snapshot(self._cwd))), daemon=True
+            target=lambda: self._ui_events.put(("browser", gen, load_run_browser_snapshot(self._cwd))), daemon=True,
         ).start()
 
     def _expand_all_output_dirs(self) -> None:
@@ -653,7 +653,7 @@ class ColosseumApp:
             return
         self._slot_list.grid()
         for slot in slots:
-            label = f"{slot.get('phase')} [{slot.get('overall_result')}] " f"{Path(str(slot.get('script') or '')).name}"
+            label = f"{slot.get('phase')} [{slot.get('overall_result')}] {Path(str(slot.get('script') or '')).name}"
             repeat = slot.get("repeat_index")
             if repeat is not None:
                 label += f" repeat={repeat}"
@@ -940,7 +940,7 @@ class ColosseumApp:
         return True
 
     def _prep_xy(
-        self, row: Any
+        self, row: Any,
     ) -> tuple[Any, list[tuple[float | None, float | None]], Any, Any, int] | Literal[False] | None:  # noqa: ANN401
         """Return stroke inputs, ``False`` when canvas is too small, or ``None`` to abort."""
         series = self._series_for_row(row)

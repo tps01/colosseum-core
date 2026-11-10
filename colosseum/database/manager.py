@@ -514,7 +514,7 @@ class DatabaseManager:
                     )
                 for slot in slots or []:
                     conn.execute(
-                        "INSERT OR REPLACE INTO suite_slot_results " "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        "INSERT OR REPLACE INTO suite_slot_results VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                         (
                             slot["slot_id"],
                             slot["phase"],

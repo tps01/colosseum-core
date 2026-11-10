@@ -138,7 +138,7 @@ class _MeasurementBinding:
             is not None
         ):
             raise MeasurementKeyError(
-                f"Duplicate measurement key for ({self.domain}, {self.command}, {key}, " f"row_index={row_index})",
+                f"Duplicate measurement key for ({self.domain}, {self.command}, {key}, row_index={row_index})",
             )
 
     def prepare(

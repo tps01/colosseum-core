@@ -164,7 +164,7 @@ def resolve_auto_key(
         ctx.auto_key_warned = True
         if ctx.logger is not None:
             ctx.logger.warning(
-                "col.auto_key() is on; later verifications must use the same " "numeric keys or an explicit key=",
+                "col.auto_key() is on; later verifications must use the same numeric keys or an explicit key=",
             )
     return key, True
 
@@ -182,7 +182,7 @@ def missing_key_guidance(*, kind: str, command: str) -> str:
             "assigned an auto key — prefer an explicit key= or call "
             "col.auto_key() when pairing with measurements"
         )
-    return f"`{command}` {kind} was missing a key; " "pass key=... or call col.auto_key() near the start of main()"
+    return f"`{command}` {kind} was missing a key; pass key=... or call col.auto_key() near the start of main()"
 
 
 def note_dry_run_tip(ctx: RuntimeContext, message: str) -> None:
@@ -205,7 +205,7 @@ def finalize_dry_run_tips(ctx: RuntimeContext) -> None:
     if not any(row.get("kind") in evidence_kinds for row in records):
         note_dry_run_tip(
             ctx,
-            "dry-run saw no command/measurement/verification calls; " "check that main() runs and plugins are loaded",
+            "dry-run saw no command/measurement/verification calls; check that main() runs and plugins are loaded",
         )
     if ctx.parameters_map:
         unused = sorted(key for key in ctx.parameters_map if key not in ctx.dry_run_keys_seen)

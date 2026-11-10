@@ -126,7 +126,7 @@ def rename_run_directory_for_result(
                 time.sleep(delay)
                 delay = min(delay * 2, 0.5)
     print(
-        f"Colosseum: failed to rename {output_dir} -> {candidate.name}: {last_error}; " "leaving directory unrenamed",
+        f"Colosseum: failed to rename {output_dir} -> {candidate.name}: {last_error}; leaving directory unrenamed",
         file=sys.stderr,
     )
     return output_dir

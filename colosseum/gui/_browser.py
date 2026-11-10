@@ -325,7 +325,7 @@ def _emit_slots(lines: list[str], summary: dict[str, Any]) -> None:
         cycle = slot.get("cycle_index")
         cycle_text = f" cycle={cycle}" if cycle is not None else ""
         lines.append(
-            f"  - {slot.get('phase')} [{slot.get('overall_result')}]" f"{repeat_text}{cycle_text} {slot.get('script')}",
+            f"  - {slot.get('phase')} [{slot.get('overall_result')}]{repeat_text}{cycle_text} {slot.get('script')}",
         )
 
 

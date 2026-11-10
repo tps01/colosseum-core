@@ -160,7 +160,7 @@ def _finalize_collect(ctx: RuntimeContext, policy: FinalizePolicy) -> _Collected
     if policy.kind == "single" and ctx.logger is not None:
         counts = ctx.result_aggregator.counts()
         ctx.logger.debug(
-            "Finalizing run: verifications=%d required=%s optional=%s " "suite_error=%s teardown_failed=%s",
+            "Finalizing run: verifications=%d required=%s optional=%s suite_error=%s teardown_failed=%s",
             counts["total"],
             counts["required"],
             counts["optional"],

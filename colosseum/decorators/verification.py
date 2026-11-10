@@ -762,7 +762,7 @@ class _VerificationBinding:
             key=identity.key_text,
             status=result.status,
             optional=result.optional,
-            detail=(f"expected={_reference_expected(prepared.call_kwargs)!r} " f"message={result.message!r}"),
+            detail=(f"expected={_reference_expected(prepared.call_kwargs)!r} message={result.message!r}"),
             call_args=prepared.call_args,
             kwargs=prepared.logged_kwargs,
         )

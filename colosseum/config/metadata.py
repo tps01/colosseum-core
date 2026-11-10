@@ -83,7 +83,7 @@ def load_metadata(path: str | Path, *, force: bool = False) -> dict[str, Any]:
     if ctx.session.metadata_pinned and not force:
         if not ctx.session.metadata_pin_warned:
             ctx.session.metadata_pin_warned = True
-            message = "Ignoring load_metadata(%s): CLI/suite -m metadata is pinned; " "pass force=True to replace"
+            message = "Ignoring load_metadata(%s): CLI/suite -m metadata is pinned; pass force=True to replace"
             if ctx.logger is not None:
                 ctx.logger.warning(message, path)
             else:
