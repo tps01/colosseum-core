@@ -19,9 +19,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 SUITE = REPO / "tests" / "fixtures" / "suites" / "smoke.toml"
 CONFIG = REPO / "tests" / "fixtures" / "core.toml"
-FAIL_PATTERNS = (
-    "Traceback",
-)
+FAIL_PATTERNS = ("Traceback",)
 SUMMARY_PASS = "Overall result: PASS"
 
 

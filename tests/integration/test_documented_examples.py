@@ -16,12 +16,21 @@ def test_numeric_text_example_and_replay(tmp_path: Path) -> None:
     env["PYTHONPATH"] = str(repo)
     env.pop("COLOSSEUM_NO_ARTIFACTS", None)
     cli = [
-        sys.executable, "-c", "from colosseum.runner.cli import main; main()", "run", str(example),
+        sys.executable,
+        "-c",
+        "from colosseum.runner.cli import main; main()",
+        "run",
+        str(example),
     ]
 
     def run(*args: str) -> None:
         result = subprocess.run(
-            cli + list(args), cwd=tmp_path, env=env, capture_output=True, text=True, timeout=30,
+            cli + list(args),
+            cwd=tmp_path,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         assert result.returncode == 0, result.stdout + result.stderr
 

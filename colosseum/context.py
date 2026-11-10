@@ -94,9 +94,7 @@ class RuntimeContext:
 
     @suite_test_results.setter
     def suite_test_results(self, slots: list[Any]) -> None:
-        self.suite_slot_results = [
-            slot for slot in self.suite_slot_results if not slot.affects_suite_result
-        ] + slots
+        self.suite_slot_results = [slot for slot in self.suite_slot_results if not slot.affects_suite_result] + slots
 
 
 def get_context() -> RuntimeContext:

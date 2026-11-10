@@ -372,11 +372,7 @@ def _attach_slot_parameters(
     )
 
     entry_parameters = entry.parameters if entry is not None else None
-    suite_level = (
-        ctx.run_options.parameters_path
-        if ctx.run_options.parameters_path is not None
-        else suite.parameters
-    )
+    suite_level = ctx.run_options.parameters_path if ctx.run_options.parameters_path is not None else suite.parameters
     try:
         sources = _suite_parameter_paths(
             script_path=script if phase == "test" else None,
@@ -390,8 +386,7 @@ def _attach_slot_parameters(
             attach_parameters(
                 ctx,
                 sources[0] if sources else None,
-                required=suite_level is not None
-                or (phase == "test" and entry_parameters is not None),
+                required=suite_level is not None or (phase == "test" and entry_parameters is not None),
             )
     except ParametersError as exc:
         ctx.result_aggregator.mark_suite_error(str(exc))
@@ -589,17 +584,13 @@ def _run_test_schedule(
     runner: _ScriptRunner,
 ) -> bool:
     cycling = _suite_is_cycling(suite)
-    cycle_deadline = (
-        time.monotonic() + suite.cycle_for.total_seconds() if suite.cycle_for is not None else None
-    )
+    cycle_deadline = time.monotonic() + suite.cycle_for.total_seconds() if suite.cycle_for is not None else None
     cycle_index = 0
     while not _cycle_exhausted(suite, cycle_index, cycle_deadline):
         recorded_cycle = cycle_index if cycling else None
         for test_index, entry in enumerate(suite.tests):
             entry_deadline = (
-                time.monotonic() + entry.repeat_for.total_seconds()
-                if entry.repeat_for is not None
-                else None
+                time.monotonic() + entry.repeat_for.total_seconds() if entry.repeat_for is not None else None
             )
             repeat_index = 0
             while not _repeat_exhausted(entry, repeat_index, entry_deadline):
@@ -619,9 +610,7 @@ def _run_test_schedule(
                 if stop:
                     return True
                 if entry.repeat_for is not None:
-                    another_in_entry = (
-                        entry_deadline is not None and time.monotonic() < entry_deadline
-                    )
+                    another_in_entry = entry_deadline is not None and time.monotonic() < entry_deadline
                 else:
                     another_in_entry = repeat_index < entry.repeat_count
                 another_test = test_index + 1 < len(suite.tests)
@@ -684,9 +673,7 @@ def _bootstrap_suite(
 
     apply_enabled_reports(ctx)
     ensure_suite_runtime_ready(ctx, suite.name)
-    suite_level = (
-        options.parameters_path if options.parameters_path is not None else suite.parameters
-    )
+    suite_level = options.parameters_path if options.parameters_path is not None else suite.parameters
     record_suite_provenance(
         ctx,
         suite_path=suite_path,

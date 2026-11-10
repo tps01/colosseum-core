@@ -42,7 +42,8 @@ def test_sqlite_readonly_uri_matches_as_uri(tmp_path: Path) -> None:
 
 
 def test_stored_artifact_path_relativizes_without_resolve(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     def boom(self: Path) -> Path:
         raise AssertionError("resolve must not be used for artifact relativize")

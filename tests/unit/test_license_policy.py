@@ -66,7 +66,8 @@ def distribution(
         (distribution(classifiers=("MIT License", "Apache Software License")), False),
         (
             distribution(
-                legacy="Creative Commons Zero v1.0 Universal", classifiers=("MIT License",),
+                legacy="Creative Commons Zero v1.0 Universal",
+                classifiers=("MIT License",),
             ),
             False,
         ),

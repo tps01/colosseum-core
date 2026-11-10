@@ -13,7 +13,6 @@ if TYPE_CHECKING:
 
 _TEXT_SUFFIXES = frozenset({".txt", ".log", ".csv", ".json", ".md", ".toml", ".yaml", ".yml"})
 _IMAGE_SUFFIXES = frozenset({".png", ".gif", ".ppm", ".pgm"})
-_PREVIEW_CHARS = 8000
 
 
 @dataclass(frozen=True)
@@ -52,13 +51,14 @@ def links_for_row(
         ]
         if len(matches) == 1:
             stored_paths.append(matches[0])
-    return [
-        _link(stored, run_dir=run_dir, origin=origin, associated=True) for stored in stored_paths
-    ]
+    return [_link(stored, run_dir=run_dir, origin=origin, associated=True) for stored in stored_paths]
 
 
 def unassociated_files(
-    run_dir: Path, linked: list[ArtifactLink], *, limit: int = 20,
+    run_dir: Path,
+    linked: list[ArtifactLink],
+    *,
+    limit: int = 20,
 ) -> list[ArtifactLink]:
     """Files sitting in the run folder that are not tied to the selected row."""
     known = {item.path.resolve() for item in linked if item.exists}
@@ -76,15 +76,6 @@ def unassociated_files(
         if len(found) >= limit:
             break
     return found
-
-
-def preview_text(path: Path) -> str | None:
-    if path.suffix.lower() not in _TEXT_SUFFIXES or not path.is_file():
-        return None
-    try:
-        return path.read_text(encoding="utf-8", errors="replace")[:_PREVIEW_CHARS]
-    except OSError as exc:
-        return f"Cannot read {path.name}: {exc}"
 
 
 def _link(stored: str, *, run_dir: Path, origin: Path | None, associated: bool) -> ArtifactLink:

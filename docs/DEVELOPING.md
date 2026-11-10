@@ -20,6 +20,11 @@ python -m pip install -r requirements.txt
 and docs tooling. A plain wheel install (`pip install .` or a release wheel)
 includes only runtime dependencies.
 
+Black formats Python code with a 120-character line length, matching Ruff.
+To format production code and maintainer scripts, run
+`python -m black colosseum scripts`. To preview formatting changes without
+editing files, use `python -m black --check --diff colosseum scripts`.
+
 ## Checks
 
 ```sh

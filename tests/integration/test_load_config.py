@@ -25,10 +25,8 @@ def test_lazy_namespace_resolves_registered_plugin(core_config, isolated_cwd) ->
     assert col.acme.ping() == "pong"
 
 
-def test_unregistered_sections_remain_available_as_raw_config(
-    isolated_cwd, tmp_path
-) -> None:
+def test_unregistered_sections_remain_available_as_raw_config(isolated_cwd, tmp_path) -> None:
     path = tmp_path / "settings.toml"
-    path.write_text("[runtime]\nlabel = \"bench-a\"\n", encoding="utf-8")
+    path.write_text('[runtime]\nlabel = "bench-a"\n', encoding="utf-8")
     store = load_config(path)
     assert store.get_section("runtime.label") == "bench-a"

@@ -139,11 +139,7 @@ def units_for(row: EvidenceRow, rows: list[EvidenceRow]) -> str:
 
 
 def _is_required_failure(row: EvidenceRow) -> bool:
-    return (
-        row.kind != "measurement"
-        and not row.optional
-        and row.status.upper() in _FAILURE_STATUSES
-    )
+    return row.kind != "measurement" and not row.optional and row.status.upper() in _FAILURE_STATUSES
 
 
 def _haystack(row: EvidenceRow) -> str:
@@ -163,14 +159,39 @@ def _haystack(row: EvidenceRow) -> str:
 
 
 _VERIFICATION_COLUMNS = (
-    "id", "domain", "command", "key", "expected_json", "actual_json", "tolerance_json",
-    "compare_op", "status", "optional", "message", "description",
+    "id",
+    "domain",
+    "command",
+    "key",
+    "expected_json",
+    "actual_json",
+    "tolerance_json",
+    "compare_op",
+    "status",
+    "optional",
+    "message",
+    "description",
 )
 _COMMAND_COLUMNS = (
-    "id", "domain", "command", "key", "result_json", "status", "optional", "message", "cause",
+    "id",
+    "domain",
+    "command",
+    "key",
+    "result_json",
+    "status",
+    "optional",
+    "message",
+    "cause",
 )
 _MEASUREMENT_COLUMNS = (
-    "id", "domain", "command", "key", "value_json", "units", "artifact_path", "status",
+    "id",
+    "domain",
+    "command",
+    "key",
+    "value_json",
+    "units",
+    "artifact_path",
+    "status",
 )
 
 
@@ -276,10 +297,7 @@ def _fetch_table(
     ).fetchone()
     if exists is None:
         return None
-    present = {
-        str(row["name"])
-        for row in connection.execute(f"PRAGMA table_info({table})")  # nosec B608
-    }
+    present = {str(row["name"]) for row in connection.execute(f"PRAGMA table_info({table})")}  # nosec B608
     columns = [name for name in wanted if name in present]
     if "id" not in columns:
         raise sqlite3.OperationalError(f"{table} has no id column")

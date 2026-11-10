@@ -6,6 +6,7 @@ sphinx>=7.0,<9
 bandit[toml]>=1.7
 vulture>=2.11
 ruff>=0.8
+black>=24.10
 mypy>=1.11
 
 # Apache-2.0; standalone Linux fuzz job only.

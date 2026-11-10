@@ -138,11 +138,7 @@ def reduce_xy(
     reduced: list[Point] = []
     for start in range(0, len(points), width):
         bucket = points[start : start + width]
-        finite = [
-            (index, x, y)
-            for index, (x, y) in enumerate(bucket)
-            if x is not None and y is not None
-        ]
+        finite = [(index, x, y) for index, (x, y) in enumerate(bucket) if x is not None and y is not None]
         if not finite:
             reduced.append((None, None))
             continue

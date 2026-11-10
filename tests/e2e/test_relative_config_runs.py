@@ -50,8 +50,12 @@ def test_relative_loads_follow_each_script(tmp_path, subprocess_env, mode):
         )
         args = ["-m", "colosseum.runner.cli", "run-suite", str(suite), "--no-artifacts"]
     proc = subprocess.run(
-        [sys.executable, *args], cwd=caller, env=subprocess_env,
-        capture_output=True, text=True, timeout=30,
+        [sys.executable, *args],
+        cwd=caller,
+        env=subprocess_env,
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
@@ -64,7 +68,11 @@ def test_cli_config_path_does_not_fallback_to_script(tmp_path, subprocess_env):
     script.write_text("def main():\n    pass\n", encoding="utf-8")
     proc = subprocess.run(
         [sys.executable, "-m", "colosseum.runner.cli", "run", str(script), "-g", "config.toml"],
-        cwd=tmp_path, env=subprocess_env, capture_output=True, text=True, timeout=30,
+        cwd=tmp_path,
+        env=subprocess_env,
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     assert proc.returncode != 0
     assert "Config file not found" in proc.stdout + proc.stderr

@@ -139,9 +139,7 @@ def check_input(data: bytes) -> None:
                 owed = [row for row in result.verifications if row.command == "owed_limit"]
                 assert len(owed) == int(blocked)
                 assert all(row.status == "BLOCKED" for row in owed)
-                assert sorted(
-                    row.value for row in result.measurements if row.command == "sample"
-                ) == list(range(count))
+                assert sorted(row.value for row in result.measurements if row.command == "sample") == list(range(count))
             if not slot:
                 expected_code = 1 if storage_error else int(failed)
                 assert ctx.finalized and ctx.final_exit_code == expected_code

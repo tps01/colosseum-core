@@ -31,7 +31,6 @@ def test_duplicate_section_spec_fails_fast() -> None:
         reg.register_config_section(spec)
 
 
-
 def test_config_section_specs_is_a_snapshot() -> None:
     reg = PluginRegistry()
     spec = ConfigSectionSpec("equipment.psu", "psu_id", ("driver",))
@@ -47,7 +46,6 @@ def test_duplicate_namespace_fails_fast() -> None:
     reg.register_namespace("equipment", module)
     with pytest.raises(PluginRegistrationError, match="already registered"):
         reg.register_namespace("equipment", module)
-
 
 
 def test_loader_loads_entry_points(monkeypatch: pytest.MonkeyPatch) -> None:

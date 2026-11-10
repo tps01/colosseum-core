@@ -75,7 +75,9 @@ def _handle_script_system_exit(resolved: Path, exc: SystemExit) -> None:
         message = f"script_exit_after_endex:{resolved}: code={code}"
         if ctx.logger is not None:
             ctx.logger.error(
-                "Script exited after col.endex(): %s (code=%s)", resolved, code,
+                "Script exited after col.endex(): %s (code=%s)",
+                resolved,
+                code,
             )
         raise ScriptRunError(message) from exc
     message = f"script_exit:{resolved}: code={code}"

@@ -34,11 +34,7 @@ def load_policy() -> tuple[set[str], dict[str, str]]:
     policy = json.loads(POLICY.read_text(encoding="utf-8"))
     if set(rule_labels((REPO / "RULES.md").read_text(encoding="utf-8"))) != set(policy["rules"]):
         raise ValueError("RULES.md and license_policy.json differ; review license mappings")
-    allowed = {
-        str(canonicalize_license_expression(item))
-        for entries in policy["rules"].values()
-        for item in entries
-    }
+    allowed = {str(canonicalize_license_expression(item)) for entries in policy["rules"].values() for item in entries}
     if any(" " in item for item in allowed):
         raise ValueError("Policy entries must be individual SPDX identifiers")
     aliases = policy["aliases"]
@@ -88,7 +84,9 @@ def expression_allowed(expression: str, allowed: set[str]) -> bool:
 
 
 def inspect_distribution(
-    dist: metadata.Distribution, allowed: set[str], aliases: dict[str, str],
+    dist: metadata.Distribution,
+    allowed: set[str],
+    aliases: dict[str, str],
 ) -> dict:
     """Classify one installed artifact without guessing ambiguous license names."""
     info = dist.metadata
@@ -100,9 +98,7 @@ def inspect_distribution(
     if not declared or declared.strip().upper() == "UNKNOWN":
         source = "Classifier"
         classifiers = [
-            value.rsplit(" :: ", 1)[-1]
-            for value in info.get_all("Classifier", [])
-            if value.startswith("License :: ")
+            value.rsplit(" :: ", 1)[-1] for value in info.get_all("Classifier", []) if value.startswith("License :: ")
         ]
         declared = classifiers[0] if len(classifiers) == 1 else ""
     expression = aliases.get(declared, declared) if source != "License-Expression" else declared

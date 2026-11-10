@@ -252,7 +252,9 @@ def _as_float(value: object) -> float:
 
 
 def _numeric_extra(
-    compare_op: str, expected: object, tolerance: object,
+    compare_op: str,
+    expected: object,
+    tolerance: object,
 ) -> dict[str, Any]:
     from colosseum.decorators.verification import gele_limits
 
@@ -275,7 +277,10 @@ def _numeric_measurement(row: VerificationRecord, *, unit: str) -> dict[str, Any
 
 
 def _string_measurement(
-    row: VerificationRecord, *, comp_op: str, limit: object | None,
+    row: VerificationRecord,
+    *,
+    comp_op: str,
+    limit: object | None,
 ) -> dict[str, Any]:
     return {
         "compOp": comp_op,

@@ -22,11 +22,7 @@ class CommandInvokeError(RuntimeError):
 def _split_top_level_commas(text: str) -> list[str]:
     """Split on commas outside quotes and outside ``[]`` / ``()`` / ``{}``."""
     try:
-        return [
-            part.strip()
-            for part in _split_top_level(text, separator=",", source=text)
-            if part.strip()
-        ]
+        return [part.strip() for part in _split_top_level(text, separator=",", source=text) if part.strip()]
     except ParametersError as exc:
         raise CommandInvokeError(str(exc)) from exc
 

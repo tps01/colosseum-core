@@ -103,9 +103,7 @@ def test_summary_prints_verification_description(unit_runtime_context) -> None:
     )
     SummaryWriter().write(out, ctx.result_aggregator, ctx)
     text = (out / "summary.txt").read_text(encoding="utf-8")
-    assert (
-        "[verification] Verify rail voltage equipment.verify_voltage key=rail_a: out of tolerance"
-    ) in text
+    assert ("[verification] Verify rail voltage equipment.verify_voltage key=rail_a: out of tolerance") in text
     assert "[verification] equipment.verify_voltage key=rail_b: other" in text
     payload = json.loads((out / "summary.json").read_text(encoding="utf-8"))
     described, plain = payload["failed_required_verifications"]

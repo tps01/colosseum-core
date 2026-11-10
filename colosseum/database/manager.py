@@ -465,10 +465,7 @@ class DatabaseManager:
                 rowid = _cursor_rowid(cur)
                 conn.executemany(
                     "INSERT INTO verification_requirements VALUES (?, ?, ?)",
-                    [
-                        (rowid, requirement, index)
-                        for index, requirement in enumerate(row.requirements)
-                    ],
+                    [(rowid, requirement, index) for index, requirement in enumerate(row.requirements)],
                 )
             except Exception:
                 conn.execute("ROLLBACK TO verification")
@@ -517,8 +514,7 @@ class DatabaseManager:
                     )
                 for slot in slots or []:
                     conn.execute(
-                        "INSERT OR REPLACE INTO suite_slot_results "
-                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        "INSERT OR REPLACE INTO suite_slot_results VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                         (
                             slot["slot_id"],
                             slot["phase"],

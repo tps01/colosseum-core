@@ -111,13 +111,11 @@ def attach_console_logger(
     _detach_handlers(logger)
 
     formatter = _formatter()
-    if (
-        ctx.suite_output_dir is not None
-        and ctx.output_dir is None
-        and not ctx.no_artifacts
-    ):
+    if ctx.suite_output_dir is not None and ctx.output_dir is None and not ctx.no_artifacts:
         file_handler = logging.FileHandler(
-            ctx.suite_output_dir / "debug.log", mode="a", encoding="utf-8",
+            ctx.suite_output_dir / "debug.log",
+            mode="a",
+            encoding="utf-8",
         )
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(formatter)

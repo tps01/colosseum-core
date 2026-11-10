@@ -135,9 +135,7 @@ def check_input(data: bytes) -> None:
             assert payload["exit_code"] == code
             assert payload["measurement_count"] == count + 1 and payload["command_count"] == 1
             with closing(sqlite3.connect(ctx.output_dir / "execution.sqlite")) as reader:
-                assert (
-                    reader.execute("SELECT COUNT(*) FROM measurements").fetchone()[0] == count + 1
-                )
+                assert reader.execute("SELECT COUNT(*) FROM measurements").fetchone()[0] == count + 1
                 assert reader.execute("SELECT status FROM verifications").fetchall() == [(status,)]
             if report_error:
                 assert not (ctx.output_dir / "summary.json").exists()
@@ -147,10 +145,7 @@ def check_input(data: bytes) -> None:
                     for key, value in payload.items()
                     if key not in {"outcomes", "optional_outcomes", "stored_status"}
                 }
-                assert (
-                    json.loads((ctx.output_dir / "summary.json").read_text(encoding="utf-8"))
-                    == public
-                )
+                assert json.loads((ctx.output_dir / "summary.json").read_text(encoding="utf-8")) == public
                 text = (ctx.output_dir / "summary.txt").read_text(encoding="utf-8")
                 assert f"Overall result: {'FAIL' if code else 'PASS'}" in text
                 assert f"Exit code: {code}" in text

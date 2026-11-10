@@ -97,8 +97,7 @@ def _check_growth(rows: list[SoakRow]) -> list[str]:
 
     if rss_delta > MAX_RSS_DELTA_MB:
         failures.append(
-            f"RSS grew {rss_delta:.2f} MiB from warmup window to tail "
-            f"(limit {MAX_RSS_DELTA_MB} MiB)",
+            f"RSS grew {rss_delta:.2f} MiB from warmup window to tail " f"(limit {MAX_RSS_DELTA_MB} MiB)",
         )
     if gc_delta > MAX_GC_OBJECTS_DELTA:
         failures.append(
@@ -120,10 +119,7 @@ def _write_suite(path: Path, *, repeat_count: int) -> None:
     if not PROBE.is_file():
         raise FileNotFoundError(f"Soak probe script not found: {PROBE}")
     probe_path = PROBE.as_posix()
-    text = (
-        'name = "soak_inprocess"\n\n'
-        f'tests = [{{ path = "{probe_path}", repeat_count = {repeat_count} }}]\n'
-    )
+    text = 'name = "soak_inprocess"\n\n' f'tests = [{{ path = "{probe_path}", repeat_count = {repeat_count} }}]\n'
     path.write_text(text, encoding="utf-8")
 
 

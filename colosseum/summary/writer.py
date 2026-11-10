@@ -114,12 +114,16 @@ class SummaryWriter:
             payload = build_run_summary(
                 ctx,
                 aggregator,
-                measurement_count=measurement_count
-                if measurement_count is not None
-                else (ctx.db.count_rows("measurements") if ctx.db.is_initialized() else 0),
-                command_count=command_count
-                if command_count is not None
-                else (ctx.db.count_rows("commands") if ctx.db.is_initialized() else 0),
+                measurement_count=(
+                    measurement_count
+                    if measurement_count is not None
+                    else (ctx.db.count_rows("measurements") if ctx.db.is_initialized() else 0)
+                ),
+                command_count=(
+                    command_count
+                    if command_count is not None
+                    else (ctx.db.count_rows("commands") if ctx.db.is_initialized() else 0)
+                ),
             )
         records = payload["outcomes"]
         required_verifications = payload["verification_counts"]["required"]
@@ -127,9 +131,7 @@ class SummaryWriter:
         required_commands = payload["command_counts"]["required"]
         optional_commands = payload["command_counts"]["optional"]
         failed_required = [
-            row
-            for row in records
-            if not row["optional"] and row["status"] in {"FAIL", "ERROR", "BLOCKED"}
+            row for row in records if not row["optional"] and row["status"] in {"FAIL", "ERROR", "BLOCKED"}
         ]
         measurement_count = payload["measurement_count"]
         command_count = payload["command_count"]
@@ -170,11 +172,7 @@ class SummaryWriter:
                 "optional command",
                 optional_commands,
             ),
-            *(
-                _dry_run_lines(records, tips=payload.get("dry_run_tips"))
-                if payload.get("dry_run")
-                else []
-            ),
+            *(_dry_run_lines(records, tips=payload.get("dry_run_tips")) if payload.get("dry_run") else []),
             *_outcome_lines(failed_required, header="Failed required outcomes:"),
             *_outcome_lines(payload["optional_outcomes"], header="Optional outcomes:"),
             *requirement_lines(payload["requirements"]),
@@ -207,11 +205,7 @@ class SuiteSummaryWriter:
         if payload is None:
             payload = build_suite_summary(ctx, exit_code=exit_code, overall=overall)
         ended_at = datetime.fromisoformat(payload["end_time_utc"])
-        started_utc = (
-            datetime.fromisoformat(payload["start_time_utc"])
-            if "start_time_utc" in payload
-            else None
-        )
+        started_utc = datetime.fromisoformat(payload["start_time_utc"]) if "start_time_utc" in payload else None
         test_slots = ctx.suite_test_results
         slot_counts = payload["test_slot_counts"]
         common_failures = payload["common_failed_verifications"]

@@ -265,4 +265,3 @@ def test_invalid_cycle_for_duration(tmp_path, fixtures_dir) -> None:
     )
     with pytest.raises(SuiteError, match="Invalid cycle_for duration"):
         load_suite_toml(path)
-

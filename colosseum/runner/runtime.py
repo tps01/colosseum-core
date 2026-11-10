@@ -126,8 +126,7 @@ def rename_run_directory_for_result(
                 time.sleep(delay)
                 delay = min(delay * 2, 0.5)
     print(
-        f"Colosseum: failed to rename {output_dir} -> {candidate.name}: {last_error}; "
-        "leaving directory unrenamed",
+        f"Colosseum: failed to rename {output_dir} -> {candidate.name}: {last_error}; leaving directory unrenamed",
         file=sys.stderr,
     )
     return output_dir
@@ -303,9 +302,7 @@ def begin_script_slot(
     # Mode/phase bookkeeping must run before the no-artifacts early return so
     # procedure applies only to test slots and supporting phases stay full.
     ctx.active_execution_mode = (
-        "procedure"
-        if phase == "test" and ctx.session.requested_execution_mode == "procedure"
-        else "full"
+        "procedure" if phase == "test" and ctx.session.requested_execution_mode == "procedure" else "full"
     )
     console_level = logging.DEBUG if ctx.debug_logging else logging.INFO
     if ctx.no_artifacts:

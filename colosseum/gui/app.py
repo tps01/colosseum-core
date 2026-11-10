@@ -59,8 +59,16 @@ def _make_paned(
     bg: str,
 ) -> tk.PanedWindow:
     return tk.PanedWindow(
-        parent, orient=orient, sashwidth=6, sashrelief=tk.FLAT, sashpad=0,
-        bd=0, relief=tk.FLAT, bg=bg, background=bg, borderwidth=0,
+        parent,
+        orient=orient,
+        sashwidth=6,
+        sashrelief=tk.FLAT,
+        sashpad=0,
+        bd=0,
+        relief=tk.FLAT,
+        bg=bg,
+        background=bg,
+        borderwidth=0,
     )
 
 
@@ -172,7 +180,11 @@ class ColosseumApp:
         self._build_form()
         self._build_body(_pane_bg(root, ctk))
         ctk.CTkLabel(root, textvariable=self._status).grid(
-            row=1, column=0, sticky="w", padx=12, pady=(0, 4),
+            row=1,
+            column=0,
+            sticky="w",
+            padx=12,
+            pady=(0, 4),
         )
 
     def _build_form(self) -> None:
@@ -192,7 +204,9 @@ class ColosseumApp:
             ctk.CTkLabel(form, text=label).grid(row=i, column=0, padx=4, pady=2, sticky="w")
             ctk.CTkEntry(form, textvariable=var).grid(row=i, column=1, padx=4, pady=2, sticky="ew")
             ctk.CTkButton(
-                form, text="Browse", width=80,
+                form,
+                text="Browse",
+                width=80,
                 command=lambda ft=fts, v=var: v.set(_browse_file("Select file", ft, self._cwd)),
             ).grid(row=i, column=2, padx=4)
         actions = ctk.CTkFrame(form, fg_color="transparent")
@@ -203,7 +217,9 @@ class ColosseumApp:
         self._stop_btn.grid(row=0, column=2, padx=4)
         ctk.CTkCheckBox(actions, text="Debug", variable=self._debug).grid(row=0, column=3, padx=8)
         ctk.CTkCheckBox(actions, text="No sleep", variable=self._no_sleep).grid(
-            row=0, column=4, padx=8,
+            row=0,
+            column=4,
+            padx=8,
         )
 
     def _build_log_tab(self, *, scale: float) -> None:
@@ -259,13 +275,19 @@ class ColosseumApp:
         ctrls = ctk.CTkFrame(header, fg_color="transparent")
         ctrls.grid(row=0, column=1, sticky="e")
         ctk.CTkButton(ctrls, text="Refresh", width=70, command=self._refresh_runs).grid(
-            row=0, column=0, padx=2,
+            row=0,
+            column=0,
+            padx=2,
         )
         ctk.CTkButton(ctrls, text="Expand", width=70, command=self._expand_all_output_dirs).grid(
-            row=0, column=1, padx=2,
+            row=0,
+            column=1,
+            padx=2,
         )
         ctk.CTkButton(ctrls, text="Collapse", width=70, command=self._collapse_all_output_dirs).grid(
-            row=0, column=2, padx=2,
+            row=0,
+            column=2,
+            padx=2,
         )
         self._run_list = ctk.CTkScrollableFrame(runs_panel)
         self._run_list.grid(row=1, column=0, sticky="nsew", padx=4, pady=(0, 4))
@@ -282,7 +304,10 @@ class ColosseumApp:
         viewer_bar = ctk.CTkFrame(viewer, fg_color="transparent")
         viewer_bar.grid(row=0, column=0, sticky="ew", padx=4, pady=(4, 0))
         ctk.CTkButton(
-            viewer_bar, text="Open output folder", width=140, command=self._open_selected_folder,
+            viewer_bar,
+            text="Open output folder",
+            width=140,
+            command=self._open_selected_folder,
         ).pack(side="left", padx=2)
         self._tabs = ctk.CTkTabview(viewer)
         self._tabs.grid(row=1, column=0, sticky="nsew", padx=4, pady=4)
@@ -363,11 +388,17 @@ class ColosseumApp:
 
         path = absolute_path(p)
         if path.is_file():
-            self._start_run(RunRequest(
-                RunKind.TEST, path, self._config_value(), self._metadata_value(), self._debug.get(),
-                parameters_path=self._parameters_value(),
-                no_sleep=self._no_sleep.get(),
-            ))
+            self._start_run(
+                RunRequest(
+                    RunKind.TEST,
+                    path,
+                    self._config_value(),
+                    self._metadata_value(),
+                    self._debug.get(),
+                    parameters_path=self._parameters_value(),
+                    no_sleep=self._no_sleep.get(),
+                ),
+            )
 
     def _run_suite(self) -> None:
         p = self._suite_path.get().strip()
@@ -377,11 +408,17 @@ class ColosseumApp:
 
         path = absolute_path(p)
         if path.is_file():
-            self._start_run(RunRequest(
-                RunKind.SUITE, path, self._config_value(), self._metadata_value(), self._debug.get(),
-                parameters_path=self._parameters_value(),
-                no_sleep=self._no_sleep.get(),
-            ))
+            self._start_run(
+                RunRequest(
+                    RunKind.SUITE,
+                    path,
+                    self._config_value(),
+                    self._metadata_value(),
+                    self._debug.get(),
+                    parameters_path=self._parameters_value(),
+                    no_sleep=self._no_sleep.get(),
+                ),
+            )
 
     def _start_run(self, request: RunRequest) -> None:
         if self._worker.is_running():
@@ -426,7 +463,9 @@ class ColosseumApp:
     def _refresh_runs(self) -> None:
         self._browser_generation += 1
         gen = self._browser_generation
-        threading.Thread(target=lambda: self._ui_events.put(("browser", gen, load_run_browser_snapshot(self._cwd))), daemon=True).start()
+        threading.Thread(
+            target=lambda: self._ui_events.put(("browser", gen, load_run_browser_snapshot(self._cwd))), daemon=True,
+        ).start()
 
     def _expand_all_output_dirs(self) -> None:
         self._expanded_output_dirs = set(self._browser_snapshot.output_dirs)
@@ -468,7 +507,10 @@ class ColosseumApp:
                 key = ("outputs", outputs_dir)
                 active.add(key)
                 hdr = self._run_widgets.get(key) or ctk.CTkButton(
-                    self._run_list, anchor="w", fg_color="transparent", hover_color=("gray85", "gray25"),
+                    self._run_list,
+                    anchor="w",
+                    fg_color="transparent",
+                    hover_color=("gray85", "gray25"),
                     command=lambda od=outputs_dir: self._toggle_outputs_dir(od),
                 )
                 self._run_widgets[key] = hdr
@@ -513,7 +555,10 @@ class ColosseumApp:
         key = ("run", run_dir)
         active.add(key)
         btn = self._run_widgets.get(key) or self._ctk.CTkButton(
-            self._run_list, anchor="w", fg_color="transparent", hover_color=("gray85", "gray25"),
+            self._run_list,
+            anchor="w",
+            fg_color="transparent",
+            hover_color=("gray85", "gray25"),
             command=lambda rd=run_dir: self._select_run(rd),
         )
         self._run_widgets[key] = btn
@@ -525,13 +570,20 @@ class ColosseumApp:
         ctk = self._ctk
         frame = ctk.CTkFrame(self._run_list, fg_color="transparent")
         mark = ctk.CTkButton(
-            frame, text="[+]", width=36, anchor="w",
-            fg_color="transparent", text_color=("gray10", "white"),
+            frame,
+            text="[+]",
+            width=36,
+            anchor="w",
+            fg_color="transparent",
+            text_color=("gray10", "white"),
             hover_color=("gray85", "gray25"),
             command=lambda rd=run_dir: self._toggle_suite(rd),
         )
         name = ctk.CTkButton(
-            frame, text="", anchor="w", fg_color="transparent",
+            frame,
+            text="",
+            anchor="w",
+            fg_color="transparent",
             hover_color=("gray85", "gray25"),
             command=lambda rd=run_dir: self._toggle_suite(rd),
         )
@@ -556,10 +608,12 @@ class ColosseumApp:
         self._hide_result_detail()
         self._render_result_rows()
         threading.Thread(
-            target=lambda: self._ui_events.put(("run", gen, load_run_snapshot(run_dir))), daemon=True,
+            target=lambda: self._ui_events.put(("run", gen, load_run_snapshot(run_dir))),
+            daemon=True,
         ).start()
         threading.Thread(
-            target=lambda: self._ui_events.put(("evidence", gen, load_run_evidence(run_dir))), daemon=True,
+            target=lambda: self._ui_events.put(("evidence", gen, load_run_evidence(run_dir))),
+            daemon=True,
         ).start()
 
     def _apply_run_snapshot(self, snap: RunSnapshot) -> None:
@@ -599,10 +653,7 @@ class ColosseumApp:
             return
         self._slot_list.grid()
         for slot in slots:
-            label = (
-                f"{slot.get('phase')} [{slot.get('overall_result')}] "
-                f"{Path(str(slot.get('script') or '')).name}"
-            )
+            label = f"{slot.get('phase')} [{slot.get('overall_result')}] {Path(str(slot.get('script') or '')).name}"
             repeat = slot.get("repeat_index")
             if repeat is not None:
                 label += f" repeat={repeat}"
@@ -611,7 +662,10 @@ class ColosseumApp:
                 label += f" cycle={cycle}"
             folder = Path(str(slot.get("output_directory") or ""))
             button = self._ctk.CTkButton(
-                self._slot_list, text=label, anchor="w", fg_color="transparent",
+                self._slot_list,
+                text=label,
+                anchor="w",
+                fg_color="transparent",
                 hover_color=("gray85", "gray25"),
                 command=lambda path=folder: self._select_slot(path),
             )
@@ -641,9 +695,11 @@ class ColosseumApp:
             os.startfile(target)  # noqa: S606
         elif sys.platform == "darwin":
             import subprocess
+
             subprocess.Popen(["open", str(target)])  # noqa: S603
         else:
             import subprocess
+
             subprocess.Popen(["xdg-open", str(target)])  # noqa: S603
 
     def _show_failures(self) -> None:
@@ -722,7 +778,10 @@ class ColosseumApp:
         for row in window:
             label = f"{row.status}  {row.step or row.key}  {row.actual}  {row.comparison}"
             button = self._ctk.CTkButton(
-                self._result_list, text=label, anchor="w", fg_color="transparent",
+                self._result_list,
+                text=label,
+                anchor="w",
+                fg_color="transparent",
                 text_color=self._status_button_color(row.status),
                 hover_color=("gray85", "gray25"),
                 command=lambda item=row: self._show_result(item),
@@ -735,13 +794,16 @@ class ColosseumApp:
         units = units_for(row, self._evidence_rows)
         self._set_text(self._result_detail, detail_text(row, units=units))
         self._result_detail.grid()
-        has_limit = limit_view(
-            compare_op=row.compare_op,
-            expected_raw=row.expected_raw,
-            tolerance_raw=row.tolerance_raw,
-            actual_raw=row.actual_raw,
-            units=units,
-        ) is not None
+        has_limit = (
+            limit_view(
+                compare_op=row.compare_op,
+                expected_raw=row.expected_raw,
+                tolerance_raw=row.tolerance_raw,
+                actual_raw=row.actual_raw,
+                units=units,
+            )
+            is not None
+        )
         has_xy = self._series_for_row(row) is not None
         self._tabs.tab("Results").grid_rowconfigure(3, weight=1 if has_xy else 0)
         self._show_plot_canvas(self._limit_canvas, visible=has_limit)
@@ -808,7 +870,10 @@ class ColosseumApp:
         if series is not None or self._selected_run_dir is None:
             return series
         linked = links_for_row(
-            row, self._evidence_rows, run_dir=self._selected_run_dir, import_origin=self._import_origin,
+            row,
+            self._evidence_rows,
+            run_dir=self._selected_run_dir,
+            import_origin=self._import_origin,
         )
         for link in linked:
             if not link.exists or link.path.suffix.lower() != ".json":
@@ -862,16 +927,21 @@ class ColosseumApp:
             _place_limit_label(canvas, x, label_y, caption(limit), width, occupied)
         actual_x = x_of(view.actual)
         canvas.create_oval(
-            actual_x - 5, line_y - 5, actual_x + 5, line_y + 5, fill="#f0f6fc", outline="#f0f6fc",
+            actual_x - 5,
+            line_y - 5,
+            actual_x + 5,
+            line_y + 5,
+            fill="#f0f6fc",
+            outline="#f0f6fc",
         )
-        same_as_limit = any(
-            limit is not None and limit == view.actual for limit in (view.low, view.high)
-        )
+        same_as_limit = any(limit is not None and limit == view.actual for limit in (view.low, view.high))
         if not same_as_limit:
             _place_limit_label(canvas, actual_x, label_y, caption(view.actual), width, occupied)
         return True
 
-    def _prep_xy(self, row: Any) -> tuple[Any, list[tuple[float | None, float | None]], Any, Any, int] | Literal[False] | None:  # noqa: ANN401
+    def _prep_xy(
+        self, row: Any,
+    ) -> tuple[Any, list[tuple[float | None, float | None]], Any, Any, int] | Literal[False] | None:  # noqa: ANN401
         """Return stroke inputs, ``False`` when canvas is too small, or ``None`` to abort."""
         series = self._series_for_row(row)
         if series is None:
@@ -929,7 +999,10 @@ class ColosseumApp:
                 canvas.create_line(*previous, *current, fill="#58a6ff")
             previous = current
         canvas.create_text(
-            8, height - 8, anchor="w", fill="#cccccc",
+            8,
+            height - 8,
+            anchor="w",
+            fill="#cccccc",
             text=f"x ({series.x_unit})  y ({series.y_unit})",
         )
 
@@ -965,9 +1038,7 @@ class ColosseumApp:
         self._append_log(f"--- Run finished (exit {finished.exit_code}) ---")
         self._stop_btn.configure(state="disabled")
         self._status.set(
-            f"Last run: {finished.run_dir}"
-            if finished.run_dir
-            else f"Finished (exit {finished.exit_code})",
+            f"Last run: {finished.run_dir}" if finished.run_dir else f"Finished (exit {finished.exit_code})",
         )
         self._refresh_runs()
 
@@ -1024,7 +1095,10 @@ def main() -> None:
     try:
         import customtkinter as ctk
     except ImportError as exc:
-        print("Colosseum GUI requires customtkinter. Reinstall with: pip install --force-reinstall colosseum-core", file=sys.stderr)
+        print(
+            "Colosseum GUI requires customtkinter. Reinstall with: pip install --force-reinstall colosseum-core",
+            file=sys.stderr,
+        )
         raise SystemExit(1) from exc
     ctk.set_appearance_mode("system")
     ctk.set_default_color_theme("blue")

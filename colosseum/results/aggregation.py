@@ -182,11 +182,7 @@ class ResultAggregator:
         return True
 
     def failed_required_outcomes(self) -> list[OutcomeRecord]:
-        return [
-            row
-            for row in self._records
-            if not row["optional"] and row["status"] in {"FAIL", "ERROR", "BLOCKED"}
-        ]
+        return [row for row in self._records if not row["optional"] and row["status"] in {"FAIL", "ERROR", "BLOCKED"}]
 
     def has_required_procedural_command_error(self) -> bool:
         return bool(self.required_command_errors(cause="procedural"))
@@ -259,17 +255,11 @@ def build_run_summary(
         "verification_counts": verification_counts,
         "command_counts": command_counts,
         "failed_required_outcomes": [
-            {
-                name: row.get(name, "")
-                for name in ("kind", "domain", "command", "key", "status", "message")
-            }
+            {name: row.get(name, "") for name in ("kind", "domain", "command", "key", "status", "message")}
             for row in failed
         ],
         "failed_required_verifications": [
-            {
-                name: row.get(name, "")
-                for name in ("domain", "command", "key", "status", "message", "description")
-            }
+            {name: row.get(name, "") for name in ("domain", "command", "key", "status", "message", "description")}
             for row in failed
             if row["kind"] == "verification"
         ],
@@ -284,8 +274,7 @@ def build_run_summary(
     if ctx.run_options.dry_run:
         payload["dry_run"] = True
         payload["dry_run_calls"] = [
-            {name: row.get(name, "") for name in ("kind", "domain", "command", "key", "status")}
-            for row in records
+            {name: row.get(name, "") for name in ("kind", "domain", "command", "key", "status")} for row in records
         ]
         if ctx.dry_run_tips:
             payload["dry_run_tips"] = list(ctx.dry_run_tips)

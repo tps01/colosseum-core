@@ -95,12 +95,7 @@ def _limit_number(value: object) -> float:
     """Coerce a limit value to float. Strings such as ``\"3.3\"`` are accepted."""
     if isinstance(value, bool):
         raise TypeError(f"expected numeric limit, got {type(value)!r}")
-    if isinstance(value, (int, float)):
-        number = float(value)
-        if not math.isfinite(number):
-            raise TypeError(f"expected finite numeric limit, got {value!r}")
-        return number
-    if isinstance(value, str):
+    if isinstance(value, (int, float, str)):
         number = float(value)
         if not math.isfinite(number):
             raise TypeError(f"expected finite numeric limit, got {value!r}")
@@ -203,21 +198,6 @@ def _tol_none(
         actual=actual,
         optional=optional,
         fail_message=f"expected {expected}, got {actual}",
-    )
-
-
-def _tol_bool(
-    actual: object,
-    expected: object,
-    tolerance: object,
-    *,
-    optional: bool,
-) -> VerificationResult:
-    del expected
-    return _error_result(
-        f"unsupported tolerance {tolerance!r}",
-        actual=actual,
-        optional=optional,
     )
 
 
@@ -339,7 +319,7 @@ _TOLERANCE_HANDLERS: tuple[
     ...,
 ] = (
     (lambda tolerance: tolerance is None, _tol_none),
-    (lambda tolerance: isinstance(tolerance, bool), _tol_bool),
+    (lambda tolerance: isinstance(tolerance, bool), _tol_unsupported),
     (lambda tolerance: isinstance(tolerance, (int, float)), _tol_numeric),
     (lambda tolerance: isinstance(tolerance, str), _tol_str),
 )
@@ -782,10 +762,7 @@ class _VerificationBinding:
             key=identity.key_text,
             status=result.status,
             optional=result.optional,
-            detail=(
-                f"expected={_reference_expected(prepared.call_kwargs)!r} "
-                f"message={result.message!r}"
-            ),
+            detail=(f"expected={_reference_expected(prepared.call_kwargs)!r} message={result.message!r}"),
             call_args=prepared.call_args,
             kwargs=prepared.logged_kwargs,
         )

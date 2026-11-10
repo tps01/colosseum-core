@@ -32,13 +32,11 @@ def test_load_metadata_yaml_parses_test_metadata_block(tmp_path: Path) -> None:
 
 
 def test_merge_precedence_config_then_yaml(tmp_path: Path, io_bench) -> None:
-    bench = io_bench(
-        """
+    bench = io_bench("""
         [colosseum.metadata]
         location = "from-toml"
         uut = "TOML-PN"
-        """
-    )
+        """)
     yaml_path = tmp_path / "meta.yaml"
     yaml_path.write_text(
         "test_metadata:\n  uut: YAML-PN\n  serial_number: '99'\n",
@@ -73,12 +71,7 @@ def test_wats_export_disabled_without_output_dir(unit_runtime_context) -> None:
 
 def test_shipped_metadata_example_still_valid() -> None:
     """Keep the in-repo WATS metadata fixture parseable (no playground dependency)."""
-    example = (
-        Path(__file__).resolve().parents[2]
-        / "tests"
-        / "fixtures"
-        / "metadata_example.yaml"
-    )
+    example = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "metadata_example.yaml"
     assert example.is_file(), f"missing shipped fixture: {example}"
     parsed = load_metadata_yaml(example)
     assert parsed["uut"] == "PARTNUMBER"

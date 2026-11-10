@@ -100,9 +100,7 @@ def test_suite_requirements_use_completed_facts_in_both_storage_modes(
         assert len(summary["requirements"][0]["failures"]) == 2
         saved = query_db(container, "SELECT payload_json FROM run_result")
         assert json.loads(saved[0][0]) == summary
-        slots = query_db(
-            container, "SELECT slot_id,output_directory FROM suite_slot_results ORDER BY slot_id"
-        )
+        slots = query_db(container, "SELECT slot_id,output_directory FROM suite_slot_results ORDER BY slot_id")
         assert [row[0] for row in slots] == [0, 1, 2]
         assert all((container / row[1]).is_dir() for row in slots)
 
@@ -150,9 +148,7 @@ def test_suite_finalizes_when_directory_rename_fails(
     assert summary["overall_result"] == "PASS"
 
 
-def test_fail_fast_stops_after_required_verification_fail(
-    fixtures_dir, core_config, isolated_cwd
-) -> None:
+def test_fail_fast_stops_after_required_verification_fail(fixtures_dir, core_config, isolated_cwd) -> None:
     suite = fixtures_dir / "suites" / "multi_test_fail_fast_verify.toml"
     _run_suite_expect_exit(suite, core_config, isolated_cwd, 1)
     container = latest_suite_container(isolated_cwd)
@@ -170,9 +166,7 @@ def test_repeat_for_runs_until_deadline(fixtures_dir, core_config, isolated_cwd)
     assert len(slot_dirs_matching(container, "count_repeat")) >= 2
 
 
-def test_repeat_failure_continues_when_fail_fast_false(
-    fixtures_dir, core_config, isolated_cwd
-) -> None:
+def test_repeat_failure_continues_when_fail_fast_false(fixtures_dir, core_config, isolated_cwd) -> None:
     suite = fixtures_dir / "suites" / "repeat_fail_continue.toml"
     _run_suite_expect_exit(suite, core_config, isolated_cwd, 1)
     container = latest_suite_container(isolated_cwd)
@@ -186,9 +180,7 @@ def test_repeat_failure_stops_when_fail_fast_true(fixtures_dir, core_config, iso
     assert len(slot_dirs_matching(container, "repeat_fail_first")) == 1
 
 
-def test_between_tests_crash_continues_when_fail_fast_false(
-    fixtures_dir, core_config, isolated_cwd
-) -> None:
+def test_between_tests_crash_continues_when_fail_fast_false(fixtures_dir, core_config, isolated_cwd) -> None:
     suite = fixtures_dir / "suites" / "between_crash_continue.toml"
     _run_suite_expect_exit(suite, core_config, isolated_cwd, 1)
     container = latest_suite_container(isolated_cwd)

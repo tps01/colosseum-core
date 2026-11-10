@@ -239,7 +239,9 @@ def test_use_previous_output_reruns_verifications(core_config, isolated_cwd, sub
 
 
 def test_use_previous_output_accepts_absolute_path_with_spaces(
-    core_config, isolated_cwd, subprocess_env,
+    core_config,
+    isolated_cwd,
+    subprocess_env,
 ) -> None:
     """An absolute -u path that contains spaces still imports the prior measurement."""
     output_root = isolated_cwd / "prior runs"
@@ -269,16 +271,23 @@ def test_use_previous_output_accepts_absolute_path_with_spaces(
         ("stored",),
     )
     assert stored[0][0] == "4.2"
-    assert query_db(
-        rerun_dir,
-        "SELECT status FROM verifications WHERE key=?",
-        ("stored",),
-    )[0][0] == "PASS"
+    assert (
+        query_db(
+            rerun_dir,
+            "SELECT status FROM verifications WHERE key=?",
+            ("stored",),
+        )[
+            0
+        ][0]
+        == "PASS"
+    )
 
 
 @pytest.mark.requirement("E2E-RUN-14")
 def test_dry_run_logs_calls_without_running_bodies(
-    core_config, isolated_cwd, subprocess_env,
+    core_config,
+    isolated_cwd,
+    subprocess_env,
 ) -> None:
     """--dry-run logs decorated calls and does not run a default log body."""
     proc = run_cli(
@@ -302,7 +311,9 @@ def test_dry_run_logs_calls_without_running_bodies(
 
 @pytest.mark.requirement("E2E-RUN-15")
 def test_export_parameters_writes_file_without_scoring(
-    core_config, isolated_cwd, subprocess_env,
+    core_config,
+    isolated_cwd,
+    subprocess_env,
 ) -> None:
     """--export parameters writes parameters.toml and does not score the run."""
     try:
@@ -329,7 +340,8 @@ def test_export_parameters_writes_file_without_scoring(
 
 
 def test_cli_config_and_metadata_pin_ignore_script_loads(
-    isolated_cwd, subprocess_env,
+    isolated_cwd,
+    subprocess_env,
 ) -> None:
     """CLI -g / -m win over script load_config / load_metadata without force=True."""
     from tests.support.e2e_specifications import read_summary_json

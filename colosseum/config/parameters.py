@@ -163,9 +163,7 @@ def toml_value_supported(value: object) -> bool:
     if isinstance(value, list):
         return all(toml_value_supported(item) for item in value)
     if isinstance(value, dict):
-        return all(
-            isinstance(key, str) and toml_value_supported(item) for key, item in value.items()
-        )
+        return all(isinstance(key, str) and toml_value_supported(item) for key, item in value.items())
     return False
 
 
@@ -214,9 +212,7 @@ def _toml_value(value: object) -> str:
     if isinstance(value, list):
         return "[" + ", ".join(_toml_value(item) for item in value) + "]"
     if isinstance(value, dict):
-        fields = ", ".join(
-            f"{_toml_key(str(key))} = {_toml_value(item)}" for key, item in value.items()
-        )
+        fields = ", ".join(f"{_toml_key(str(key))} = {_toml_value(item)}" for key, item in value.items())
         return "{ " + fields + " }"
     raise ParametersError(
         f"cannot export value of type {type(value).__name__}",
