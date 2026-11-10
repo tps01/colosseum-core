@@ -85,7 +85,8 @@ def _get_dotted(raw: dict[str, Any], dotted: str) -> object | None:
 
 
 def normalize_sections(
-    raw: dict[str, Any], specs: list[ConfigSectionSpec],
+    raw: dict[str, Any],
+    specs: list[ConfigSectionSpec],
 ) -> dict[str, dict[int, dict[str, Any]]]:
     normalized: dict[str, dict[int, dict[str, Any]]] = {}
     for spec in specs:
@@ -231,10 +232,7 @@ def load_config(
     if ctx is not None and ctx.session.config_pinned and not force:
         if not ctx.session.config_pin_warned:
             ctx.session.config_pin_warned = True
-            message = (
-                "Ignoring load_config(%s): CLI/suite -g config is pinned; "
-                "pass force=True to replace"
-            )
+            message = "Ignoring load_config(%s): CLI/suite -g config is pinned; " "pass force=True to replace"
             if ctx.logger is not None:
                 ctx.logger.warning(message, path)
             else:

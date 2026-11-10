@@ -29,9 +29,7 @@ def test_decorators_create_sqlite_log_and_summary(core_config, isolated_cwd) -> 
     assert col.context.get_context().output_dir == run_dir
     assert (run_dir / "debug.log").is_file()
     assert (run_dir / "execution.sqlite").is_file()
-    tables = {
-        row[0] for row in query_db(run_dir, "SELECT name FROM sqlite_master WHERE type='table'")
-    }
+    tables = {row[0] for row in query_db(run_dir, "SELECT name FROM sqlite_master WHERE type='table'")}
     assert {"run_metadata", "measurements", "verifications", "events"} <= tables
     summary = (run_dir / "summary.txt").read_text(encoding="utf-8")
     assert "Overall result: PASS" in summary
@@ -176,9 +174,7 @@ def test_direct_script_unhandled_exception_auto_finalizes_fail(
     assert proc.returncode != 0
     run_dir = latest_output_dir(isolated_cwd)
     assert run_dir.name.endswith("-fail")
-    unfinalized = [
-        path for path in (isolated_cwd / "outputs").glob("*_direct_crash") if path.is_dir()
-    ]
+    unfinalized = [path for path in (isolated_cwd / "outputs").glob("*_direct_crash") if path.is_dir()]
     assert unfinalized == []
     payload = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
     assert payload["overall_result"] == "FAIL"

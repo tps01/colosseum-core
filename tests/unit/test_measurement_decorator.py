@@ -136,18 +136,13 @@ def test_debug_log_lists_call_arguments(ctx) -> None:
     assert ctx.output_dir is not None
     text = (ctx.output_dir / "debug.log").read_text(encoding="utf-8")
     debug_lines = [
-        line
-        for line in text.splitlines()
-        if " DEBUG [" in line and "measurement core.read_probe key=probe" in line
+        line for line in text.splitlines() if " DEBUG [" in line and "measurement core.read_probe key=probe" in line
     ]
     assert len(debug_lines) == 1
     assert "status=PASS optional=False" in debug_lines[0]
     assert "'key': 'probe'" in debug_lines[0]
     assert "'note': '" + long_note + "'" in debug_lines[0]
-    assert not any(
-        " INFO [" in line and "measurement core.read_probe key=probe" in line
-        for line in text.splitlines()
-    )
+    assert not any(" INFO [" in line and "measurement core.read_probe key=probe" in line for line in text.splitlines())
 
     @measurement
     def fail_probe(*, key: str, password: str) -> int:

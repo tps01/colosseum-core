@@ -37,10 +37,7 @@ def test_resolve_order_cli_then_entry_then_sibling(tmp_path: Path) -> None:
 
     assert resolve_parameters_path(script_path=script) == sibling.resolve()
     assert resolve_parameters_path(script_path=script, entry_path=entry) == entry.resolve()
-    assert (
-        resolve_parameters_path(script_path=script, cli_path=cli, entry_path=entry)
-        == cli.resolve()
-    )
+    assert resolve_parameters_path(script_path=script, cli_path=cli, entry_path=entry) == cli.resolve()
     other = tmp_path / "other"
     other.mkdir()
     assert resolve_parameters_path(script_path=other / "missing.py") is None
@@ -257,7 +254,7 @@ def test_load_parameter_from_file(unit_runtime_context, tmp_path: Path) -> None:
                 'items = ["thing1", "thing2"]',
                 'meta = { gain = 1.5, mode = "fast" }',
                 'nested = ["[a, b]", "plain"]',
-                'literal = "[\'thing1\', \'thing2\']"',
+                "literal = \"['thing1', 'thing2']\"",
                 'group = "{1, 2}"',
                 "",
             ],

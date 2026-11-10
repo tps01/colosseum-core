@@ -61,7 +61,10 @@ class RunSession:
         from colosseum.logging.setup import setup_logging
 
         return setup_logging(
-            ctx, console=console, console_level=console_level, file=file,
+            ctx,
+            console=console,
+            console_level=console_level,
+            file=file,
         )
 
     def reattach_console(

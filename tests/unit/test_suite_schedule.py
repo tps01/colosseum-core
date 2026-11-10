@@ -33,10 +33,7 @@ def _suite(
     return SuiteDefinition(
         name="clock",
         setup=[],
-        tests=[
-            SuiteTestEntry(path=Path(name), repeat_for=repeat_for)
-            for name in names
-        ],
+        tests=[SuiteTestEntry(path=Path(name), repeat_for=repeat_for) for name in names],
         between_tests=[],
         teardown=[],
         cycle_for=cycle_for,

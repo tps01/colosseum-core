@@ -9,6 +9,8 @@ from colosseum.gui._browser import (
     load_run_browser_snapshot,
     load_run_snapshot,
 )
+
+
 def test_load_run_browser_snapshot_reads_statuses(isolated_cwd) -> None:
     pass_run = isolated_cwd / "outputs" / "2026-01-01_120000_pass-pass"
     incomplete_run = isolated_cwd / "playground" / "outputs" / "2026-01-01_120001_incomplete"
@@ -216,4 +218,3 @@ def test_format_summary_text_includes_suite_slot_metrics() -> None:
     assert "Start time: 2026-10-23T18:00:00+00:00" in text
     assert "Runtime: 0:00:10" in text
     assert "2x test=0 boot_verify.py equipment.verify_voltage key=rail_a" in text
-

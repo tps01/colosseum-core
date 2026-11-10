@@ -39,7 +39,9 @@ def test_attach_console_logger_skips_identity_header(unit_runtime_context, capsy
 
 
 def test_session_reattach_after_finalize_skips_header(
-    unit_runtime_context, capsys, tmp_path,
+    unit_runtime_context,
+    capsys,
+    tmp_path,
 ) -> None:
     """finalize_script_slot reattach must not emit a second identity header."""
     from colosseum.runner.runtime import begin_script_slot, ensure_suite_runtime_ready

@@ -112,15 +112,19 @@ def test_dispatch_wrappers_compose(monkeypatch, profile, no_sleep, dispatch) -> 
     import colosseum.runner.cli as cli
 
     calls = []
+
     def run_profile(action, **kwargs):
         calls.append("profile")
         return action()
+
     def run_awake(action):
         calls.append("awake")
         return action()
+
     def action():
         calls.append("action")
         return 3
+
     monkeypatch.setattr(profiling, "run_with_profile", run_profile)
     monkeypatch.setattr("colosseum.runner.keep_awake.run_with_no_sleep", run_awake)
     monkeypatch.setattr(cli, "_dispatch_run", lambda parser, args: action())

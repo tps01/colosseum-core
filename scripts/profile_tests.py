@@ -30,6 +30,7 @@ _TIER_PATHS: dict[str, tuple[str, ...]] = {
     "all": ("tests/unit", "tests/integration", "tests/e2e"),
 }
 
+
 def main(argv: list[str] | None = None) -> int:
     """Profile selected pytest tier(s) with cProfile and print timing tables.
 

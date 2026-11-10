@@ -211,10 +211,7 @@ def test_dry_run_allows_keyless_verification(unit_runtime_context) -> None:
     log_text = (ctx.output_dir / "debug.log").read_text(encoding="utf-8")
     assert "verification omitted key=" in log_text
     assert "assigned an auto key" in log_text
-    records = [
-        row for row in ctx.result_aggregator._records  # noqa: SLF001
-        if row.get("kind") == "verification"
-    ]
+    records = [row for row in ctx.result_aggregator._records if row.get("kind") == "verification"]  # noqa: SLF001
     assert records and records[0].get("key") == "1"
 
 
@@ -307,11 +304,7 @@ def test_dry_run_owed_limit_blocks_only_unmeasured_keys(unit_runtime_context) ->
 
     assert capture(key="seen", value=1.0) is None
     _insert_blocked_owed_keys(ctx)
-    blocked = [
-        row["key"]
-        for row in ctx.result_aggregator._records  # noqa: SLF001
-        if row["status"] == "BLOCKED"
-    ]
+    blocked = [row["key"] for row in ctx.result_aggregator._records if row["status"] == "BLOCKED"]  # noqa: SLF001
     assert blocked == ["missed"]
 
 
@@ -347,14 +340,17 @@ def test_export_merges_keyed_kwargs_and_skips_bookkeeping(unit_runtime_context) 
 
     assert note(message="hello") is None
     assert capture(key="rx_level", value=0.0) is None
-    assert check(
-        key="rx_level",
-        expected_val=1.5,
-        tolerance=0.25,
-        optional=True,
-        description="level",
-        row_index=3,
-    ) is None
+    assert (
+        check(
+            key="rx_level",
+            expected_val=1.5,
+            tolerance=0.25,
+            optional=True,
+            description="level",
+            row_index=3,
+        )
+        is None
+    )
     assert ctx.parameter_export == {
         "rx_level": {
             "value": 0.0,
@@ -470,8 +466,7 @@ def test_finish_skips_the_file_when_export_failed(unit_runtime_context) -> None:
     ctx = unit_runtime_context
     ctx.parameter_export = {"rx_level": {"value": 1.0}}
     ctx.export_errors.append(
-        "`capture` measurement was missing a key; "
-        "pass key=... or call col.auto_key() near the start of main()"
+        "`capture` measurement was missing a key; " "pass key=... or call col.auto_key() near the start of main()"
     )
     assert ctx.output_dir is not None
     code = finish_parameter_export(ctx, failed=False)

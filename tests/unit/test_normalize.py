@@ -7,7 +7,6 @@ import pytest
 from colosseum.config.loader import normalize_sections
 from colosseum.config.sections import ConfigSectionSpec
 
-
 PSU_SPEC = ConfigSectionSpec(
     dotted_path="equipment.psu",
     id_field="psu_id",

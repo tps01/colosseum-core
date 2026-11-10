@@ -87,7 +87,9 @@ def test_ensure_runtime_ready_does_not_allocate_beside_suite_container(
 
 
 def test_rename_run_directory_for_result_keeps_dir_after_oserror(
-    isolated_cwd, monkeypatch, capsys,
+    isolated_cwd,
+    monkeypatch,
+    capsys,
 ) -> None:
     from pathlib import Path
 
@@ -100,7 +102,10 @@ def test_rename_run_directory_for_result_keeps_dir_after_oserror(
 
     monkeypatch.setattr(Path, "rename", boom)
     final_dir = rename_run_directory_for_result(
-        run_dir, "FAIL", retries=2, initial_delay_s=0.0,
+        run_dir,
+        "FAIL",
+        retries=2,
+        initial_delay_s=0.0,
     )
     assert final_dir == run_dir
     assert run_dir.is_dir()

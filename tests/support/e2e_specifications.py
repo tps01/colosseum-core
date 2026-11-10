@@ -128,10 +128,7 @@ def assert_provenance_artifact(run_dir: Path) -> dict[str, Any]:
     for section in ("platform", "packages", "inputs", "repositories"):
         assert f"Provenance: {section}=" in log_text
     assert "Provenance:" not in (run_dir / "summary.txt").read_text(encoding="utf-8")
-    sections = [
-        row[0]
-        for row in query_db(run_dir, "SELECT section FROM provenance ORDER BY section")
-    ]
+    sections = [row[0] for row in query_db(run_dir, "SELECT section FROM provenance ORDER BY section")]
     assert sections == ["inputs", "packages", "platform", "repositories"]
     return provenance
 

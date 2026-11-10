@@ -19,9 +19,12 @@ def test_build_pdf_invokes_sphinx_and_latexmk(tmp_path, monkeypatch) -> None:
     (latex_dir / "colosseum.tex").write_text("\\documentclass{article}\n", encoding="utf-8")
     pdf_path = latex_dir / "colosseum.pdf"
 
-    with patch("build_pdf.require_latex_toolchain"), patch(
-        "build_pdf.subprocess.run"
-    ) as run_mock, patch("build_pdf._find_main_tex", return_value=latex_dir / "colosseum.tex"):
+    with (
+        patch("build_pdf.require_latex_toolchain"),
+        patch("build_pdf.subprocess.run") as run_mock,
+        patch("build_pdf._find_main_tex", return_value=latex_dir / "colosseum.tex"),
+    ):
+
         def fake_run(cmd, **kwargs):
             if cmd and cmd[0] == "latexmk":
                 pdf_path.write_bytes(b"%PDF")

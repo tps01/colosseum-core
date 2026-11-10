@@ -171,9 +171,7 @@ def test_cli_cancels_when_output_root_is_not_a_directory(
     marker = tmp_path / "ran.txt"
     script = tmp_path / "should_not_run.py"
     script.write_text(
-        "from pathlib import Path\n"
-        "def main():\n"
-        f"    Path({str(marker)!r}).write_text('ran', encoding='utf-8')\n",
+        "from pathlib import Path\n" "def main():\n" f"    Path({str(marker)!r}).write_text('ran', encoding='utf-8')\n",
         encoding="utf-8",
     )
     try:
@@ -364,10 +362,13 @@ def test_suite_inputs_opt_out_records_only_suite_level(tmp_path: Path) -> None:
     parameter_rows = [row for row in rows if row["role"] == "parameters"]
     assert len(parameter_rows) == 1
     assert parameter_rows[0]["path"] == str(cli_parameters.resolve())
-    assert parameter_rows[0]["md5"] == hashlib.md5(
-        cli_parameters.read_bytes(),
-        usedforsecurity=False,
-    ).hexdigest()
+    assert (
+        parameter_rows[0]["md5"]
+        == hashlib.md5(
+            cli_parameters.read_bytes(),
+            usedforsecurity=False,
+        ).hexdigest()
+    )
 
 
 def test_suite_inputs_include_sibling_parameters_once(tmp_path: Path) -> None:
@@ -393,10 +394,13 @@ def test_suite_inputs_include_sibling_parameters_once(tmp_path: Path) -> None:
         _close_runtime(ctx)
     parameter_rows = [row for row in rows if row["role"] == "parameters"]
     assert len(parameter_rows) == 1
-    assert parameter_rows[0]["md5"] == hashlib.md5(
-        sibling.read_bytes(),
-        usedforsecurity=False,
-    ).hexdigest()
+    assert (
+        parameter_rows[0]["md5"]
+        == hashlib.md5(
+            sibling.read_bytes(),
+            usedforsecurity=False,
+        ).hexdigest()
+    )
 
 
 def test_provenance_database_round_trip(tmp_path: Path) -> None:
@@ -410,8 +414,7 @@ def test_provenance_database_round_trip(tmp_path: Path) -> None:
         }
         write_provenance_database(database, snapshot)
         rows = {
-            str(row["section"]): json.loads(str(row["payload_json"]))
-            for row in database.fetch_table_rows("provenance")
+            str(row["section"]): json.loads(str(row["payload_json"])) for row in database.fetch_table_rows("provenance")
         }
     finally:
         database.close()

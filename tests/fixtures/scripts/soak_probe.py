@@ -89,8 +89,7 @@ def main() -> None:
     col_count = sum(
         1
         for obj in gc.get_objects()
-        if isinstance(getattr(type(obj), "__module__", None), str)
-        and type(obj).__module__.startswith("colosseum")
+        if isinstance(getattr(type(obj), "__module__", None), str) and type(obj).__module__.startswith("colosseum")
     )
     gc_count = len(gc.get_objects())
     repeat = ctx.slot_repeat_index if ctx.slot_repeat_index is not None else -1

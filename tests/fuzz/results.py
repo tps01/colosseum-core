@@ -87,7 +87,10 @@ def check_input(data: bytes) -> None:
         before = copy.deepcopy(agg._records)
         for _ in range(2):
             summary = build_run_summary(
-                ctx, agg, measurement_count=measurements, command_count=commands,
+                ctx,
+                agg,
+                measurement_count=measurements,
+                command_count=commands,
             )
             assert summary["exit_code"] == int(failed)
             assert summary["overall_result"] == ("FAIL" if failed else "PASS")

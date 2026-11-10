@@ -63,15 +63,11 @@ def check_input(data: bytes) -> None:
             )
         for model in expected:
             matches = [
-                row
-                for row in expected
-                if all(row[field] == model[field] for field in ("domain", "command", "key"))
+                row for row in expected if all(row[field] == model[field] for field in ("domain", "command", "key"))
             ]
             rows = db.list_measurements(model["domain"], model["command"], model["key"])
             assert [projection(row) for row in rows] == matches
-            latest = next(
-                row for row in reversed(matches) if row["row_index"] == model["row_index"]
-            )
+            latest = next(row for row in reversed(matches) if row["row_index"] == model["row_index"])
             found = db.get_measurement(
                 model["domain"],
                 model["command"],
@@ -188,9 +184,7 @@ def check_failures(data: bytes) -> None:
                 try:
                     operation()
                 except OSError as exc:
-                    assert str(exc) == (
-                        "controlled commit failure" if mode & 1 else "controlled apply failure"
-                    )
+                    assert str(exc) == ("controlled commit failure" if mode & 1 else "controlled apply failure")
                 else:
                     raise AssertionError("Storage failure was not propagated")
             assert conn.execute("SELECT value FROM evidence").fetchall() == [(-1,)]

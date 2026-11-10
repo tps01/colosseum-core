@@ -71,9 +71,7 @@ def plugin_python(tmp_path: Path) -> Path:
             if spec is not None and spec.origin:
                 source = Path(spec.origin)
                 if spec.submodule_search_locations:
-                    shutil.copytree(
-                        source.parent, packages / name, ignore=shutil.ignore_patterns("__pycache__")
-                    )
+                    shutil.copytree(source.parent, packages / name, ignore=shutil.ignore_patterns("__pycache__"))
                 else:
                     shutil.copy2(source, packages / source.name)
         yield Path(directory) / ("Scripts/python.exe" if os.name == "nt" else "bin/python")

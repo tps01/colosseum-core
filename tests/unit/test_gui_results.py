@@ -74,10 +74,7 @@ def test_load_run_evidence_reads_sqlite_without_writing(tmp_path: Path) -> None:
     loaded = load_run_evidence(tmp_path)
     assert database.read_bytes() == before
     assert loaded.error is None
-    assert any(
-        row.kind == "verification" and row.comparison == "3.3 ± 0" and row.step == "rail"
-        for row in loaded.rows
-    )
+    assert any(row.kind == "verification" and row.comparison == "3.3 ± 0" and row.step == "rail" for row in loaded.rows)
     assert any(row.kind == "command" and row.status == "ERROR" for row in loaded.rows)
 
 
@@ -128,14 +125,25 @@ def test_load_run_evidence_reads_sqlite_without_later_columns(tmp_path: Path) ->
 
 def test_limit_view_rejects_non_numeric_and_keeps_one_sided_bounds() -> None:
     view = limit_view(
-        compare_op="GE", expected_raw="3.3", tolerance_raw="", actual_raw="2.9", units="V",
+        compare_op="GE",
+        expected_raw="3.3",
+        tolerance_raw="",
+        actual_raw="2.9",
+        units="V",
     )
     assert view is not None
     assert view.low == 3.3
     assert view.high is None
-    assert limit_view(
-        compare_op="EQ", expected_raw='"up"', tolerance_raw="", actual_raw='"down"', units="",
-    ) is None
+    assert (
+        limit_view(
+            compare_op="EQ",
+            expected_raw='"up"',
+            tolerance_raw="",
+            actual_raw='"down"',
+            units="",
+        )
+        is None
+    )
 
 
 def test_limit_window_uses_one_zoom_for_the_same_limits() -> None:
@@ -169,22 +177,39 @@ def test_artifact_link_uses_only_a_unique_measurement(tmp_path: Path) -> None:
     capture = tmp_path / "shot.png"
     capture.write_bytes(b"\x89PNG\r\n")
     measurement = _row(
-        kind="measurement", record_id=9, artifact_stored="shot.png", key="rail_v",
-        domain="core", command="verify_rail_v",
+        kind="measurement",
+        record_id=9,
+        artifact_stored="shot.png",
+        key="rail_v",
+        domain="core",
+        command="verify_rail_v",
     )
     verification = _row(artifact_stored="")
     linked = links_for_row(
-        verification, [verification, measurement], run_dir=tmp_path, import_origin=None,
+        verification,
+        [verification, measurement],
+        run_dir=tmp_path,
+        import_origin=None,
     )
     assert len(linked) == 1
     assert linked[0].exists
     second = _row(
-        kind="measurement", record_id=10, artifact_stored="other.png", key="rail_v",
-        domain="core", command="verify_rail_v",
+        kind="measurement",
+        record_id=10,
+        artifact_stored="other.png",
+        key="rail_v",
+        domain="core",
+        command="verify_rail_v",
     )
-    assert links_for_row(
-        verification, [verification, measurement, second], run_dir=tmp_path, import_origin=None,
-    ) == []
+    assert (
+        links_for_row(
+            verification,
+            [verification, measurement, second],
+            run_dir=tmp_path,
+            import_origin=None,
+        )
+        == []
+    )
     loose = tmp_path / "note.txt"
     loose.write_text("hello", encoding="utf-8")
     extras = unassociated_files(tmp_path, linked)

@@ -14,9 +14,7 @@ def register(registry: PluginRegistry) -> None:
 
     registry.register_namespace("contract_probe", api)
     registry.register_shutdown(lambda: api.shutdown())
-    registry.register_listener(
-        "contract_probe", lambda output, result, ctx: api.report(output, result, ctx)
-    )
+    registry.register_listener("contract_probe", lambda output, result, ctx: api.report(output, result, ctx))
     registry.register_config_section(
         ConfigSectionSpec(
             dotted_path="contract_probe.device",

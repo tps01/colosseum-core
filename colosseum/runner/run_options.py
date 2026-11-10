@@ -79,10 +79,7 @@ def validate_run_flags(
         (dry_run and export is not None, "--dry-run cannot be combined with --export"),
         (
             mode is not None or procedure or previous_output is not None,
-            (
-                "--dry-run and --export cannot be combined with --mode, -p/--procedure, "
-                "or -u/--use-previous-output"
-            ),
+            ("--dry-run and --export cannot be combined with --mode, -p/--procedure, " "or -u/--use-previous-output"),
         ),
         (
             no_artifacts,

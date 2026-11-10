@@ -239,14 +239,20 @@ def _emit_counts(lines: list[str], summary: dict[str, Any]) -> None:
     verification_counts = summary.get("verification_counts") or {}
     command_counts = summary.get("command_counts") or {}
     count_groups = (
-        (verification_counts, (
-            ("Verifications (required)", "required"),
-            ("Verifications (optional)", "optional"),
-        )),
-        (command_counts, (
-            ("Commands (required outcomes)", "required"),
-            ("Commands (optional outcomes)", "optional"),
-        )),
+        (
+            verification_counts,
+            (
+                ("Verifications (required)", "required"),
+                ("Verifications (optional)", "optional"),
+            ),
+        ),
+        (
+            command_counts,
+            (
+                ("Commands (required outcomes)", "required"),
+                ("Commands (optional outcomes)", "optional"),
+            ),
+        ),
     )
     for counts, labels in count_groups:
         if not isinstance(counts, dict):
@@ -291,9 +297,7 @@ def _emit_failures(lines: list[str], summary: dict[str, Any]) -> None:
     failed = summary.get("failed_required_verifications") or []
     _emit_failed_rows(lines, heading="Failed required verifications:", rows=failed)
     outcomes = summary.get("failed_required_outcomes") or []
-    command_failures = [
-        row for row in outcomes if isinstance(row, dict) and row.get("kind") == "command"
-    ]
+    command_failures = [row for row in outcomes if isinstance(row, dict) and row.get("kind") == "command"]
     _emit_failed_rows(lines, heading="Failed required commands:", rows=command_failures)
 
 
@@ -321,8 +325,7 @@ def _emit_slots(lines: list[str], summary: dict[str, Any]) -> None:
         cycle = slot.get("cycle_index")
         cycle_text = f" cycle={cycle}" if cycle is not None else ""
         lines.append(
-            f"  - {slot.get('phase')} [{slot.get('overall_result')}]"
-            f"{repeat_text}{cycle_text} {slot.get('script')}",
+            f"  - {slot.get('phase')} [{slot.get('overall_result')}]" f"{repeat_text}{cycle_text} {slot.get('script')}",
         )
 
 

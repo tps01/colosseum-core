@@ -308,9 +308,7 @@ def test_write_wats_report_appends_debug_log(unit_runtime_context, tmp_path: Pat
     assert "WATS metadata sources:" in log_text
 
 
-def test_write_wats_report_best_effort_without_metadata(
-    unit_runtime_context, tmp_path: Path
-) -> None:
+def test_write_wats_report_best_effort_without_metadata(unit_runtime_context, tmp_path: Path) -> None:
     ctx = unit_runtime_context
     ctx.output_dir = tmp_path
     ctx.enabled_reports = frozenset({"wats"})

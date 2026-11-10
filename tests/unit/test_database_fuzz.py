@@ -8,7 +8,8 @@ from tests.fuzz.database import check_input
 
 
 @pytest.mark.parametrize(
-    "seed", sorted((Path(__file__).parents[1] / "fuzz/database_corpus").iterdir()),
+    "seed",
+    sorted((Path(__file__).parents[1] / "fuzz/database_corpus").iterdir()),
     ids=lambda path: path.name,
 )
 def test_database_fuzz_seed(seed, tmp_path, monkeypatch):

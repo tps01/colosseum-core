@@ -13,7 +13,7 @@ from colosseum.context import get_context
 from colosseum.logging.setup import _detach_handlers
 from colosseum.runner.cli import run_cli
 
-_SCRIPT = '''
+_SCRIPT = """
 import os
 from pathlib import Path
 
@@ -51,7 +51,7 @@ def main() -> None:
     marker.write_text("executed\\n", encoding="utf-8")
     if mode == "script_error":
         raise RuntimeError("injected script failure")
-'''
+"""
 
 
 def _writer_ids() -> set[int]:

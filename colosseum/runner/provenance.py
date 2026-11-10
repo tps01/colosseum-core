@@ -320,8 +320,7 @@ def installed_packages() -> tuple[dict[str, str], list[str], list[dict[str, obje
                 "name": name,
                 "version": str(copy.version),
                 "location": _location(copy),
-                "selected": copy is selected
-                or (bool(selected_location) and _location(copy) == selected_location),
+                "selected": copy is selected or (bool(selected_location) and _location(copy) == selected_location),
             }
             checkout = _editable_checkout(copy)
             if checkout is not None:
@@ -521,11 +520,7 @@ def _provenance_line(section: str, payload: object) -> str:
 
 def append_provenance_log(path: Path, snapshot: Mapping[str, object]) -> None:
     """Append the snapshot to ``debug.log`` without sending it to the console."""
-    lines = [
-        _provenance_line(section, snapshot[section])
-        for section in _PROVENANCE_SECTIONS
-        if section in snapshot
-    ]
+    lines = [_provenance_line(section, snapshot[section]) for section in _PROVENANCE_SECTIONS if section in snapshot]
     with path.open("a", encoding="utf-8") as handle:
         handle.write("\n".join(lines) + "\n")
 

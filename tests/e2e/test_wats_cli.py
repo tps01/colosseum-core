@@ -83,4 +83,3 @@ def test_wats_best_effort_without_metadata(core_config, isolated_cwd, subprocess
     assert payload.get("type") == "T"
     assert "root" in payload
     assert isinstance(payload.get("pn"), str)
-

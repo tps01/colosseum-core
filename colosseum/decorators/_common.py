@@ -164,8 +164,7 @@ def resolve_auto_key(
         ctx.auto_key_warned = True
         if ctx.logger is not None:
             ctx.logger.warning(
-                "col.auto_key() is on; later verifications must use the same "
-                "numeric keys or an explicit key=",
+                "col.auto_key() is on; later verifications must use the same " "numeric keys or an explicit key=",
             )
     return key, True
 
@@ -183,10 +182,7 @@ def missing_key_guidance(*, kind: str, command: str) -> str:
             "assigned an auto key — prefer an explicit key= or call "
             "col.auto_key() when pairing with measurements"
         )
-    return (
-        f"`{command}` {kind} was missing a key; "
-        "pass key=... or call col.auto_key() near the start of main()"
-    )
+    return f"`{command}` {kind} was missing a key; " "pass key=... or call col.auto_key() near the start of main()"
 
 
 def note_dry_run_tip(ctx: RuntimeContext, message: str) -> None:
@@ -209,8 +205,7 @@ def finalize_dry_run_tips(ctx: RuntimeContext) -> None:
     if not any(row.get("kind") in evidence_kinds for row in records):
         note_dry_run_tip(
             ctx,
-            "dry-run saw no command/measurement/verification calls; "
-            "check that main() runs and plugins are loaded",
+            "dry-run saw no command/measurement/verification calls; " "check that main() runs and plugins are loaded",
         )
     if ctx.parameters_map:
         unused = sorted(key for key in ctx.parameters_map if key not in ctx.dry_run_keys_seen)
@@ -428,10 +423,7 @@ def _measurement_already_logged(
     if multi_row:
         seen = (domain, command, key, row_index) in ctx.dry_run_measurements
     else:
-        seen = any(
-            item[0] == domain and item[1] == command and item[2] == key
-            for item in ctx.dry_run_measurements
-        )
+        seen = any(item[0] == domain and item[1] == command and item[2] == key for item in ctx.dry_run_measurements)
     if seen or not ctx.db.is_initialized():
         return seen
     if multi_row:
@@ -461,11 +453,7 @@ def _hints_for(func: Callable[..., Any]) -> dict[str, Any]:
     try:
         hints = get_type_hints(func)
     except Exception:  # noqa: BLE001 — unresolved forward references stay unchecked
-        hints = {
-            name: hint
-            for name, hint in getattr(func, "__annotations__", {}).items()
-            if not isinstance(hint, str)
-        }
+        hints = {name: hint for name, hint in getattr(func, "__annotations__", {}).items() if not isinstance(hint, str)}
     hints.pop("return", None)
     return hints
 
@@ -604,11 +592,7 @@ def _dry_run_apply_parameters(
             applied_parameters = call_kwargs != before
         except ParametersError as exc:
             return str(exc), kwargs, False, key_in_parameters
-    elif (
-        key_in_parameters
-        and ctx.parameters_map is not None
-        and "optional" in ctx.parameters_map[key]
-    ):
+    elif key_in_parameters and ctx.parameters_map is not None and "optional" in ctx.parameters_map[key]:
         call_kwargs["optional"] = ctx.parameters_map[key]["optional"]
     try:
         if "optional" in call_kwargs:
@@ -856,31 +840,12 @@ def finish_dry_run_log(
             message = str(exc) if message is None else message
             req_ids = []
     if message is not None:
-        _record_outcome(
-            ctx,
-            kind=kind,
-            result=_Outcome("ERROR", message=message, optional=False),
-            key=key,
-            command=command,
-            domain=domain,
-            description=description,
-            requirements=req_ids,
-        )
-        log_evidence(
-            ctx,
-            kind=kind,
-            domain=domain,
-            command=command,
-            key=key,
-            status="ERROR",
-            optional=False,
-            detail=f"message={message!r}",
-            call_args=call_args,
-            kwargs=resolved,
-        )
-        return True
+        result = _Outcome("ERROR", message=message, optional=False)
+    else:
+        result = _Outcome("DRY", optional=optional)
     if (
-        kind == "verification"
+        message is None
+        and kind == "verification"
         and key
         and not _evidence_key_measured(ctx, key)
         and not (ctx.parameters_map is not None and key in ctx.parameters_map)
@@ -894,7 +859,7 @@ def finish_dry_run_log(
     _record_outcome(
         ctx,
         kind=kind,
-        result=_Outcome("DRY", optional=optional),
+        result=result,
         key=key,
         command=command,
         domain=domain,
@@ -907,8 +872,9 @@ def finish_dry_run_log(
         domain=domain,
         command=command,
         key=key,
-        status="DRY",
-        optional=optional,
+        status=result.status,
+        optional=result.optional,
+        detail=f"message={message!r}" if message is not None else "",
         call_args=call_args,
         kwargs=resolved,
     )

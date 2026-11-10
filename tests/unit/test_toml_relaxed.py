@@ -13,15 +13,13 @@ from colosseum.config.toml_relaxed import loads_relaxed, prepare_toml_text
 
 
 def test_bare_words_become_strings() -> None:
-    raw = loads_relaxed(
-        """
+    raw = loads_relaxed("""
 [equipment.speca]
 speca_id = 1
 visa_backend = sim
 model = keysight-e4407b
 resource = GPIB::18::INSTR
-"""
-    )
+""")
     item = raw["equipment"]["speca"]
     assert item["visa_backend"] == "sim"
     assert item["model"] == "keysight-e4407b"
@@ -29,16 +27,14 @@ resource = GPIB::18::INSTR
 
 
 def test_booleans_and_numbers_unchanged() -> None:
-    raw = loads_relaxed(
-        """
+    raw = loads_relaxed("""
 [equipment.psu]
 psu_id = 1
 driver = sim
 output = false
 voltage = 3.3
 timeout = 5
-"""
-    )
+""")
     item = raw["equipment"]["psu"]
     assert item["driver"] == "sim"
     assert item["output"] is False
@@ -52,16 +48,14 @@ def test_quoted_values_preserved() -> None:
 
 
 def test_bool_spellings_become_bools() -> None:
-    raw = loads_relaxed(
-        """
+    raw = loads_relaxed("""
 [colosseum.reports]
 wats = True
 junit = F
 custom = yes
 other = "no"
 label = "yes"
-"""
-    )
+""")
     reports = raw["colosseum"]["reports"]
     # Bare spellings become TOML bools; quoted strings stay strings.
     assert reports == {
@@ -110,7 +104,7 @@ ready = yes
     assert loads_relaxed(snippet) == expected
 
 
-@pytest.mark.parametrize("note", ["'\"\"\"'", '"\'\'\'"', '"escaped \\\" # quote"'])
+@pytest.mark.parametrize("note", ['\'"""\'', "\"'''\"", '"escaped \\" # quote"'])
 def test_delimiters_in_ordinary_strings_do_not_hide_following_values(note) -> None:
     assert loads_relaxed(f"note = {note}\nflag = yes\n")["flag"] is True
 

@@ -28,14 +28,10 @@ def test_platform_rss_probe_measures_this_process() -> None:
 
 
 def test_growth_check_rejects_overlapping_windows_and_real_growth() -> None:
-    overlapping = [
-        SoakRow(i, float(i * 100), 0, 0, 0) for i in range(MIN_GROWTH_ROWS - WINDOW_ROWS)
-    ]
+    overlapping = [SoakRow(i, float(i * 100), 0, 0, 0) for i in range(MIN_GROWTH_ROWS - WINDOW_ROWS)]
     assert _check_growth(overlapping)
 
-    growing = [
-        SoakRow(i, float(i * 100), i, i, 0) for i in range(MIN_GROWTH_ROWS)
-    ]
+    growing = [SoakRow(i, float(i * 100), i, i, 0) for i in range(MIN_GROWTH_ROWS)]
     failures = _check_growth(growing)
     assert any(item.startswith("RSS grew") for item in failures)
 

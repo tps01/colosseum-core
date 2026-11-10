@@ -167,10 +167,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--docgen-root", type=Path, help="Default: build/docgen")
     parser.add_argument("--clean", action="store_true", help="Remove staged outputs before build")
     parser.add_argument(
-        "--skip-html", action="store_true", help="Build PDF only (still runs staging)",
+        "--skip-html",
+        action="store_true",
+        help="Build PDF only (still runs staging)",
     )
     parser.add_argument(
-        "--skip-pdf", action="store_true", help="Build HTML only (no LaTeX required)",
+        "--skip-pdf",
+        action="store_true",
+        help="Build HTML only (no LaTeX required)",
     )
     args = parser.parse_args(argv)
 

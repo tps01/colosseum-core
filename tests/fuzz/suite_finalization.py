@@ -99,9 +99,7 @@ def check_input(data: bytes) -> None:
                     raise AssertionError("Completed suite endex returned")
                 assert calls == [1]
             if not flags & 2:
-                assert "failed to write suite summary" not in diagnostics.getvalue(), (
-                    diagnostics.getvalue()
-                )
+                assert "failed to write suite summary" not in diagnostics.getvalue(), diagnostics.getvalue()
                 payload = read_result(ctx.suite_output_dir)
                 summary = json.loads(
                     (ctx.suite_output_dir / "summary.json").read_text(encoding="utf-8"),
@@ -122,7 +120,9 @@ def check_input(data: bytes) -> None:
                     if slot.affects_suite_result:
                         assert json.loads(
                             (slot.output_dir / "summary.json").read_text(encoding="utf-8"),
-                        )["output_directory"] == str(slot.output_dir)
+                        )[
+                            "output_directory"
+                        ] == str(slot.output_dir)
                     else:
                         assert not (slot.output_dir / "summary.json").exists()
             else:

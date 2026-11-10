@@ -37,9 +37,13 @@ include = ["colosseum", "colosseum.*"]
 colosseum = ["py.typed", "hooks/hook-colosseum.py"]
 "colosseum.gui" = ["assets/*"]
 
+[tool.black]
+line-length = 120
+target-version = ["py39"]
+
 [tool.ruff]
 target-version = "py39"
-line-length = 100
+line-length = 120
 src = ["colosseum", "scripts"]
 exclude = ["colosseum/hooks"]
 

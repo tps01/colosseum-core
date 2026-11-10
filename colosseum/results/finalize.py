@@ -160,8 +160,7 @@ def _finalize_collect(ctx: RuntimeContext, policy: FinalizePolicy) -> _Collected
     if policy.kind == "single" and ctx.logger is not None:
         counts = ctx.result_aggregator.counts()
         ctx.logger.debug(
-            "Finalizing run: verifications=%d required=%s optional=%s "
-            "suite_error=%s teardown_failed=%s",
+            "Finalizing run: verifications=%d required=%s optional=%s " "suite_error=%s teardown_failed=%s",
             counts["total"],
             counts["required"],
             counts["optional"],
@@ -248,9 +247,7 @@ def _finalize_persist_and_artifacts(
     # summary.json records the final directory path.
     if policy.rename_dir and ctx.output_dir is not None:
         ctx.output_dir = rename_run_directory_for_result(ctx.output_dir, result.overall)
-    result.summary["output_directory"] = (
-        str(ctx.output_dir) if ctx.output_dir is not None else None
-    )
+    result.summary["output_directory"] = str(ctx.output_dir) if ctx.output_dir is not None else None
     if ctx.output_dir is not None and (ctx.output_dir / "execution.sqlite").is_file():
         stored = {
             **result.summary,

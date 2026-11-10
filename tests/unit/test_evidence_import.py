@@ -17,7 +17,16 @@ def test_import_evidence_from_previous(tmp_path, isolated_cwd) -> None:
     source_ctx.runtime_ready = True
     source_ctx.db.initialize(source_dir / "execution.sqlite")
     source_ctx.db.insert_measurement(
-        MeasurementRow(domain="core", command="measure_value", key="stored", value=4.2),
+        MeasurementRow(
+            domain="core",
+            command="measure_value",
+            key="stored",
+            row_index=2,
+            value={"samples": [4.2, None]},
+            units="V",
+            status="DRY",
+            timestamp="2026-01-01T12:00:00+00:00",
+        ),
     )
     source_ctx.db.insert_command(
         CommandRow(
@@ -25,10 +34,17 @@ def test_import_evidence_from_previous(tmp_path, isolated_cwd) -> None:
             command="ping",
             key="k1",
             result={"ok": True},
+            status="ERROR",
+            optional=True,
+            message="unavailable",
             cause="procedural",
+            timestamp="2026-01-01T12:00:01+00:00",
         ),
     )
+    expected_measurements = source_ctx.db.fetch_all_measurements()
+    expected_commands = source_ctx.db.fetch_all_commands()
     source_ctx.db.close()
+    source_bytes = (source_dir / "execution.sqlite").read_bytes()
 
     target_ctx = init_context(test_case_name="rerun", no_artifacts=False)
     try:
@@ -39,9 +55,12 @@ def test_import_evidence_from_previous(tmp_path, isolated_cwd) -> None:
 
         import_evidence_from_previous(target_ctx, source_dir)
 
-        row = target_ctx.db.get_measurement("core", "measure_value", "stored")
+        row = target_ctx.db.get_measurement("core", "measure_value", "stored", row_index=2)
         assert row is not None
-        assert row.value == 4.2
+        assert row.value == {"samples": [4.2, None]}
+        assert target_ctx.db.fetch_all_measurements() == expected_measurements
+        assert target_ctx.db.fetch_all_commands() == expected_commands
+        assert (source_dir / "execution.sqlite").read_bytes() == source_bytes
         commands = target_ctx.db.fetch_table_rows("commands")
         assert len(commands) == 1
         assert commands[0]["cause"] == "procedural"

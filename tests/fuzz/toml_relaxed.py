@@ -91,9 +91,7 @@ def check_section_normalization(data: bytes) -> None:
     base = int.from_bytes(data[:4], "big", signed=True)
     count = 1 + (data[0] % 4 if data else 0)
     label = "device_" + data[:16].hex()
-    document = "".join(
-        f"[[fuzz.device]]\ndevice_id = {base + index}\nlabel = {label}\n" for index in range(count)
-    )
+    document = "".join(f"[[fuzz.device]]\ndevice_id = {base + index}\nlabel = {label}\n" for index in range(count))
     raw = loads_relaxed(document)
     before = json.dumps(raw, sort_keys=True)
     normalized = normalize_sections(raw, [spec])
@@ -126,7 +124,9 @@ def check_section_normalization(data: bytes) -> None:
 
     missing = {"fuzz": {"device": {"device_id": base}}}
     missing_store = ConfigStore(
-        missing, normalize_sections(missing, [spec]), {spec.dotted_path: spec},
+        missing,
+        normalize_sections(missing, [spec]),
+        {spec.dotted_path: spec},
     )
     for current, item_id in ((store, base + count), (missing_store, base)):
         try:

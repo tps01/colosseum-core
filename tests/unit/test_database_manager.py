@@ -90,9 +90,7 @@ def test_measurements_schema_and_autocincrement(tmp_path, monkeypatch) -> None:
 
 
 def test_measurement_json_round_trip(db: DatabaseManager) -> None:
-    db.insert_measurement(
-        MeasurementRow(domain="equipment", command="measure_voltage", key="v", value={"v": 3.3})
-    )
+    db.insert_measurement(MeasurementRow(domain="equipment", command="measure_voltage", key="v", value={"v": 3.3}))
     row = db.get_measurement("equipment", "measure_voltage", "v")
     assert row is not None
     assert row.value == {"v": 3.3}
@@ -137,9 +135,7 @@ def test_result_and_metadata_commit_atomically(db):
     )
     try:
         with pytest.raises(sqlite3.IntegrityError, match="storage failure"):
-            db.store_result(
-                {"overall_result": "PASS", "exit_code": 0, "end_time_utc": "now"}, kind="single"
-            )
+            db.store_result({"overall_result": "PASS", "exit_code": 0, "end_time_utc": "now"}, kind="single")
         assert db.fetch_table_rows("run_result") == []
         assert db.fetch_run_metadata() == []
     finally:

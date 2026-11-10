@@ -123,9 +123,7 @@ def _add_shared_run_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--no-sleep",
         action="store_true",
-        help=(
-            "Prevent system sleep until the run or suite completes (screen may still blank or lock)"
-        ),
+        help=("Prevent system sleep until the run or suite completes (screen may still blank or lock)"),
     )
 
 
@@ -134,9 +132,7 @@ def _add_execution_mode_options(
     *,
     allow_verify_only: bool,
 ) -> None:
-    mode_choices: tuple[str, ...] = (
-        ("full", "procedure", "verify_only") if allow_verify_only else ("full", "procedure")
-    )
+    mode_choices: tuple[str, ...] = ("full", "procedure", "verify_only") if allow_verify_only else ("full", "procedure")
     parser.add_argument(
         "--mode",
         dest="execution_mode",
@@ -215,9 +211,7 @@ def _build_parser() -> argparse.ArgumentParser:
     suite_parser = sub.add_parser(
         "run-suite",
         help="Run a suite TOML (setup, tests, teardown)",
-        description=(
-            "Run setup scripts, test scripts, and teardown scripts in one output directory."
-        ),
+        description=("Run setup scripts, test scripts, and teardown scripts in one output directory."),
     )
     suite_parser.add_argument("suite_file", help="Path to the suite TOML file")
     _add_shared_run_options(suite_parser)
