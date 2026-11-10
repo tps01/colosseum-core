@@ -72,22 +72,26 @@ def suite_run_dirs(rows: list[RunBrowserRow]) -> set[Path]:
     return found
 
 
-def _suite_child_rows(
-    entry: RunDirectoryEntry,
-    summary: dict[str, Any] | None,
-) -> tuple[RunBrowserRow, ...]:
-    """Case runs stored inside a suite folder, in slot order when the summary has it."""
+def _discover_suite_children(entry: RunDirectoryEntry) -> dict[str, Path]:
+    """Map child folder name → path for case runs that already have summary.json."""
     found: dict[str, Path] = {}
     try:
         children = list(entry.path.iterdir())
     except OSError:
-        return ()
+        return found
     for child in children:
         if child.is_dir() and (child / "summary.json").is_file():
             found[child.name] = child
-    if not found:
-        return ()
+    return found
+
+
+def _order_children_by_summary(
+    found: dict[str, Path],
+    summary: dict[str, Any] | None,
+) -> list[Path]:
+    """Prefer summary slot order; append any leftovers sorted by name."""
     ordered: list[Path] = []
+    remaining = dict(found)
     raw_slots: object = []
     if isinstance(summary, dict):
         raw_slots = summary.get("all_slots") or summary.get("test_slots") or []
@@ -96,10 +100,17 @@ def _suite_child_rows(
             if not isinstance(slot, dict):
                 continue
             name = Path(str(slot.get("output_directory") or "")).name
-            path = found.pop(name, None)
+            path = remaining.pop(name, None)
             if path is not None:
                 ordered.append(path)
-    ordered.extend(found[name] for name in sorted(found))
+    ordered.extend(remaining[name] for name in sorted(remaining))
+    return ordered
+
+
+def _build_suite_child_rows(
+    entry: RunDirectoryEntry,
+    ordered: list[Path],
+) -> tuple[RunBrowserRow, ...]:
     rows: list[RunBrowserRow] = []
     for path in ordered:
         try:
@@ -118,6 +129,18 @@ def _suite_child_rows(
             ),
         )
     return tuple(rows)
+
+
+def _suite_child_rows(
+    entry: RunDirectoryEntry,
+    summary: dict[str, Any] | None,
+) -> tuple[RunBrowserRow, ...]:
+    """Case runs stored inside a suite folder, in slot order when the summary has it."""
+    found = _discover_suite_children(entry)
+    if not found:
+        return ()
+    ordered = _order_children_by_summary(found, summary)
+    return _build_suite_child_rows(entry, ordered)
 
 
 def load_run_snapshot(run_dir: Path) -> RunSnapshot:
@@ -195,40 +218,46 @@ def _append_suite_metrics(lines: list[str], summary: dict[str, Any]) -> None:
         )
 
 
-def format_summary_text(summary: dict[str, Any] | None) -> str:
-    if summary is None:
-        return "Summary unavailable. This run may be incomplete."
-    lines = [
-        f"Overall: {summary.get('overall_result', '?')} (exit {summary.get('exit_code')})",
-        f"Test case: {summary.get('test_case')}",
-        f"Suite: {summary.get('suite')}",
-        f"Config: {summary.get('config_path')}",
-        f"Output: {summary.get('output_directory')}",
-        f"End time: {summary.get('end_time_utc')}",
-    ]
-    _append_suite_metrics(lines, summary)
+def _emit_header(lines: list[str], summary: dict[str, Any]) -> None:
+    lines.extend(
+        [
+            f"Overall: {summary.get('overall_result', '?')} (exit {summary.get('exit_code')})",
+            f"Test case: {summary.get('test_case')}",
+            f"Suite: {summary.get('suite')}",
+            f"Config: {summary.get('config_path')}",
+            f"Output: {summary.get('output_directory')}",
+            f"End time: {summary.get('end_time_utc')}",
+        ],
+    )
+
+
+def _emit_counts(lines: list[str], summary: dict[str, Any]) -> None:
     if summary.get("measurement_count") is not None:
         lines.append(f"Measurements: {summary.get('measurement_count')}")
     if summary.get("command_count") is not None:
         lines.append(f"Commands: {summary.get('command_count')}")
     verification_counts = summary.get("verification_counts") or {}
     command_counts = summary.get("command_counts") or {}
-    if isinstance(verification_counts, dict):
-        for label, key in (
+    count_groups = (
+        (verification_counts, (
             ("Verifications (required)", "required"),
             ("Verifications (optional)", "optional"),
-        ):
-            line = _count_line(label, verification_counts.get(key))
-            if line:
-                lines.append(line)
-    if isinstance(command_counts, dict):
-        for label, key in (
+        )),
+        (command_counts, (
             ("Commands (required outcomes)", "required"),
             ("Commands (optional outcomes)", "optional"),
-        ):
-            line = _count_line(label, command_counts.get(key))
+        )),
+    )
+    for counts, labels in count_groups:
+        if not isinstance(counts, dict):
+            continue
+        for label, key in labels:
+            line = _count_line(label, counts.get(key))
             if line:
                 lines.append(line)
+
+
+def _emit_flags(lines: list[str], summary: dict[str, Any]) -> None:
     if summary.get("suite_error"):
         lines.append(f"Suite error: {summary.get('suite_error')}")
     if summary.get("teardown_failed"):
@@ -239,46 +268,79 @@ def format_summary_text(summary: dict[str, Any] | None) -> str:
         )
     if summary.get("fail_fast_stop_reason"):
         lines.append(f"Fail-fast reason: {summary.get('fail_fast_stop_reason')}")
+
+
+def _emit_failed_rows(
+    lines: list[str],
+    *,
+    heading: str,
+    rows: list[Any],
+) -> None:
+    if not rows:
+        return
+    lines.append("")
+    lines.append(heading)
+    for row in rows:
+        lines.append(
+            f"  - {row.get('status')} {row.get('domain')}.{row.get('command')} "
+            f"key={row.get('key')}: {row.get('message')}",
+        )
+
+
+def _emit_failures(lines: list[str], summary: dict[str, Any]) -> None:
     failed = summary.get("failed_required_verifications") or []
-    if failed:
-        lines.append("")
-        lines.append("Failed required verifications:")
-        for row in failed:
-            lines.append(
-                f"  - {row.get('status')} {row.get('domain')}.{row.get('command')} "
-                f"key={row.get('key')}: {row.get('message')}",
-            )
+    _emit_failed_rows(lines, heading="Failed required verifications:", rows=failed)
     outcomes = summary.get("failed_required_outcomes") or []
     command_failures = [
         row for row in outcomes if isinstance(row, dict) and row.get("kind") == "command"
     ]
-    if command_failures:
-        lines.append("")
-        lines.append("Failed required commands:")
-        for row in command_failures:
-            lines.append(
-                f"  - {row.get('status')} {row.get('domain')}.{row.get('command')} "
-                f"key={row.get('key')}: {row.get('message')}",
-            )
-    requirements = summary.get("requirements") or []
-    if isinstance(requirements, list) and requirements:
-        from colosseum.summary.requirements import requirement_lines
+    _emit_failed_rows(lines, heading="Failed required commands:", rows=command_failures)
 
-        suite_view = bool(summary.get("test_slots") or summary.get("all_slots"))
-        lines.extend(requirement_lines(requirements, suite=suite_view))
+
+def _emit_requirements(lines: list[str], summary: dict[str, Any]) -> None:
+    requirements = summary.get("requirements") or []
+    if not isinstance(requirements, list) or not requirements:
+        return
+    from colosseum.summary.requirements import requirement_lines
+
+    suite_view = bool(summary.get("test_slots") or summary.get("all_slots"))
+    lines.extend(requirement_lines(requirements, suite=suite_view))
+
+
+def _emit_slots(lines: list[str], summary: dict[str, Any]) -> None:
     slots = summary.get("all_slots") or summary.get("test_slots") or []
-    if slots:
-        lines.append("")
-        lines.append("Script slots:")
-        for slot in slots:
-            if not isinstance(slot, dict):
-                continue
-            repeat = slot.get("repeat_index")
-            repeat_text = f" repeat={repeat}" if repeat is not None else ""
-            cycle = slot.get("cycle_index")
-            cycle_text = f" cycle={cycle}" if cycle is not None else ""
-            lines.append(
-                f"  - {slot.get('phase')} [{slot.get('overall_result')}]"
-                f"{repeat_text}{cycle_text} {slot.get('script')}",
-            )
+    if not slots:
+        return
+    lines.append("")
+    lines.append("Script slots:")
+    for slot in slots:
+        if not isinstance(slot, dict):
+            continue
+        repeat = slot.get("repeat_index")
+        repeat_text = f" repeat={repeat}" if repeat is not None else ""
+        cycle = slot.get("cycle_index")
+        cycle_text = f" cycle={cycle}" if cycle is not None else ""
+        lines.append(
+            f"  - {slot.get('phase')} [{slot.get('overall_result')}]"
+            f"{repeat_text}{cycle_text} {slot.get('script')}",
+        )
+
+
+_SUMMARY_SECTION_EMITTERS = (
+    _emit_header,
+    _append_suite_metrics,
+    _emit_counts,
+    _emit_flags,
+    _emit_failures,
+    _emit_requirements,
+    _emit_slots,
+)
+
+
+def format_summary_text(summary: dict[str, Any] | None) -> str:
+    if summary is None:
+        return "Summary unavailable. This run may be incomplete."
+    lines: list[str] = []
+    for emit in _SUMMARY_SECTION_EMITTERS:
+        emit(lines, summary)
     return "\n".join(lines)

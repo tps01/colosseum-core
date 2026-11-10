@@ -313,7 +313,7 @@ class DatabaseManager:
     def is_initialized(self) -> bool:
         return self._conn is not None
 
-    def close(self) -> None:
+    def _stop_write_queue(self) -> BaseException | None:
         failure: BaseException | None = None
         try:
             if self._write_queue is not None:
@@ -325,6 +325,9 @@ class DatabaseManager:
         finally:
             if self._write_queue is not None and not self._write_queue.started:
                 self._write_queue = None
+        return failure
+
+    def _close_connection(self, failure: BaseException | None) -> None:
         with self._lock:
             if self._conn is not None:
                 try:
@@ -345,6 +348,10 @@ class DatabaseManager:
                     self._readonly = False
         if failure is not None:
             raise failure
+
+    def close(self) -> None:
+        failure = self._stop_write_queue()
+        self._close_connection(failure)
 
     def _require_conn(self) -> sqlite3.Connection:
         if self._conn is None:

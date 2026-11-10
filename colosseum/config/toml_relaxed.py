@@ -44,27 +44,38 @@ _BARE_BOOL_LITERALS = {
 }
 
 
+def _advance_past_closing_quotes(line: str, index: int, quote: str) -> int:
+    """Move past a closing quote; absorb extra quotes at a multiline close."""
+    index += len(quote)
+    # Four/five quotes at a multiline close include one/two literal quotes.
+    if len(quote) == 3:
+        for _ in range(2):
+            if index < len(line) and line[index] == quote[0]:
+                index += 1
+    return index
+
+
+def _step_quoted(line: str, index: int, quote: str) -> tuple[int, str]:
+    """Advance one step inside a quoted region; return (index, quote)."""
+    char = line[index]
+    if char == "\\" and quote.startswith('"'):
+        return index + 2, quote
+    if line.startswith(quote, index):
+        return _advance_past_closing_quotes(line, index, quote), ""
+    return index + 1, quote
+
+
 def _string_state(line: str, quote: str = "") -> tuple[int, str]:
     """Locate an outside-string comment and retain only an open multiline string."""
     index = 0
     while index < len(line):
         char = line[index]
         if quote:
-            if char == "\\" and quote.startswith('"'):
-                index += 2
-                continue
-            if line.startswith(quote, index):
-                index += len(quote)
-                # Four/five quotes at a multiline close include one/two literal quotes.
-                if len(quote) == 3:
-                    for _ in range(2):
-                        if index < len(line) and line[index] == quote[0]:
-                            index += 1
-                quote = ""
-                continue
-        elif char == "#":
+            index, quote = _step_quoted(line, index, quote)
+            continue
+        if char == "#":
             return index, ""
-        elif char in "'\"":
+        if char in "'\"":
             quote = char * 3 if line.startswith(char * 3, index) else char
             index += len(quote)
             continue
@@ -168,10 +179,7 @@ def coerce_config_bool(value: object) -> bool | None:
 
 
 def loads_relaxed(text: str) -> dict[str, Any]:
-    parsed = tomllib.loads(prepare_toml_text(text))
-    if isinstance(parsed, dict):
-        return parsed
-    return {}
+    return tomllib.loads(prepare_toml_text(text))
 
 
 def read_relaxed_toml(path: Path) -> dict[str, Any]:

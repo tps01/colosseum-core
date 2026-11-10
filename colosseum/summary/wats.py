@@ -357,6 +357,65 @@ def _uut_payload(meta: dict[str, Any]) -> dict[str, Any]:
     return uut
 
 
+def _wats_root(
+    *,
+    overall_result: str,
+    tot_time: float,
+    steps: list[dict[str, Any]],
+    test_name: str,
+    meta: dict[str, Any],
+) -> dict[str, Any]:
+    seq_version = meta.get("seq_version", "").strip() or "0.0"
+    root: dict[str, Any] = {
+        "id": 1,
+        "group": "M",
+        "stepType": "SequenceCall",
+        "name": "MainSequence Callback",
+        "status": overall_result,
+        "totTime": tot_time,
+        "causedUUTFailure": overall_result != "P",
+        "steps": steps,
+        "seqCall": {"path": test_name, "name": test_name, "version": seq_version},
+    }
+    report_text = meta.get("report_text", "").strip()
+    if report_text:
+        root["reportText"] = report_text
+    return root
+
+
+def _wats_payload(
+    *,
+    overall_result: str,
+    root: dict[str, Any],
+    meta: dict[str, Any],
+    started: datetime,
+    ctx: RuntimeContext,
+    test_name: str,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "type": "T",
+        "result": overall_result,
+        "root": root,
+        "pn": meta.get("uut", ""),
+        "rev": meta.get("revision", ""),
+        "sn": meta.get("serial_number", ""),
+        "processCode": meta.get("process_code", ""),
+        "location": meta.get("location", ""),
+        "purpose": meta.get("test_intent", ""),
+        "machineName": meta.get("machine_name", ""),
+        "start": format_wats_start(started),
+        "uut": _uut_payload(meta),
+        "miscInfos": _misc_infos(ctx, meta, test_name),
+    }
+    process_name = meta.get("process_name", "").strip()
+    if process_name:
+        payload["processName"] = process_name
+    sub_units = meta.get("sub_units")
+    if isinstance(sub_units, list) and sub_units:
+        payload["subUnits"] = sub_units
+    return payload
+
+
 def build_wats_report(
     ctx: RuntimeContext,
     aggregator: ResultAggregator,
@@ -388,44 +447,21 @@ def build_wats_report(
     ]
 
     test_name = ctx.test_case_name
-    seq_version = meta.get("seq_version", "").strip() or "0.0"
-    root: dict[str, Any] = {
-        "id": 1,
-        "group": "M",
-        "stepType": "SequenceCall",
-        "name": "MainSequence Callback",
-        "status": overall_result,
-        "totTime": tot_time,
-        "causedUUTFailure": overall_result != "P",
-        "steps": steps,
-        "seqCall": {"path": test_name, "name": test_name, "version": seq_version},
-    }
-    report_text = meta.get("report_text", "").strip()
-    if report_text:
-        root["reportText"] = report_text
-
-    payload: dict[str, Any] = {
-        "type": "T",
-        "result": overall_result,
-        "root": root,
-        "pn": meta.get("uut", ""),
-        "rev": meta.get("revision", ""),
-        "sn": meta.get("serial_number", ""),
-        "processCode": meta.get("process_code", ""),
-        "location": meta.get("location", ""),
-        "purpose": meta.get("test_intent", ""),
-        "machineName": meta.get("machine_name", ""),
-        "start": format_wats_start(started),
-        "uut": _uut_payload(meta),
-        "miscInfos": _misc_infos(ctx, meta, test_name),
-    }
-    process_name = meta.get("process_name", "").strip()
-    if process_name:
-        payload["processName"] = process_name
-    sub_units = meta.get("sub_units")
-    if isinstance(sub_units, list) and sub_units:
-        payload["subUnits"] = sub_units
-    return payload
+    root = _wats_root(
+        overall_result=overall_result,
+        tot_time=tot_time,
+        steps=steps,
+        test_name=test_name,
+        meta=meta,
+    )
+    return _wats_payload(
+        overall_result=overall_result,
+        root=root,
+        meta=meta,
+        started=started,
+        ctx=ctx,
+        test_name=test_name,
+    )
 
 
 def wats_filename(ctx: RuntimeContext, ended_at: datetime) -> str:

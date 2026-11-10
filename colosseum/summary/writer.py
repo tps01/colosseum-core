@@ -17,12 +17,9 @@ if TYPE_CHECKING:
 
 
 def _description_prefix(row: OutcomeRecord) -> str:
-    if row.get("kind") != "verification":
+    if row["kind"] != "verification":
         return ""
-    text = row.get("description") or ""
-    if not isinstance(text, str):
-        text = str(text)
-    text = text.strip()
+    text = row["description"].strip()
     return f"{text} " if text else ""
 
 

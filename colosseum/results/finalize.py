@@ -126,6 +126,145 @@ def _write_run_artifacts(
     ctx.plugin_registry.run_listeners(ctx.enabled_reports, output_dir, result, ctx)
 
 
+def _finalize_shutdown_and_drain(ctx: RuntimeContext, policy: FinalizePolicy) -> None:
+    # Existing producers finish before the evidence barrier and owed-key check.
+    # Suite shutdown remains owned by the suite, never by an individual slot.
+    if policy.run_shutdown:
+        if ctx.logger is not None:
+            ctx.logger.debug("Running plugin shutdown hooks")
+        ctx.plugin_registry.run_shutdown()
+    if policy.close_resources:
+        close_resource_cache(ctx.resource_cache, logger=ctx.logger)
+
+    if ctx.db.is_initialized():
+        ctx.db.drain()
+        _insert_blocked_owed_keys(ctx)
+
+
+@dataclass
+class _CollectedFinalize:
+    code: int
+    overall: str
+    measurement_count: int
+    command_count: int
+    verifications: list[VerificationRecord]
+    measurements: list[MeasurementRecord]
+    commands: list[CommandRecord]
+    summary: dict[str, Any]
+
+
+def _finalize_collect(ctx: RuntimeContext, policy: FinalizePolicy) -> _CollectedFinalize:
+    code = ctx.result_aggregator.exit_code()
+    overall = "PASS" if code == 0 else "FAIL"
+
+    if policy.kind == "single" and ctx.logger is not None:
+        counts = ctx.result_aggregator.counts()
+        ctx.logger.debug(
+            "Finalizing run: verifications=%d required=%s optional=%s "
+            "suite_error=%s teardown_failed=%s",
+            counts["total"],
+            counts["required"],
+            counts["optional"],
+            ctx.result_aggregator.suite_error,
+            ctx.result_aggregator.teardown_failed,
+        )
+
+    measurement_count = 0
+    command_count = 0
+    verifications: list[VerificationRecord] = []
+    measurements: list[MeasurementRecord] = []
+    commands: list[CommandRecord] = []
+    if ctx.db.is_initialized():
+        measurement_count = ctx.db.count_rows("measurements")
+        command_count = ctx.db.count_rows("commands")
+        verifications = ctx.db.fetch_all_verifications()
+        measurements = ctx.db.fetch_all_measurements()
+        commands = ctx.db.fetch_all_commands()
+        ctx.db.flush()
+
+    if ctx.run_options.dry_run:
+        from colosseum.decorators._common import finalize_dry_run_tips
+
+        finalize_dry_run_tips(ctx)
+    summary = build_run_summary(
+        ctx,
+        ctx.result_aggregator,
+        measurement_count=measurement_count,
+        command_count=command_count,
+    )
+    return _CollectedFinalize(
+        code=code,
+        overall=overall,
+        measurement_count=measurement_count,
+        command_count=command_count,
+        verifications=verifications,
+        measurements=measurements,
+        commands=commands,
+        summary=summary,
+    )
+
+
+def _finalize_log_and_close(
+    ctx: RuntimeContext,
+    policy: FinalizePolicy,
+    collected: _CollectedFinalize,
+) -> None:
+    if ctx.logger is not None:
+        if policy.kind == "single" and policy.log_overall:
+            ctx.logger.info(
+                "Overall result: %s (exit %s)",
+                collected.overall,
+                collected.code,
+            )
+        elif policy.log_overall:
+            ctx.logger.info(
+                "Slot result: %s (exit %s)",
+                collected.overall,
+                collected.code,
+            )
+        if policy.write_summary:
+            from colosseum.summary.requirements import (
+                requirement_lines,
+            )
+
+            for line in requirement_lines(
+                collected.summary["requirements"],
+            ):
+                if line:
+                    ctx.logger.info(line)
+        close_logger_handlers(ctx.logger)
+
+    if ctx.db.is_initialized():
+        ctx.db.close()
+
+
+def _finalize_persist_and_artifacts(
+    ctx: RuntimeContext,
+    policy: FinalizePolicy,
+    result: FinalizeRunResult,
+) -> None:
+    # Rename is resilient (returns the original path on OSError), so summaries
+    # still land even when the -pass/-fail suffix cannot be applied, and
+    # summary.json records the final directory path.
+    if policy.rename_dir and ctx.output_dir is not None:
+        ctx.output_dir = rename_run_directory_for_result(ctx.output_dir, result.overall)
+    result.summary["output_directory"] = (
+        str(ctx.output_dir) if ctx.output_dir is not None else None
+    )
+    if ctx.output_dir is not None and (ctx.output_dir / "execution.sqlite").is_file():
+        stored = {
+            **result.summary,
+            "stored_status": result.overall if policy.scores_suite else "N/A",
+        }
+        DatabaseManager.persist_results(
+            ctx.output_dir / "execution.sqlite",
+            stored,
+            kind="slot" if policy.kind != "single" else "single",
+        )
+    if policy.write_summary and ctx.output_dir is not None:
+        _write_run_artifacts(ctx.output_dir, ctx, result)
+
+
 def finalize_run(
     ctx: RuntimeContext,
     *,
@@ -136,105 +275,21 @@ def finalize_run(
         if policy.kind == "single":
             ensure_runtime_ready(ctx)
 
-        # Existing producers finish before the evidence barrier and owed-key check.
-        # Suite shutdown remains owned by the suite, never by an individual slot.
-        if policy.run_shutdown:
-            if ctx.logger is not None:
-                ctx.logger.debug("Running plugin shutdown hooks")
-            ctx.plugin_registry.run_shutdown()
-        if policy.close_resources:
-            close_resource_cache(ctx.resource_cache, logger=ctx.logger)
-
-        if ctx.db.is_initialized():
-            ctx.db.drain()
-            _insert_blocked_owed_keys(ctx)
-
-        code = ctx.result_aggregator.exit_code()
-        overall = "PASS" if code == 0 else "FAIL"
-
-        if policy.kind == "single" and ctx.logger is not None:
-            counts = ctx.result_aggregator.counts()
-            ctx.logger.debug(
-                "Finalizing run: verifications=%d required=%s optional=%s "
-                "suite_error=%s teardown_failed=%s",
-                counts["total"],
-                counts["required"],
-                counts["optional"],
-                ctx.result_aggregator.suite_error,
-                ctx.result_aggregator.teardown_failed,
-            )
-
-        measurement_count = 0
-        command_count = 0
-        verifications: list[VerificationRecord] = []
-        measurements: list[MeasurementRecord] = []
-        commands: list[CommandRecord] = []
-        if ctx.db.is_initialized():
-            measurement_count = ctx.db.count_rows("measurements")
-            command_count = ctx.db.count_rows("commands")
-            verifications = ctx.db.fetch_all_verifications()
-            measurements = ctx.db.fetch_all_measurements()
-            commands = ctx.db.fetch_all_commands()
-            ctx.db.flush()
-
-        if ctx.run_options.dry_run:
-            from colosseum.decorators._common import finalize_dry_run_tips
-
-            finalize_dry_run_tips(ctx)
-        summary = build_run_summary(
-            ctx,
-            ctx.result_aggregator,
-            measurement_count=measurement_count,
-            command_count=command_count,
-        )
-
-        if ctx.logger is not None:
-            if policy.kind == "single" and policy.log_overall:
-                ctx.logger.info("Overall result: %s (exit %s)", overall, code)
-            elif policy.log_overall:
-                ctx.logger.info("Slot result: %s (exit %s)", overall, code)
-            if policy.write_summary:
-                from colosseum.summary.requirements import (
-                    requirement_lines,
-                )
-
-                for line in requirement_lines(
-                    summary["requirements"],
-                ):
-                    if line:
-                        ctx.logger.info(line)
-            close_logger_handlers(ctx.logger)
-
-        if ctx.db.is_initialized():
-            ctx.db.close()
+        _finalize_shutdown_and_drain(ctx, policy)
+        collected = _finalize_collect(ctx, policy)
+        _finalize_log_and_close(ctx, policy, collected)
 
         result = FinalizeRunResult(
-            exit_code=code,
-            overall=overall,
-            measurement_count=measurement_count,
-            command_count=command_count,
-            verifications=verifications,
-            measurements=measurements,
-            commands=commands,
-            summary=summary,
+            exit_code=collected.code,
+            overall=collected.overall,
+            measurement_count=collected.measurement_count,
+            command_count=collected.command_count,
+            verifications=collected.verifications,
+            measurements=collected.measurements,
+            commands=collected.commands,
+            summary=collected.summary,
         )
-
-        # Rename is resilient (returns the original path on OSError), so summaries
-        # still land even when the -pass/-fail suffix cannot be applied, and
-        # summary.json records the final directory path.
-        if policy.rename_dir and ctx.output_dir is not None:
-            ctx.output_dir = rename_run_directory_for_result(ctx.output_dir, overall)
-        summary["output_directory"] = str(ctx.output_dir) if ctx.output_dir is not None else None
-        if ctx.output_dir is not None and (ctx.output_dir / "execution.sqlite").is_file():
-            stored = {**summary, "stored_status": overall if policy.scores_suite else "N/A"}
-            DatabaseManager.persist_results(
-                ctx.output_dir / "execution.sqlite",
-                stored,
-                kind="slot" if policy.kind != "single" else "single",
-            )
-        if policy.write_summary and ctx.output_dir is not None:
-            _write_run_artifacts(ctx.output_dir, ctx, result)
-
+        _finalize_persist_and_artifacts(ctx, policy, result)
         return result
     except BaseException:
         # Failure must release core-owned handles without replacing the primary error.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import math
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from colosseum.config.toml_relaxed import coerce_config_bool, read_relaxed_toml
@@ -367,38 +368,74 @@ def _coerce_parameter_string(raw: str) -> object:
     return parsed
 
 
+@dataclass
+class _ScanState:
+    closers: list[str] = field(default_factory=list)
+    in_single: bool = False
+    in_double: bool = False
+    escaped: bool = False
+
+    @property
+    def in_quote(self) -> bool:
+        return self.in_single or self.in_double
+
+    @property
+    def unfinished(self) -> bool:
+        return bool(self.closers) or self.in_quote
+
+
+def _step_quoted(state: _ScanState, char: str) -> bool:
+    if char == "\\":
+        state.escaped = True
+        return False
+    if char == "'" and state.in_single:
+        state.in_single = False
+    elif char == '"' and state.in_double:
+        state.in_double = False
+    return False
+
+
+def _step_unquoted(
+    state: _ScanState,
+    char: str,
+    *,
+    separator: str,
+    source: str,
+) -> bool:
+    if char == "'":
+        state.in_single = True
+        return False
+    if char == '"':
+        state.in_double = True
+        return False
+    if char in _CONTAINER_CLOSERS:
+        state.closers.append(_CONTAINER_CLOSERS[char])
+        return False
+    if char in _CONTAINER_CLOSERS.values():
+        if not state.closers or state.closers.pop() != char:
+            raise _parse_error(source)
+        return False
+    return char == separator and not state.closers
+
+
+def _step_scan(state: _ScanState, char: str, *, separator: str, source: str) -> bool:
+    """Advance the scan FSM one character; True means a top-level separator."""
+    if state.escaped:
+        state.escaped = False
+        return False
+    if state.in_quote:
+        return _step_quoted(state, char)
+    return _step_unquoted(state, char, separator=separator, source=source)
+
+
 def _top_level_indexes(text: str, *, separator: str, source: str) -> list[int]:
     """Return indexes of ``separator`` outside quotes and nested brackets."""
     indexes: list[int] = []
-    closers: list[str] = []
-    in_single = False
-    in_double = False
-    escaped = False
+    state = _ScanState()
     for index, char in enumerate(text):
-        if escaped:
-            escaped = False
-            continue
-        if char == "\\" and (in_single or in_double):
-            escaped = True
-            continue
-        if char == "'" and not in_double:
-            in_single = not in_single
-            continue
-        if char == '"' and not in_single:
-            in_double = not in_double
-            continue
-        if in_single or in_double:
-            continue
-        if char in _CONTAINER_CLOSERS:
-            closers.append(_CONTAINER_CLOSERS[char])
-            continue
-        if char in _CONTAINER_CLOSERS.values():
-            if not closers or closers.pop() != char:
-                raise _parse_error(source)
-            continue
-        if char == separator and not closers:
+        if _step_scan(state, char, separator=separator, source=source):
             indexes.append(index)
-    if closers or in_single or in_double:
+    if state.unfinished:
         raise _parse_error(source)
     return indexes
 
