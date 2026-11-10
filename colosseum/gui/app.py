@@ -75,8 +75,8 @@ def _set_initial_sashes(body: tk.PanedWindow) -> None:
 def ensure_display_available() -> None:
     if sys.platform == "win32":
         return
-    # other platforms; mypy binds sys.platform to the host
-    if not os.environ.get("DISPLAY"):  # type: ignore[unreachable]
+    # Host platform makes one branch unreachable; keep both for the other OS.
+    if not os.environ.get("DISPLAY"):  # type: ignore[unused-ignore, unreachable]
         print(
             "Colosseum GUI requires a display. Set DISPLAY or use SSH X11 forwarding (ssh -X).",
             file=sys.stderr,

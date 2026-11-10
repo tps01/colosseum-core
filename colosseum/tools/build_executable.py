@@ -27,15 +27,15 @@ ArchiveKind = Literal["zip", "gztar"]
 def _launcher_name() -> str:
     if sys.platform == "win32":
         return f"{_APP_NAME}.exe"
-    # other platforms; mypy binds sys.platform to the host
-    return _APP_NAME  # type: ignore[unreachable]
+    # Host platform makes one branch unreachable; keep both for the other OS.
+    return _APP_NAME  # type: ignore[unused-ignore, unreachable]
 
 
 def _default_archive_kind() -> ArchiveKind:
     if sys.platform == "win32":
         return "zip"
-    # other platforms; mypy binds sys.platform to the host
-    return "gztar"  # type: ignore[unreachable]
+    # Host platform makes one branch unreachable; keep both for the other OS.
+    return "gztar"  # type: ignore[unused-ignore, unreachable]
 
 
 def archive_app(

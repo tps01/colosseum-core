@@ -34,9 +34,14 @@ _ASSETS = Path(__file__).resolve().parent / "assets"
 _APP_USER_MODEL_ID = "Colosseum.GUI.1"
 
 
+def _is_win32() -> bool:
+    # Indirect check so mypy does not constant-fold host-platform branches.
+    return sys.platform == "win32"
+
+
 def init_windows_taskbar() -> None:
     """Prepare Windows taskbar identity and DPI handling before creating the window."""
-    if sys.platform != "win32":
+    if not _is_win32():
         return
     try:
         import ctypes
@@ -55,7 +60,7 @@ def init_windows_taskbar() -> None:
 
 def _apply_windows_native_icon(window: Any, icon_path: str) -> None:  # noqa: ANN401
     """Set title-bar and taskbar icons via Win32 (sharper than tk iconbitmap on high-DPI)."""
-    if sys.platform != "win32":
+    if not _is_win32():
         return
     import ctypes
 
@@ -90,7 +95,7 @@ def apply_window_icon(window: Any) -> None:  # noqa: ANN401
     """Set title-bar and taskbar icons when bundled assets are available."""
     ico = _ASSETS / "colosseum.ico"
     try:
-        if sys.platform == "win32" and ico.is_file():
+        if _is_win32() and ico.is_file():
             icon_path = str(ico.resolve())
 
             def _finalize_icon() -> None:
