@@ -1,3 +1,4 @@
 name = "repeat_for"
-tests = [{ path = "../scripts/count_repeat.py", repeat_for = "1s" }]
+# 5s: Windows CI process spawn can consume most of a 1s window, leaving only one slot.
+tests = [{ path = "../scripts/count_repeat.py", repeat_for = "5s" }]
 teardown = ["../scripts/teardown_ok.py"]

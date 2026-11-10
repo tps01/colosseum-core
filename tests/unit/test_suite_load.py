@@ -96,7 +96,7 @@ def test_load_repeat_count_table(fixtures_dir) -> None:
 
 def test_load_repeat_for_table(fixtures_dir) -> None:
     suite = load_suite_toml(fixtures_dir / "suites" / "repeat_for.toml")
-    assert suite.tests[0].repeat_for == timedelta(seconds=1)
+    assert suite.tests[0].repeat_for == timedelta(seconds=5)
 
 
 def test_load_per_entry_parameters(tmp_path, fixtures_dir) -> None:
