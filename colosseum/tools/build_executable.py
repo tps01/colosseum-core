@@ -20,6 +20,8 @@ from importlib import resources
 from pathlib import Path
 from typing import Literal
 
+from colosseum.plugins.loader import _discovered_for_group
+
 _APP_NAME = "colosseum"
 ArchiveKind = Literal["zip", "gztar"]
 
@@ -36,6 +38,38 @@ def _default_archive_kind() -> ArchiveKind:
         return "zip"
     # Host platform makes one branch unreachable; keep both for the other OS.
     return "gztar"  # type: ignore[unused-ignore, unreachable]
+
+
+def _plugin_package_path_roots() -> list[str]:
+    """Return filesystem roots PyInstaller must search for installed plugins.
+
+    Setuptools editable installs register a meta path finder instead of putting
+    the package on ``sys.path``. PyInstaller's analysis does not consult that
+    finder, so plugin modules are missing from the bundle unless their parent
+    directories are passed via ``--paths``.
+    """
+    try:
+        from PyInstaller.utils.hooks import get_package_paths
+    except ImportError:
+        return []
+
+    roots: list[str] = []
+    seen: set[str] = set()
+    for entry_point in _discovered_for_group("colosseum.plugins"):
+        module_name = entry_point.value.split(":", 1)[0].strip()
+        package_name = module_name.split(".", 1)[0]
+        try:
+            base, _pkg_dir = get_package_paths(package_name)
+        except ValueError:
+            continue
+        if not base:
+            continue
+        normalized = str(Path(base))
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        roots.append(normalized)
+    return roots
 
 
 def archive_app(
@@ -115,8 +149,10 @@ def main() -> None:
             str(cwd / "build"),
             "--specpath",
             str(work),
-            str(entry),
         ]
+        for root in _plugin_package_path_roots():
+            command.extend(["--paths", root])
+        command.append(str(entry))
         print("Running:", " ".join(command))
         completed = subprocess.run(command, check=False)
     if completed.returncode != 0:

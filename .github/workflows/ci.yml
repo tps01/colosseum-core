@@ -123,6 +123,26 @@ jobs:
           /tmp/colosseum-core-wheel/bin/python -c "import colosseum; print(colosseum.__version__)"
           /tmp/colosseum-core-wheel/bin/colosseum --help
 
+  smoke-frozen-executable:
+    name: frozen executable smoke
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install core, the probe plugin, and test tools
+        run: |
+          python -m pip install -U pip setuptools wheel
+          python -m pip install -r requirements.txt
+          python -m pip install tests/fixtures/plugins/colosseum_contract_probe --no-deps
+      - name: Freeze and run the probe contract
+        run: |
+          python -m colosseum.tools.build_executable
+          export COLOSSEUM_FROZEN_EXECUTABLE="$PWD/dist/colosseum/colosseum"
+          python -m pytest tests/e2e/test_plugin_contract.py::test_real_frozen_plugin_contract -q -p no:cacheprovider
+
   regression:
     name: regression (ubuntu, py3.12)
     runs-on: ubuntu-24.04
