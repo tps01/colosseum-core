@@ -12,7 +12,6 @@ from colosseum.database import MeasurementRow
 
 from ._common import (
     bind_dry_run_policy,
-    finish_dry_run_missing_key,
     missing_key_guidance,
     publish_optional_parameter,
     resolve_auto_key,
@@ -20,6 +19,7 @@ from ._common import (
     resolve_domain,
     should_skip_measurement,
 )
+from ._dry_run import finish_dry_run_missing_key
 from ._kernel import log_evidence, log_evidence_error, record_error_event, short_repr
 from ._pipeline import DecoratorSpec, EarlyReturn, Identity, PreparedCall, run_decorated_call
 from ._typing import ParamSpec

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from colosseum.config.parameters import owed_limit_keys
 from colosseum.database import DatabaseManager, VerificationRow
-from colosseum.decorators.verification import VerificationResult, verification_limit_fields
+from colosseum.decorators.tolerance import VerificationResult, verification_limit_fields
 from colosseum.logging.setup import close_logger_handlers
 from colosseum.results.aggregation import build_run_summary, coerce_requirements
 from colosseum.runner.runtime import ensure_runtime_ready, rename_run_directory_for_result

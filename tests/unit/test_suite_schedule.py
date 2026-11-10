@@ -6,7 +6,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import colosseum.runner.suite as suite_mod
-from colosseum.runner.suite import SuiteDefinition, SuiteTestEntry
+from colosseum.runner.suite_toml import SuiteDefinition, SuiteTestEntry
 
 
 def _drive(monkeypatch, suite: SuiteDefinition, step: float) -> list[str]:

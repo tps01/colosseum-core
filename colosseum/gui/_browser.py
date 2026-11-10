@@ -8,7 +8,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
-from colosseum.runner.runtime import (
+from colosseum.runner.run_discovery import (
     RunDirectoryEntry,
     list_run_directory_entries,
     read_summary_json,

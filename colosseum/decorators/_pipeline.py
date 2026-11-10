@@ -7,12 +7,8 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from colosseum.units import coerce_units
 
-from ._common import (
-    capture_parameter_export,
-    ensure_runtime_context,
-    finish_dry_run_log,
-    invoke_dry_run_substitute,
-)
+from ._common import capture_parameter_export, ensure_runtime_context
+from ._dry_run import finish_dry_run_log, invoke_dry_run_substitute
 
 if TYPE_CHECKING:
     from collections.abc import Callable

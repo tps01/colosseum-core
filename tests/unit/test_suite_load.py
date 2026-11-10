@@ -6,7 +6,7 @@ from datetime import timedelta
 
 import pytest
 
-from colosseum.runner.suite import (
+from colosseum.runner.suite_toml import (
     SuiteError,
     load_suite_toml,
     parse_repeat_duration,

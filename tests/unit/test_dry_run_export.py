@@ -11,7 +11,7 @@ from colosseum.results.finalize import _insert_blocked_owed_keys
 from colosseum.context import auto_key
 from colosseum.decorators import VerificationResult, command, measurement, verification
 from colosseum.decorators._common import DRY_RUN_ATTR, finalize_dry_run_tips
-from colosseum.runner.cli import finish_parameter_export
+from colosseum.runner.single_run import finish_parameter_export
 
 try:
     import tomllib
