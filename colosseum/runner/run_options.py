@@ -79,8 +79,10 @@ def validate_run_flags(
         (dry_run and export is not None, "--dry-run cannot be combined with --export"),
         (
             mode is not None or procedure or previous_output is not None,
-            "--dry-run and --export cannot be combined with --mode, -p/--procedure, "
-            "or -u/--use-previous-output",
+            (
+                "--dry-run and --export cannot be combined with --mode, -p/--procedure, "
+                "or -u/--use-previous-output"
+            ),
         ),
         (
             no_artifacts,
@@ -140,8 +142,10 @@ def _resolve_suite_execution_mode(
     rules: list[tuple[bool, str]] = [
         (
             mode == "verify_only" or has_previous,
-            "run-suite does not support verify_only / --use-previous-output; "
-            "use colosseum run for evidence re-verification",
+            (
+                "run-suite does not support verify_only / --use-previous-output; "
+                "use colosseum run for evidence re-verification"
+            ),
         ),
         (
             procedure and mode is not None and mode != "procedure",
