@@ -4,7 +4,7 @@ import argparse
 import faulthandler
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NoReturn
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -364,6 +364,67 @@ def _import_previous_evidence(ctx: object, run_options: RunOptions) -> None:
     import_evidence_from_previous(ctx, run_options.previous_output_dir)
 
 
+def _prepare_single_parameters(
+    ctx: RuntimeContext,
+    options: RunOptions,
+    test_path: Path | None,
+    resolved_parameters: Path | None,
+    *,
+    exporting: bool,
+) -> bool:
+    """Attach parameters or arm export. Returns False when the run should stop."""
+    from colosseum.config.parameters import ParametersError, attach_parameters
+
+    if exporting:
+        ctx.parameter_export = {}
+        return True
+    try:
+        attach_parameters(
+            ctx,
+            resolved_parameters,
+            required=options.parameters_path is not None,
+        )
+    except ParametersError as exc:
+        record_single_provenance(ctx, test_path, resolved_parameters)
+        ctx.result_aggregator.mark_suite_error(str(exc))
+        if ctx.logger is not None:
+            ctx.logger.error("Parameters load failed: %s", exc)
+        endex()
+        return False
+    return True
+
+
+def _execute_single_test_body(
+    ctx: RuntimeContext,
+    options: RunOptions,
+    test_path: Path | None,
+    *,
+    exporting: bool,
+) -> bool:
+    """Run plugin commands and/or the test script. Returns export_failed."""
+    export_failed = False
+    try:
+        if options.plugin_commands:
+            invoke_plugin_commands(ctx, options.plugin_commands)
+        if test_path is not None:
+            run_script(test_path)
+    except (ScriptRunError, CommandInvokeError):
+        if exporting:
+            export_failed = True
+        else:
+            ctx.result_aggregator.mark_suite_error("test script failed")
+    except Exception as exc:
+        if exporting:
+            export_failed = True
+            if ctx.logger is not None:
+                ctx.logger.exception("Unhandled error during parameter export")
+        else:
+            ctx.result_aggregator.mark_suite_error(f"test run failed: {exc}")
+            if ctx.logger is not None:
+                ctx.logger.exception("Unhandled error during test run")
+    return export_failed
+
+
 def _run_single_test(
     test_path: Path | None,
     config_path: str | None,
@@ -392,11 +453,7 @@ def _run_single_test(
     ctx.active_execution_mode = options.execution_mode
     _load_run_config(config_path, metadata_path)
     ensure_runtime_ready(ctx)
-    from colosseum.config.parameters import (
-        ParametersError,
-        attach_parameters,
-        resolve_parameters_path,
-    )
+    from colosseum.config.parameters import resolve_parameters_path
     from colosseum.results.reports import apply_enabled_reports
 
     apply_enabled_reports(ctx)
@@ -405,44 +462,24 @@ def _run_single_test(
         script_path=test_path,
         cli_path=options.parameters_path,
     )
-    if exporting:
-        ctx.parameter_export = {}
-    else:
-        try:
-            attach_parameters(
-                ctx,
-                resolved_parameters,
-                required=options.parameters_path is not None,
-            )
-        except ParametersError as exc:
-            record_single_provenance(ctx, test_path, resolved_parameters)
-            ctx.result_aggregator.mark_suite_error(str(exc))
-            if ctx.logger is not None:
-                ctx.logger.error("Parameters load failed: %s", exc)
-            endex()
-            return
+    if not _prepare_single_parameters(
+        ctx,
+        options,
+        test_path,
+        resolved_parameters,
+        exporting=exporting,
+    ):
+        return
     record_single_provenance(ctx, test_path, resolved_parameters)
     _import_previous_evidence(ctx, options)
     export_failed = False
     try:
-        if options.plugin_commands:
-            invoke_plugin_commands(ctx, options.plugin_commands)
-        if test_path is not None:
-            run_script(test_path)
-    except (ScriptRunError, CommandInvokeError):
-        if exporting:
-            export_failed = True
-        else:
-            ctx.result_aggregator.mark_suite_error("test script failed")
-    except Exception as exc:
-        if exporting:
-            export_failed = True
-            if ctx.logger is not None:
-                ctx.logger.exception("Unhandled error during parameter export")
-        else:
-            ctx.result_aggregator.mark_suite_error(f"test run failed: {exc}")
-            if ctx.logger is not None:
-                ctx.logger.exception("Unhandled error during test run")
+        export_failed = _execute_single_test_body(
+            ctx,
+            options,
+            test_path,
+            exporting=exporting,
+        )
     finally:
         if exporting:
             code = finish_parameter_export(ctx, failed=export_failed)
@@ -451,7 +488,7 @@ def _run_single_test(
         endex()
 
 
-def _exit_with_message(message: str) -> None:
+def _exit_with_message(message: str) -> NoReturn:
     print(message, file=sys.stderr)
     raise SystemExit(1) from None
 
@@ -577,7 +614,7 @@ def run_cli(argv: list[str] | None = None) -> int:
         )
 
     parser.error(f"Unknown command: {args.command}")
-    return 1
+    raise SystemExit(2)
 
 
 def main(argv: list[str] | None = None) -> None:

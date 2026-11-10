@@ -14,7 +14,13 @@ class _StopSentinel:
     pass
 
 
+@dataclass(frozen=True)
+class _IdleTimeout:
+    pass
+
+
 _STOP = _StopSentinel()
+_IDLE_TIMEOUT = _IdleTimeout()
 
 
 @dataclass
@@ -119,41 +125,49 @@ class DatabaseWriteQueue:
         if self._failure is not None:
             raise self._failure
 
+    def _next_event(self) -> _IdleTimeout | _StopSentinel | WriteJob:
+        try:
+            return self._queue.get(timeout=self._batch_interval_s)
+        except queue.Empty:
+            return _IDLE_TIMEOUT
+
     def _run(self) -> None:
         batch: list[WriteJob] = []
         try:
             while True:
-                try:
-                    item = self._queue.get(timeout=self._batch_interval_s)
-                except queue.Empty:
+                event = self._next_event()
+                if isinstance(event, _IdleTimeout):
                     if batch:
                         self._flush(batch)
                         batch = []
                     continue
-                if isinstance(item, _StopSentinel):
+                if isinstance(event, _StopSentinel):
                     if batch:
                         self._flush(batch)
                     return
-                batch.append(item)
-                if len(batch) >= self._batch_size or item.done is not None:
+                batch.append(event)
+                if len(batch) >= self._batch_size or event.done is not None:
                     self._flush(batch)
                     batch = []
         except BaseException as exc:  # noqa: BLE001 — forward worker failures to callers
-            with self._state_lock:
-                self._failure = exc
-                while not self._queue.empty():
-                    pending = self._queue.get_nowait()
-                    if isinstance(pending, WriteJob):
-                        batch.append(pending)
-            if self._rollback is not None:
-                # Preserve the original storage failure if rollback also fails.
-                with self._lock, suppress(Exception):
-                    self._rollback()
-            for job in batch:
-                if job.error is not None:
-                    job.error.append(exc)
-                if job.done is not None:
-                    job.done.set()
+            self._fail_batch(batch, exc)
+
+    def _fail_batch(self, batch: list[WriteJob], exc: BaseException) -> None:
+        with self._state_lock:
+            self._failure = exc
+            while not self._queue.empty():
+                pending = self._queue.get_nowait()
+                if isinstance(pending, WriteJob):
+                    batch.append(pending)
+        if self._rollback is not None:
+            # Preserve the original storage failure if rollback also fails.
+            with self._lock, suppress(Exception):
+                self._rollback()
+        for job in batch:
+            if job.error is not None:
+                job.error.append(exc)
+            if job.done is not None:
+                job.done.set()
 
     def _flush(self, batch: list[WriteJob]) -> None:
         with self._lock:

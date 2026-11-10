@@ -386,6 +386,25 @@ def single_input_files(
     return files
 
 
+def _append_suite_test_inputs(
+    files: list[InputFile],
+    tests: Sequence[tuple[Path, Path | None]],
+    *,
+    suite_parameters: Path | None,
+    parameter_stacking: bool,
+) -> None:
+    for script_path, entry_parameters in tests:
+        files.append(InputFile("test", script_path))
+        for resolved in _suite_parameter_paths(
+            script_path=script_path,
+            entry_path=entry_parameters,
+            suite_path=suite_parameters,
+            stacking=parameter_stacking,
+        ):
+            if resolved != suite_parameters:
+                files.append(InputFile("parameters", resolved))
+
+
 def suite_input_files(
     ctx: RuntimeContext,
     *,
@@ -420,16 +439,12 @@ def suite_input_files(
         files.append(InputFile("between_tests", script_path))
     for script_path in teardown:
         files.append(InputFile("teardown", script_path))
-    for script_path, entry_parameters in tests:
-        files.append(InputFile("test", script_path))
-        for resolved in _suite_parameter_paths(
-            script_path=script_path,
-            entry_path=entry_parameters,
-            suite_path=suite_parameters,
-            stacking=parameter_stacking,
-        ):
-            if resolved != suite_parameters:
-                files.append(InputFile("parameters", resolved))
+    _append_suite_test_inputs(
+        files,
+        tests,
+        suite_parameters=suite_parameters,
+        parameter_stacking=parameter_stacking,
+    )
     return files
 
 

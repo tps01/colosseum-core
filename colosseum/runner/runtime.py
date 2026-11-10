@@ -508,10 +508,11 @@ def _matches_logical_name(dir_name: str, logical_name: str) -> bool:
     return bool(re.match(pattern, dir_name))
 
 
-def find_run_directory(cwd: Path, logical_name: str, since: float | None = None) -> Path | None:
-    outputs_root = cwd / "outputs"
-    if not outputs_root.is_dir():
-        return None
+def _collect_run_directory_candidates(
+    outputs_root: Path,
+    logical_name: str,
+    since: float | None,
+) -> list[Path]:
     candidates: list[Path] = []
     for run_dir in outputs_root.iterdir():
         if not run_dir.is_dir():
@@ -530,6 +531,14 @@ def find_run_directory(cwd: Path, logical_name: str, since: float | None = None)
                 continue
             if _matches_logical_name(child.name, logical_name):
                 candidates.append(child)
+    return candidates
+
+
+def find_run_directory(cwd: Path, logical_name: str, since: float | None = None) -> Path | None:
+    outputs_root = cwd / "outputs"
+    if not outputs_root.is_dir():
+        return None
+    candidates = _collect_run_directory_candidates(outputs_root, logical_name, since)
     if not candidates:
         return None
     candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)

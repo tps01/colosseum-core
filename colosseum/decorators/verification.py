@@ -15,14 +15,9 @@ from colosseum.config.parameters import (
     coerce_optional_kwarg,
 )
 from colosseum.database import VerificationRow
-from colosseum.units import coerce_units
 
 from ._common import (
     bind_dry_run_policy,
-    capture_parameter_export,
-    ensure_runtime_context,
-    finish_dry_run_log,
-    invoke_dry_run_substitute,
     publish_description_parameter,
     publish_optional_parameter,
     publish_requirements_parameter,
@@ -32,11 +27,14 @@ from ._common import (
     should_skip_verification,
 )
 from ._kernel import log_evidence, log_evidence_error
+from ._pipeline import DecoratorSpec, EarlyReturn, Identity, PreparedCall, run_decorated_call
 from ._typing import ParamSpec
 from .command import COLOSSEUM_DECORATOR
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from colosseum.context import RuntimeContext
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -192,6 +190,161 @@ def _require_numbers(
     return actual_n, expected_n
 
 
+def _tol_none(
+    actual: object,
+    expected: object,
+    tolerance: object,
+    *,
+    optional: bool,
+) -> VerificationResult:
+    del tolerance
+    return _pass_or_fail(
+        passed=actual == expected,
+        actual=actual,
+        optional=optional,
+        fail_message=f"expected {expected}, got {actual}",
+    )
+
+
+def _tol_bool(
+    actual: object,
+    expected: object,
+    tolerance: object,
+    *,
+    optional: bool,
+) -> VerificationResult:
+    del expected
+    return _error_result(
+        f"unsupported tolerance {tolerance!r}",
+        actual=actual,
+        optional=optional,
+    )
+
+
+def _tol_numeric(
+    actual: object,
+    expected: object,
+    tolerance: object,
+    *,
+    optional: bool,
+) -> VerificationResult:
+    numbers = _require_numbers(actual, expected, optional=optional)
+    if isinstance(numbers, VerificationResult):
+        return numbers
+    actual_n, expected_n = numbers
+    band = abs(float(tolerance))  # type: ignore[arg-type]
+    return _pass_or_fail(
+        passed=abs(actual_n - expected_n) <= band,
+        actual=actual,
+        optional=optional,
+        fail_message=f"expected {expected} +/- {band}, got {actual}",
+    )
+
+
+def _tol_str_signed(
+    actual: object,
+    expected: object,
+    text: str,
+    signed: tuple[str, float],
+    *,
+    optional: bool,
+) -> VerificationResult:
+    numbers = _require_numbers(actual, expected, optional=optional)
+    if isinstance(numbers, VerificationResult):
+        return numbers
+    actual_n, expected_n = numbers
+    low, high = gele_limits(expected_n, text)
+    side, magnitude = signed
+    label = f"{side}{magnitude}"
+    return _pass_or_fail(
+        passed=low <= actual_n <= high,
+        actual=actual,
+        optional=optional,
+        fail_message=f"expected {expected} {label}, got {actual}",
+    )
+
+
+def _tol_str_operator(
+    actual: object,
+    expected: object,
+    op: str,
+    *,
+    optional: bool,
+) -> VerificationResult:
+    symbol = _OP_SYMBOLS[op]
+    if op in {"EQ", "NE"}:
+        passed = (actual == expected) if op == "EQ" else (actual != expected)
+        return _pass_or_fail(
+            passed=passed,
+            actual=actual,
+            optional=optional,
+            fail_message=f"expected {symbol} {expected}, got {actual}",
+        )
+    numbers = _require_numbers(actual, expected, optional=optional)
+    if isinstance(numbers, VerificationResult):
+        return numbers
+    actual_n, expected_n = numbers
+    comparisons = {
+        "GE": actual_n >= expected_n,
+        "LE": actual_n <= expected_n,
+        "GT": actual_n > expected_n,
+        "LT": actual_n < expected_n,
+    }
+    return _pass_or_fail(
+        passed=comparisons[op],
+        actual=actual,
+        optional=optional,
+        fail_message=f"expected {symbol} {expected}, got {actual}",
+    )
+
+
+def _tol_str(
+    actual: object,
+    expected: object,
+    tolerance: object,
+    *,
+    optional: bool,
+) -> VerificationResult:
+    text = str(tolerance).strip()
+    signed = parse_signed_band(text)
+    if signed is not None:
+        return _tol_str_signed(actual, expected, text, signed, optional=optional)
+    op = _OPERATOR_ALIASES.get(text) or _OPERATOR_ALIASES.get(text.upper())
+    if op is None:
+        return _error_result(
+            f"unknown tolerance {tolerance!r}",
+            actual=actual,
+            optional=optional,
+        )
+    return _tol_str_operator(actual, expected, op, optional=optional)
+
+
+def _tol_unsupported(
+    actual: object,
+    expected: object,
+    tolerance: object,
+    *,
+    optional: bool,
+) -> VerificationResult:
+    del expected
+    return _error_result(
+        f"unsupported tolerance {tolerance!r}",
+        actual=actual,
+        optional=optional,
+    )
+
+
+_TOLERANCE_HANDLERS: tuple[
+    tuple[Callable[[object], bool], Callable[..., VerificationResult]],
+    ...,
+] = (
+    (lambda tolerance: tolerance is None, _tol_none),
+    (lambda tolerance: isinstance(tolerance, bool), _tol_bool),
+    (lambda tolerance: isinstance(tolerance, (int, float)), _tol_numeric),
+    (lambda tolerance: isinstance(tolerance, str), _tol_str),
+)
+
+
 def apply_tolerance(
     actual: object,
     expected: object,
@@ -213,92 +366,10 @@ def apply_tolerance(
     :returns: PASS/FAIL/ERROR result with ``actual`` set.
     :rtype: VerificationResult
     """
-    if isinstance(tolerance, bool):
-        return _error_result(
-            f"unsupported tolerance {tolerance!r}",
-            actual=actual,
-            optional=optional,
-        )
-
-    if tolerance is None:
-        return _pass_or_fail(
-            passed=actual == expected,
-            actual=actual,
-            optional=optional,
-            fail_message=f"expected {expected}, got {actual}",
-        )
-
-    if isinstance(tolerance, (int, float)):
-        numbers = _require_numbers(actual, expected, optional=optional)
-        if isinstance(numbers, VerificationResult):
-            return numbers
-        actual_n, expected_n = numbers
-        band = abs(float(tolerance))
-        return _pass_or_fail(
-            passed=abs(actual_n - expected_n) <= band,
-            actual=actual,
-            optional=optional,
-            fail_message=f"expected {expected} +/- {band}, got {actual}",
-        )
-
-    if isinstance(tolerance, str):
-        text = tolerance.strip()
-        signed = parse_signed_band(text)
-        if signed is not None:
-            numbers = _require_numbers(actual, expected, optional=optional)
-            if isinstance(numbers, VerificationResult):
-                return numbers
-            actual_n, expected_n = numbers
-            low, high = gele_limits(expected_n, text)
-            side, magnitude = signed
-            label = f"{side}{magnitude}"
-            return _pass_or_fail(
-                passed=low <= actual_n <= high,
-                actual=actual,
-                optional=optional,
-                fail_message=f"expected {expected} {label}, got {actual}",
-            )
-
-        op = _OPERATOR_ALIASES.get(text) or _OPERATOR_ALIASES.get(text.upper())
-        if op is None:
-            return _error_result(
-                f"unknown tolerance {tolerance!r}",
-                actual=actual,
-                optional=optional,
-            )
-
-        symbol = _OP_SYMBOLS[op]
-        if op in {"EQ", "NE"}:
-            passed = (actual == expected) if op == "EQ" else (actual != expected)
-            return _pass_or_fail(
-                passed=passed,
-                actual=actual,
-                optional=optional,
-                fail_message=f"expected {symbol} {expected}, got {actual}",
-            )
-
-        numbers = _require_numbers(actual, expected, optional=optional)
-        if isinstance(numbers, VerificationResult):
-            return numbers
-        actual_n, expected_n = numbers
-        comparisons = {
-            "GE": actual_n >= expected_n,
-            "LE": actual_n <= expected_n,
-            "GT": actual_n > expected_n,
-            "LT": actual_n < expected_n,
-        }
-        return _pass_or_fail(
-            passed=comparisons[op],
-            actual=actual,
-            optional=optional,
-            fail_message=f"expected {symbol} {expected}, got {actual}",
-        )
-
-    return _error_result(
-        f"unsupported tolerance {tolerance!r}",
-        actual=actual,
-        optional=optional,
-    )
+    for matches, handler in _TOLERANCE_HANDLERS:
+        if matches(tolerance):
+            return handler(actual, expected, tolerance, optional=optional)
+    return _tol_unsupported(actual, expected, tolerance, optional=optional)
 
 
 def _has_required_unit_command_error() -> bool:
@@ -442,6 +513,299 @@ def _coerce_verification_result(
     )
 
 
+def _optional_from_caller(kwargs: dict[str, Any]) -> bool:
+    if "optional" not in kwargs:
+        return False
+    try:
+        return coerce_bool(kwargs["optional"])
+    except ParametersError:
+        return False
+
+
+def _safe_requirements(kwargs: dict[str, Any]) -> list[str]:
+    try:
+        return _requirements_from_kwargs(kwargs)
+    except TypeError:
+        return []
+
+
+@dataclass
+class _VerificationBinding:
+    domain: str
+    command: str
+    func: Callable[..., Any]
+    dry_run: object
+    accepts_description: bool
+    accepts_requirements: bool
+    accepts_key: bool
+    accepts_optional: bool
+
+    def should_skip(self, ctx: RuntimeContext) -> bool:
+        return should_skip_verification(ctx)
+
+    def resolve_identity(self, ctx: RuntimeContext, kwargs: dict[str, Any]) -> Identity:
+        key, injected = resolve_auto_key(
+            ctx,
+            kwargs,
+            family="verification",
+            command=self.command,
+        )
+        key_text = "" if not key else str(key)
+        return Identity(key=key, key_text=key_text, injected=injected)
+
+    def dry_run_fields(
+        self,
+        identity: Identity,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> dict[str, Any]:
+        return {
+            "kind": "verification",
+            "domain": self.domain,
+            "command": self.command,
+            "key": identity.key_text,
+            "optional": False,
+            "policy": self.dry_run,
+            "func": self.func,
+            "call_args": args,
+            "kwargs": kwargs,
+            "description": _clean_description(kwargs.get("description")) or "",
+            "requirements": _safe_requirements(kwargs),
+            "injected": identity.injected,
+            "apply_parameters": bool(identity.key) and not identity.injected,
+            "pop_key": not self.accepts_key,
+            "pop_optional": not self.accepts_optional,
+            "pop_description": not self.accepts_description,
+            "pop_requirements": not self.accepts_requirements,
+            "require_prior_measurement": False,
+        }
+
+    def prepare(
+        self,
+        ctx: RuntimeContext,
+        identity: Identity,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> PreparedCall | EarlyReturn:
+        call_kwargs = dict(kwargs)
+        try:
+            if identity.key and not identity.injected:
+                call_kwargs = apply_parameters_to_kwargs(
+                    call_kwargs,
+                    key=identity.key_text,
+                    parameters=ctx.parameters_map,
+                )
+            optional = coerce_optional_kwarg(call_kwargs)
+        except ParametersError as exc:
+            return EarlyReturn(
+                self._persist_prepare_error(
+                    ctx,
+                    identity,
+                    args=args,
+                    limit_kwargs=call_kwargs,
+                    message=str(exc),
+                    optional=_optional_from_caller(kwargs),
+                    requirements=_safe_requirements(call_kwargs),
+                    log_kwargs=kwargs,
+                    include_requirements=True,
+                ),
+            )
+        description = _clean_description(call_kwargs.get("description"))
+        try:
+            requirements = _requirements_from_kwargs(call_kwargs)
+        except TypeError as exc:
+            return EarlyReturn(
+                self._persist_prepare_error(
+                    ctx,
+                    identity,
+                    args=args,
+                    limit_kwargs=call_kwargs,
+                    message=str(exc),
+                    optional=optional,
+                    requirements=[],
+                    log_kwargs=call_kwargs,
+                    description=description,
+                    include_requirements=False,
+                ),
+            )
+        logged_kwargs = dict(call_kwargs)
+        if not self.accepts_optional:
+            call_kwargs.pop("optional", None)
+        if not self.accepts_description:
+            call_kwargs.pop("description", None)
+        if not self.accepts_requirements:
+            call_kwargs.pop("requirements", None)
+        if not self.accepts_key:
+            call_kwargs.pop("key", None)
+        return PreparedCall(
+            optional=optional,
+            call_kwargs=call_kwargs,
+            logged_kwargs=logged_kwargs,
+            call_args=args,
+            description=description or "",
+            requirements=requirements,
+        )
+
+    def _persist_prepare_error(
+        self,
+        ctx: RuntimeContext,
+        identity: Identity,
+        *,
+        args: tuple[Any, ...],
+        limit_kwargs: dict[str, Any],
+        message: str,
+        optional: bool,
+        requirements: list[str],
+        log_kwargs: dict[str, Any],
+        description: str | None = None,
+        include_requirements: bool,
+    ) -> VerificationResult:
+        if description is None:
+            description = _clean_description(limit_kwargs.get("description"))
+        result = VerificationResult(status="ERROR", message=message, optional=optional)
+        ctx.result_aggregator.record_verification(
+            result,
+            key=identity.key_text,
+            command=self.command,
+            domain=self.domain,
+            description=description or "",
+            requirements=requirements,
+        )
+        expected, compare_op, tolerance = verification_limit_fields(limit_kwargs)
+        row_kwargs: dict[str, Any] = {
+            "domain": self.domain,
+            "command": self.command,
+            "key": identity.key_text,
+            "expected": expected,
+            "actual": None,
+            "tolerance": tolerance,
+            "compare_op": compare_op,
+            "status": result.status,
+            "optional": result.optional,
+            "message": result.message,
+            "description": description,
+        }
+        if include_requirements:
+            row_kwargs["requirements"] = requirements
+        ctx.db.insert_verification(VerificationRow(**row_kwargs))
+        log_evidence(
+            ctx,
+            kind="verification",
+            domain=self.domain,
+            command=self.command,
+            key=identity.key_text,
+            status=result.status,
+            optional=result.optional,
+            detail=f"message={result.message!r}",
+            call_args=args,
+            kwargs=log_kwargs,
+        )
+        return result
+
+    def persist_success(
+        self,
+        ctx: RuntimeContext,
+        identity: Identity,
+        prepared: PreparedCall,
+        value: object,
+    ) -> object:
+        result = _coerce_verification_result(
+            value,
+            optional=prepared.optional,
+            kwargs=prepared.call_kwargs,
+        )
+        self._persist_outcome(ctx, identity, prepared, result)
+        return result
+
+    def persist_error(
+        self,
+        ctx: RuntimeContext,
+        identity: Identity,
+        prepared: PreparedCall,
+        exc: Exception,
+    ) -> object:
+        log_evidence_error(
+            ctx,
+            kind="verification",
+            domain=self.domain,
+            command=self.command,
+            key=identity.key_text,
+            call_args=prepared.call_args,
+            kwargs=prepared.logged_kwargs,
+        )
+        result = VerificationResult(
+            status="ERROR",
+            message=str(exc),
+            optional=prepared.optional,
+        )
+        self._persist_outcome(ctx, identity, prepared, result)
+        return result
+
+    def _persist_outcome(
+        self,
+        ctx: RuntimeContext,
+        identity: Identity,
+        prepared: PreparedCall,
+        result: VerificationResult,
+    ) -> None:
+        description = prepared.description or None
+        ctx.result_aggregator.record_verification(
+            result,
+            key=identity.key_text,
+            command=self.command,
+            domain=self.domain,
+            description=description or "",
+            requirements=prepared.requirements,
+        )
+        expected, compare_op, tolerance = verification_limit_fields(prepared.call_kwargs)
+        ctx.db.insert_verification(
+            VerificationRow(
+                domain=self.domain,
+                command=self.command,
+                key=identity.key_text,
+                expected=expected,
+                actual=result.actual,
+                tolerance=tolerance,
+                compare_op=compare_op,
+                status=result.status,
+                optional=result.optional,
+                message=result.message,
+                description=description,
+                requirements=prepared.requirements,
+            ),
+        )
+        log_evidence(
+            ctx,
+            kind="verification",
+            domain=self.domain,
+            command=self.command,
+            key=identity.key_text,
+            status=result.status,
+            optional=result.optional,
+            detail=(
+                f"expected={_reference_expected(prepared.call_kwargs)!r} "
+                f"message={result.message!r}"
+            ),
+            call_args=prepared.call_args,
+            kwargs=prepared.logged_kwargs,
+        )
+
+    def as_spec(self) -> DecoratorSpec:
+        return DecoratorSpec(
+            kind="verification",
+            domain=self.domain,
+            command=self.command,
+            func=self.func,
+            dry_run=self.dry_run,
+            should_skip=self.should_skip,
+            resolve_identity=self.resolve_identity,
+            dry_run_fields=self.dry_run_fields,
+            prepare=self.prepare,
+            persist_success=self.persist_success,
+            persist_error=self.persist_error,
+        )
+
+
 @overload
 def verification(func: Callable[P, R], /) -> Callable[P, R]: ...
 
@@ -461,261 +825,22 @@ def verification(
     dry_run: object = "log",
 ) -> object:
     def decorate(func: Callable[..., Any]) -> Callable[..., Any]:
-        domain = resolve_domain(func)
-        command = resolve_command(func)
         parameters = signature(func).parameters
-        accepts_description = "description" in parameters
-        accepts_requirements = "requirements" in parameters
-        accepts_key = "key" in parameters
-        accepts_optional = "optional" in parameters
+        binding = _VerificationBinding(
+            domain=resolve_domain(func),
+            command=resolve_command(func),
+            func=func,
+            dry_run=dry_run,
+            accepts_description="description" in parameters,
+            accepts_requirements="requirements" in parameters,
+            accepts_key="key" in parameters,
+            accepts_optional="optional" in parameters,
+        )
+        spec = binding.as_spec()
 
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-            # Resolve runtime policy and identity before deciding whether the body runs.
-            ctx = ensure_runtime_context()
-            if should_skip_verification(ctx):
-                return None
-            key, injected = resolve_auto_key(
-                ctx,
-                kwargs,
-                family="verification",
-                command=command,
-            )
-            key_text = "" if not key else str(key)
-            if capture_parameter_export(
-                ctx,
-                kind="verification",
-                command=command,
-                key=key_text,
-                kwargs=kwargs,
-            ):
-                return None
-            try:
-                early_requirements = _requirements_from_kwargs(kwargs)
-            except TypeError:
-                early_requirements = []
-            if finish_dry_run_log(
-                ctx,
-                kind="verification",
-                domain=domain,
-                command=command,
-                key=key_text,
-                optional=False,
-                policy=dry_run,
-                func=func,
-                call_args=args,
-                kwargs=kwargs,
-                description=_clean_description(kwargs.get("description")) or "",
-                requirements=early_requirements,
-                injected=injected,
-                apply_parameters=bool(key) and not injected,
-                pop_key=not accepts_key,
-                pop_optional=not accepts_optional,
-                pop_description=not accepts_description,
-                pop_requirements=not accepts_requirements,
-                require_prior_measurement=False,
-            ):
-                return None
-
-            # Resolve effective arguments; parameter tables override caller keywords.
-            call_kwargs = dict(kwargs)
-            try:
-                if key and not injected:
-                    call_kwargs = apply_parameters_to_kwargs(
-                        call_kwargs,
-                        key=key_text,
-                        parameters=ctx.parameters_map,
-                    )
-                optional = coerce_optional_kwarg(call_kwargs)
-            except ParametersError as exc:
-                description = _clean_description(call_kwargs.get("description"))
-                optional = False
-                if "optional" in kwargs:
-                    try:
-                        optional = coerce_bool(kwargs["optional"])
-                    except ParametersError:
-                        optional = False
-                try:
-                    requirements = _requirements_from_kwargs(call_kwargs)
-                except TypeError:
-                    requirements = []
-                result = VerificationResult(
-                    status="ERROR",
-                    message=str(exc),
-                    optional=optional,
-                )
-                ctx.result_aggregator.record_verification(
-                    result,
-                    key=key_text,
-                    command=command,
-                    domain=domain,
-                    description=description or "",
-                    requirements=requirements,
-                )
-                expected, compare_op, tolerance = verification_limit_fields(call_kwargs)
-                ctx.db.insert_verification(
-                    VerificationRow(
-                        domain=domain,
-                        command=command,
-                        key=key_text,
-                        expected=expected,
-                        actual=None,
-                        tolerance=tolerance,
-                        compare_op=compare_op,
-                        status=result.status,
-                        optional=result.optional,
-                        message=result.message,
-                        description=description,
-                        requirements=requirements,
-                    ),
-                )
-                log_evidence(
-                    ctx,
-                    kind="verification",
-                    domain=domain,
-                    command=command,
-                    key=key_text,
-                    status=result.status,
-                    optional=result.optional,
-                    detail=f"message={result.message!r}",
-                    call_args=args,
-                    kwargs=kwargs,
-                )
-                return result
-
-            description = _clean_description(call_kwargs.get("description"))
-            try:
-                requirements = _requirements_from_kwargs(call_kwargs)
-            except TypeError as exc:
-                result = VerificationResult(
-                    status="ERROR",
-                    message=str(exc),
-                    optional=optional,
-                )
-                ctx.result_aggregator.record_verification(
-                    result,
-                    key=key_text,
-                    command=command,
-                    domain=domain,
-                    description=description or "",
-                    requirements=[],
-                )
-                expected, compare_op, tolerance = verification_limit_fields(call_kwargs)
-                ctx.db.insert_verification(
-                    VerificationRow(
-                        domain=domain,
-                        command=command,
-                        key=key_text,
-                        expected=expected,
-                        actual=None,
-                        tolerance=tolerance,
-                        compare_op=compare_op,
-                        status=result.status,
-                        optional=result.optional,
-                        message=result.message,
-                        description=description,
-                    ),
-                )
-                log_evidence(
-                    ctx,
-                    kind="verification",
-                    domain=domain,
-                    command=command,
-                    key=key_text,
-                    status=result.status,
-                    optional=result.optional,
-                    detail=f"message={result.message!r}",
-                    call_args=args,
-                    kwargs=call_kwargs,
-                )
-                return result
-            # Keep evidence metadata; remove wrapper-owned keywords the body does not declare.
-            logged_kwargs = dict(call_kwargs)
-            if not accepts_optional:
-                call_kwargs.pop("optional", None)
-            if not accepts_description:
-                call_kwargs.pop("description", None)
-            if not accepts_requirements:
-                call_kwargs.pop("requirements", None)
-            if not accepts_key:
-                call_kwargs.pop("key", None)
-            handled, value = invoke_dry_run_substitute(
-                ctx,
-                kind="verification",
-                domain=domain,
-                command=command,
-                key=key_text,
-                optional=optional,
-                policy=dry_run,
-                call_args=args,
-                call_kwargs=call_kwargs,
-                logged_kwargs=logged_kwargs,
-                description=description or "",
-                requirements=requirements,
-            )
-            if handled:
-                return value
-
-            # Run the body and normalize its value, bool, or explicit VerificationResult.
-            try:
-                call_kwargs = coerce_units(call_kwargs)
-                result = _coerce_verification_result(
-                    func(*args, **call_kwargs),
-                    optional=optional,
-                    kwargs=call_kwargs,
-                )
-            except Exception as exc:  # noqa: BLE001
-                log_evidence_error(
-                    ctx,
-                    kind="verification",
-                    domain=domain,
-                    command=command,
-                    key=key_text,
-                    call_args=args,
-                    kwargs=logged_kwargs,
-                )
-                result = VerificationResult(status="ERROR", message=str(exc), optional=optional)
-            # Record the same outcome in the verdict and the evidence database.
-            ctx.result_aggregator.record_verification(
-                result,
-                key=key_text,
-                command=command,
-                domain=domain,
-                description=description or "",
-                requirements=requirements,
-            )
-            expected, compare_op, tolerance = verification_limit_fields(call_kwargs)
-            ctx.db.insert_verification(
-                VerificationRow(
-                    domain=domain,
-                    command=command,
-                    key=key_text,
-                    expected=expected,
-                    actual=result.actual,
-                    tolerance=tolerance,
-                    compare_op=compare_op,
-                    status=result.status,
-                    optional=result.optional,
-                    message=result.message,
-                    description=description,
-                    requirements=requirements,
-                ),
-            )
-            log_evidence(
-                ctx,
-                kind="verification",
-                domain=domain,
-                command=command,
-                key=key_text,
-                status=result.status,
-                optional=result.optional,
-                detail=(
-                    f"expected={_reference_expected(call_kwargs)!r} message={result.message!r}"
-                ),
-                call_args=args,
-                kwargs=logged_kwargs,
-            )
-            return result
+            return run_decorated_call(spec, *args, **kwargs)
 
         setattr(wrapper, COLOSSEUM_DECORATOR, "verification")
         bind_dry_run_policy(wrapper, dry_run)

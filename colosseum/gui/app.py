@@ -75,7 +75,8 @@ def _set_initial_sashes(body: tk.PanedWindow) -> None:
 def ensure_display_available() -> None:
     if sys.platform == "win32":
         return
-    if not os.environ.get("DISPLAY"):
+    # other platforms; mypy binds sys.platform to the host
+    if not os.environ.get("DISPLAY"):  # type: ignore[unreachable]
         print(
             "Colosseum GUI requires a display. Set DISPLAY or use SSH X11 forwarding (ssh -X).",
             file=sys.stderr,
@@ -168,8 +169,14 @@ class ColosseumApp:
         ctk, root = self._ctk, self._root
         root.grid_columnconfigure(0, weight=1)
         root.grid_rowconfigure(2, weight=1)
-        pane_bg = _pane_bg(root, ctk)
+        self._build_form()
+        self._build_body(_pane_bg(root, ctk))
+        ctk.CTkLabel(root, textvariable=self._status).grid(
+            row=1, column=0, sticky="w", padx=12, pady=(0, 4),
+        )
 
+    def _build_form(self) -> None:
+        ctk, root = self._ctk, self._root
         form = ctk.CTkFrame(root)
         form.grid(row=0, column=0, sticky="ew", padx=8, pady=8)
         form.grid_columnconfigure(1, weight=1)
@@ -199,22 +206,8 @@ class ColosseumApp:
             row=0, column=4, padx=8,
         )
 
-        body = _make_paned(root, tk.HORIZONTAL, pane_bg)
-        body.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
-        scale = float(ctk.ScalingTracker.get_widget_scaling(root))
-        viewer = ctk.CTkFrame(body, width=620)
-        viewer.grid_rowconfigure(1, weight=1)
-        viewer.grid_columnconfigure(0, weight=1)
-        viewer_bar = ctk.CTkFrame(viewer, fg_color="transparent")
-        viewer_bar.grid(row=0, column=0, sticky="ew", padx=4, pady=(4, 0))
-        ctk.CTkButton(
-            viewer_bar, text="Open output folder", width=140, command=self._open_selected_folder,
-        ).pack(side="left", padx=2)
-        self._tabs = ctk.CTkTabview(viewer)
-        self._tabs.grid(row=1, column=0, sticky="nsew", padx=4, pady=4)
-        self._tabs.add("Log")
-        self._tabs.add("Summary")
-        self._tabs.add("Results")
+    def _build_log_tab(self, *, scale: float) -> None:
+        ctk = self._ctk
         log_tab = self._tabs.tab("Log")
         log_tab.grid_rowconfigure(0, weight=1)
         log_tab.grid_columnconfigure(0, weight=1)
@@ -241,6 +234,9 @@ class ColosseumApp:
             )
         self._log_wrap_btn.place(relx=1.0, rely=0.0, x=-4, y=4, anchor="ne")
         self._log_wrap_btn.lift()
+
+    def _build_summary_tab(self) -> None:
+        ctk = self._ctk
         summary_tab = self._tabs.tab("Summary")
         summary_tab.grid_rowconfigure(0, weight=0)
         summary_tab.grid_rowconfigure(1, weight=1)
@@ -250,8 +246,9 @@ class ColosseumApp:
         self._slot_list.grid_remove()
         self._summary_text = ctk.CTkTextbox(summary_tab, state="disabled")
         self._summary_text.grid(row=1, column=0, sticky="nsew", padx=2, pady=2)
-        self._build_results_tab()
 
+    def _build_runs_panel(self, body: Any) -> Any:  # noqa: ANN401
+        ctk = self._ctk
         runs_panel = ctk.CTkFrame(body, width=280)
         runs_panel.grid_rowconfigure(1, weight=1)
         runs_panel.grid_columnconfigure(0, weight=1)
@@ -261,12 +258,41 @@ class ColosseumApp:
         ctk.CTkLabel(header, text="Runs").grid(row=0, column=0, sticky="w")
         ctrls = ctk.CTkFrame(header, fg_color="transparent")
         ctrls.grid(row=0, column=1, sticky="e")
-        ctk.CTkButton(ctrls, text="Refresh", width=70, command=self._refresh_runs).grid(row=0, column=0, padx=2)
-        ctk.CTkButton(ctrls, text="Expand", width=70, command=self._expand_all_output_dirs).grid(row=0, column=1, padx=2)
-        ctk.CTkButton(ctrls, text="Collapse", width=70, command=self._collapse_all_output_dirs).grid(row=0, column=2, padx=2)
+        ctk.CTkButton(ctrls, text="Refresh", width=70, command=self._refresh_runs).grid(
+            row=0, column=0, padx=2,
+        )
+        ctk.CTkButton(ctrls, text="Expand", width=70, command=self._expand_all_output_dirs).grid(
+            row=0, column=1, padx=2,
+        )
+        ctk.CTkButton(ctrls, text="Collapse", width=70, command=self._collapse_all_output_dirs).grid(
+            row=0, column=2, padx=2,
+        )
         self._run_list = ctk.CTkScrollableFrame(runs_panel)
         self._run_list.grid(row=1, column=0, sticky="nsew", padx=4, pady=(0, 4))
+        return runs_panel
 
+    def _build_body(self, pane_bg: str) -> None:
+        ctk, root = self._ctk, self._root
+        body = _make_paned(root, tk.HORIZONTAL, pane_bg)
+        body.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
+        scale = float(ctk.ScalingTracker.get_widget_scaling(root))
+        viewer = ctk.CTkFrame(body, width=620)
+        viewer.grid_rowconfigure(1, weight=1)
+        viewer.grid_columnconfigure(0, weight=1)
+        viewer_bar = ctk.CTkFrame(viewer, fg_color="transparent")
+        viewer_bar.grid(row=0, column=0, sticky="ew", padx=4, pady=(4, 0))
+        ctk.CTkButton(
+            viewer_bar, text="Open output folder", width=140, command=self._open_selected_folder,
+        ).pack(side="left", padx=2)
+        self._tabs = ctk.CTkTabview(viewer)
+        self._tabs.grid(row=1, column=0, sticky="nsew", padx=4, pady=4)
+        self._tabs.add("Log")
+        self._tabs.add("Summary")
+        self._tabs.add("Results")
+        self._build_log_tab(scale=scale)
+        self._build_summary_tab()
+        self._build_results_tab()
+        runs_panel = self._build_runs_panel(body)
         viewer.grid_propagate(False)
         runs_panel.grid_propagate(False)
         viewer_min = int(640 * scale)
@@ -275,8 +301,6 @@ class ColosseumApp:
         body.add(viewer, minsize=viewer_min, stretch="always")
         body.add(runs_panel, minsize=runs_min, stretch="always")
         self._root.after(100, lambda: _set_initial_sashes(body))
-
-        ctk.CTkLabel(root, textvariable=self._status).grid(row=1, column=0, sticky="w", padx=12, pady=(0, 4))
 
     @staticmethod
     def _set_text(textbox: Any, text: str) -> None:  # noqa: ANN401
@@ -847,16 +871,15 @@ class ColosseumApp:
             _place_limit_label(canvas, actual_x, label_y, caption(view.actual), width, occupied)
         return True
 
-    def _draw_xy(self, row: Any) -> bool:  # noqa: ANN401
-        canvas = self._xy_canvas
-        canvas.delete("all")
+    def _prep_xy(self, row: Any) -> tuple[Any, list[tuple[float | None, float | None]], Any, Any, int] | Literal[False] | None:  # noqa: ANN401
+        """Return stroke inputs, ``False`` when canvas is too small, or ``None`` to abort."""
         series = self._series_for_row(row)
         if series is None:
-            return False
-        width = canvas.winfo_width()
-        height = canvas.winfo_height()
+            return None
+        width = self._xy_canvas.winfo_width()
+        height = self._xy_canvas.winfo_height()
         if width < 80 or height < 40:
-            return True
+            return False
         view = limit_view(
             compare_op=row.compare_op,
             expected_raw=row.expected_raw,
@@ -869,7 +892,7 @@ class ColosseumApp:
         points = reduce_xy(series.points, low=low, high=high, max_points=600)
         finite = [(x, y) for x, y in points if x is not None and y is not None]
         if not finite:
-            return False
+            return None
         xs = [item[0] for item in finite]
         ys = [item[1] for item in finite]
         min_x, max_x = min(xs), max(xs)
@@ -885,6 +908,17 @@ class ColosseumApp:
         def map_y(value: float) -> float:
             return 12 + (max_y - value) / (max_y - min_y) * (height - 28)
 
+        return series, points, map_x, map_y, height
+
+    def _stroke_xy(
+        self,
+        series: Any,  # noqa: ANN401
+        points: list[tuple[float | None, float | None]],
+        map_x: Any,  # noqa: ANN401
+        map_y: Any,  # noqa: ANN401
+        height: int,
+    ) -> None:
+        canvas = self._xy_canvas
         previous: tuple[float, float] | None = None
         for x_value, y_value in points:
             if x_value is None or y_value is None:
@@ -898,43 +932,90 @@ class ColosseumApp:
             8, height - 8, anchor="w", fill="#cccccc",
             text=f"x ({series.x_unit})  y ({series.y_unit})",
         )
+
+    def _draw_xy(self, row: Any) -> bool:  # noqa: ANN401
+        canvas = self._xy_canvas
+        canvas.delete("all")
+        prepared = self._prep_xy(row)
+        if prepared is None:
+            return False
+        if prepared is False:
+            return True
+        series, points, map_x, map_y, height = prepared
+        self._stroke_xy(series, points, map_x, map_y, height)
         return True
 
+    def _on_worker_log(self, payload: list[Any]) -> None:
+        if self._selected_run_dir is None and self._worker.is_running():
+            self._append_log(payload[0])
+
+    def _on_worker_started(self, payload: list[Any]) -> None:
+        self._selected_run_dir = None
+        self._tabs.set("Log")
+        self._append_log(f"--- Run started: {payload[0]} ---")
+        self._status.set(f"Running: {payload[0]}")
+
+    def _on_worker_error(self, payload: list[Any]) -> None:
+        self._append_log(f"ERROR: {payload[0]}")
+        self._stop_btn.configure(state="disabled")
+        self._status.set("Run failed to start")
+
+    def _on_worker_finished(self, payload: list[Any]) -> None:
+        finished: RunFinished = payload[0]
+        self._append_log(f"--- Run finished (exit {finished.exit_code}) ---")
+        self._stop_btn.configure(state="disabled")
+        self._status.set(
+            f"Last run: {finished.run_dir}"
+            if finished.run_dir
+            else f"Finished (exit {finished.exit_code})",
+        )
+        self._refresh_runs()
+
+    def _on_ui_browser(self, payload: list[Any]) -> None:
+        if payload[0] == self._browser_generation:
+            self._browser_snapshot = payload[1]
+            self._render_run_list()
+
+    def _on_ui_run(self, payload: list[Any]) -> None:
+        if payload[0] == self._detail_generation:
+            self._apply_run_snapshot(payload[1])
+
+    def _on_ui_evidence(self, payload: list[Any]) -> None:
+        if payload[0] == self._detail_generation:
+            self._apply_evidence(payload[0], payload[1])
+
+    def _drain_event_queue(
+        self,
+        events: queue.Queue[Any],
+        handlers: dict[str, Any],
+    ) -> None:
+        while True:
+            try:
+                kind, *payload = events.get_nowait()
+            except queue.Empty:
+                break
+            handler = handlers.get(kind)
+            if handler is not None:
+                handler(payload)
+
     def _poll_worker(self) -> None:
-        while True:
-            try:
-                kind, *payload = self._worker.events.get_nowait()
-            except queue.Empty:
-                break
-            if kind == "log" and self._selected_run_dir is None and self._worker.is_running():
-                self._append_log(payload[0])
-            elif kind == "started":
-                self._selected_run_dir = None
-                self._tabs.set("Log")
-                self._append_log(f"--- Run started: {payload[0]} ---")
-                self._status.set(f"Running: {payload[0]}")
-            elif kind == "error":
-                self._append_log(f"ERROR: {payload[0]}")
-                self._stop_btn.configure(state="disabled")
-                self._status.set("Run failed to start")
-            elif kind == "finished":
-                finished: RunFinished = payload[0]
-                self._append_log(f"--- Run finished (exit {finished.exit_code}) ---")
-                self._stop_btn.configure(state="disabled")
-                self._status.set(f"Last run: {finished.run_dir}" if finished.run_dir else f"Finished (exit {finished.exit_code})")
-                self._refresh_runs()
-        while True:
-            try:
-                kind, *payload = self._ui_events.get_nowait()
-            except queue.Empty:
-                break
-            if kind == "browser" and payload[0] == self._browser_generation:
-                self._browser_snapshot = payload[1]
-                self._render_run_list()
-            elif kind == "run" and payload[0] == self._detail_generation:
-                self._apply_run_snapshot(payload[1])
-            elif kind == "evidence" and payload[0] == self._detail_generation:
-                self._apply_evidence(payload[0], payload[1])
+        self._drain_event_queue(
+            self._worker.events,
+            {
+                "log": self._on_worker_log,
+                "started": self._on_worker_started,
+                "error": self._on_worker_error,
+                "finished": self._on_worker_finished,
+            },
+        )
+        self._drain_event_queue(
+            self._ui_events,
+            {
+                "browser": self._on_ui_browser,
+                "run": self._on_ui_run,
+                "evidence": self._on_ui_evidence,
+            },
+        )
         self._root.after(200, self._poll_worker)
 
 

@@ -50,6 +50,52 @@ def _script_import_path(script: Path) -> Iterator[None]:
         ctx.active_script_path = previous_script
 
 
+def _call_script_main(resolved: Path) -> None:
+    ctx = get_context()
+    with _script_import_path(resolved):
+        module_globals = runpy.run_path(str(resolved), run_name="colosseum.test_run")
+        main_fn = module_globals.get("main")
+        if not callable(main_fn):
+            raise ScriptRunError(f"Script does not define callable main(): {resolved}")
+        if ctx.logger is not None:
+            ctx.logger.debug("Calling main() in %s", resolved)
+        main_fn()
+
+
+def _handle_script_system_exit(resolved: Path, exc: SystemExit) -> None:
+    ctx = get_context()
+    if ctx.finalized:
+        raise
+    code = _system_exit_code(exc)
+    # Suite slot already finalized via endex(): SystemExit(0) is a no-op;
+    # a non-zero exit still fails the suite via ScriptRunError.
+    if ctx.session.kind == "suite" and ctx.slot_finalized:
+        if code == 0:
+            return
+        message = f"script_exit_after_endex:{resolved}: code={code}"
+        if ctx.logger is not None:
+            ctx.logger.error(
+                "Script exited after col.endex(): %s (code=%s)", resolved, code,
+            )
+        raise ScriptRunError(message) from exc
+    message = f"script_exit:{resolved}: code={code}"
+    if ctx.db.is_initialized():
+        ctx.db.insert_event("ERROR", "runner", message)
+    if ctx.logger is not None:
+        ctx.logger.error("Script exited before col.endex(): %s (code=%s)", resolved, code)
+    raise ScriptRunError(message) from exc
+
+
+def _handle_script_failure(resolved: Path, exc: Exception) -> None:
+    ctx = get_context()
+    # Slot DB may already be closed when endex() finalized the suite slot.
+    if ctx.db.is_initialized():
+        ctx.db.insert_event("ERROR", "runner", f"script_fail:{resolved}: {exc}")
+    if ctx.logger is not None:
+        ctx.logger.exception("Script failed: %s", resolved)
+    raise ScriptRunError(str(exc)) from exc
+
+
 def run_script(path: Path) -> None:
     """Execute a test/setup/teardown script (calls main() only; no endex)."""
     from colosseum.paths import absolute_path
@@ -62,42 +108,12 @@ def run_script(path: Path) -> None:
         ctx.logger.info("Running script %s (phase=%s)", resolved, ctx.phase)
         ctx.logger.debug("Loading script module: %s", resolved)
     try:
-        with _script_import_path(resolved):
-            module_globals = runpy.run_path(str(resolved), run_name="colosseum.test_run")
-            main_fn = module_globals.get("main")
-            if not callable(main_fn):
-                raise ScriptRunError(f"Script does not define callable main(): {resolved}")
-            if ctx.logger is not None:
-                ctx.logger.debug("Calling main() in %s", resolved)
-            main_fn()
+        _call_script_main(resolved)
     except SystemExit as exc:
-        if ctx.finalized:
-            raise
-        code = _system_exit_code(exc)
-        # Suite slot already finalized via endex(): SystemExit(0) is a no-op;
-        # a non-zero exit still fails the suite via ScriptRunError.
-        if ctx.session.kind == "suite" and ctx.slot_finalized:
-            if code == 0:
-                return
-            message = f"script_exit_after_endex:{resolved}: code={code}"
-            if ctx.logger is not None:
-                ctx.logger.error(
-                    "Script exited after col.endex(): %s (code=%s)", resolved, code,
-                )
-            raise ScriptRunError(message) from exc
-        message = f"script_exit:{resolved}: code={code}"
-        if ctx.db.is_initialized():
-            ctx.db.insert_event("ERROR", "runner", message)
-        if ctx.logger is not None:
-            ctx.logger.error("Script exited before col.endex(): %s (code=%s)", resolved, code)
-        raise ScriptRunError(message) from exc
-    except Exception as exc:
-        # Slot DB may already be closed when endex() finalized the suite slot.
-        if ctx.db.is_initialized():
-            ctx.db.insert_event("ERROR", "runner", f"script_fail:{resolved}: {exc}")
-        if ctx.logger is not None:
-            ctx.logger.exception("Script failed: %s", resolved)
-        raise ScriptRunError(str(exc)) from exc
+        _handle_script_system_exit(resolved, exc)
+        return
+    except Exception as exc:  # noqa: BLE001 - record script failure; signals propagate
+        _handle_script_failure(resolved, exc)
     # endex() may have already finalized (and closed) the slot database.
     if ctx.slot_finalized:
         return

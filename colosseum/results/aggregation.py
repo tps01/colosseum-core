@@ -423,19 +423,19 @@ def aggregate_requirements(records: list[OutcomeRecord]) -> list[dict[str, Any]]
     failures: dict[str, list[dict[str, str]]] = {}
     seen: set[str] = set()
     for row in records:
-        if row.get("kind") != "verification":
+        if row["kind"] != "verification":
             continue
-        ids = row.get("requirements") or []
-        if not isinstance(ids, list) or not ids:
+        ids = row["requirements"]
+        if not ids:
             continue
         for req_id in ids:
-            if not isinstance(req_id, str) or not req_id:
+            if not req_id:
                 continue
             if req_id not in seen:
                 seen.add(req_id)
                 order.append(req_id)
                 failures[req_id] = []
-            if row.get("status") not in _PASSING:
+            if row["status"] not in _PASSING:
                 failures[req_id].append(_identity(row))
     return [
         {
@@ -453,7 +453,7 @@ def rollup_suite_requirements(slots: list[SuiteSlotResult]) -> list[dict[str, An
     failures: dict[str, list[dict[str, Any]]] = {}
     seen: set[str] = set()
     for slot in slots:
-        script = slot.script_path.name if slot.script_path is not None else ""
+        script = slot.script_path.name
         for row in slot.summary.get("requirements", []):
             req_id = row.get("id")
             if not isinstance(req_id, str) or not req_id:
