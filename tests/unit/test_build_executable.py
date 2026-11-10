@@ -7,10 +7,16 @@ import sys
 import tarfile
 import zipfile
 from importlib import resources
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 import pytest
-from colosseum.tools.build_executable import _launcher_name, archive_app
+from colosseum.tools import build_executable as build_executable_mod
+from colosseum.tools.build_executable import (
+    _launcher_name,
+    _plugin_package_path_roots,
+    archive_app,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -19,6 +25,43 @@ if TYPE_CHECKING:
 def test_hook_is_packaged_as_resource() -> None:
     hook = resources.files("colosseum").joinpath("hooks", "hook-colosseum.py")
     assert hook.is_file()
+
+
+def test_plugin_package_path_roots_dedupes_and_skips_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    root_a = tmp_path / "plugin_a"
+    root_b = tmp_path / "plugin_b"
+    root_a.mkdir()
+    root_b.mkdir()
+
+    eps = [
+        SimpleNamespace(value="plugin_a:register"),
+        SimpleNamespace(value="plugin_a.api:register"),
+        SimpleNamespace(value="plugin_b:register"),
+        SimpleNamespace(value="missing_plugin:register"),
+    ]
+    monkeypatch.setattr(
+        build_executable_mod,
+        "_discovered_for_group",
+        lambda _group: eps,
+    )
+
+    def fake_get_package_paths(name: str) -> tuple[str, str]:
+        mapping = {
+            "plugin_a": (str(root_a), str(root_a / "plugin_a")),
+            "plugin_b": (str(root_b), str(root_b / "plugin_b")),
+        }
+        if name not in mapping:
+            raise ValueError(name)
+        return mapping[name]
+
+    import PyInstaller.utils.hooks as hooks_mod
+
+    monkeypatch.setattr(hooks_mod, "get_package_paths", fake_get_package_paths)
+
+    assert _plugin_package_path_roots() == [str(root_a), str(root_b)]
 
 
 def _fake_app_dir(tmp_path: Path) -> Path:

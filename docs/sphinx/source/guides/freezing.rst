@@ -31,7 +31,8 @@ Build steps
 
 1. Create and activate a virtual environment, then install core and the plugin
    wheels you need (see :doc:`installation`). A normal core install already
-   pulls in PyInstaller.
+   pulls in PyInstaller. Prefer wheel (non-editable) plugin installs in the
+   freeze environment so the bundle matches what operators ship.
 
 2. From the project directory that holds your scripts and configs, run::
 
