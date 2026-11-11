@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 from colosseum.units import coerce_units
 
@@ -11,11 +11,11 @@ from ._common import capture_parameter_export, ensure_runtime_context
 from ._dry_run import finish_dry_run_log, invoke_dry_run_substitute
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from colosseum.context import RuntimeContext
 
-DecoratorKind = Literal["command", "measurement", "verification"]
+    from .command import _CommandBinding
+    from .measurement import _MeasurementBinding
+    from .verification import _VerificationBinding
 
 
 @dataclass
@@ -48,72 +48,42 @@ class PreparedCall:
     row_index: int = 0
 
 
-@dataclass
-class DecoratorSpec:
-    """Kind-specific hooks for :func:`run_decorated_call`."""
-
-    kind: DecoratorKind
-    domain: str
-    command: str
-    func: Callable[..., Any]
-    dry_run: object
-    should_skip: Callable[[RuntimeContext], bool]
-    resolve_identity: Callable[[RuntimeContext, dict[str, Any]], Identity]
-    dry_run_fields: Callable[[Identity, tuple[Any, ...], dict[str, Any]], dict[str, Any]]
-    prepare: Callable[
-        [RuntimeContext, Identity, tuple[Any, ...], dict[str, Any]],
-        PreparedCall | EarlyReturn,
-    ]
-    persist_success: Callable[
-        [RuntimeContext, Identity, PreparedCall, object],
-        object,
-    ]
-    persist_error: Callable[
-        [RuntimeContext, Identity, PreparedCall, Exception],
-        object,
-    ]
-    before_dry_run: (
-        Callable[
-            [RuntimeContext, Identity, tuple[Any, ...], dict[str, Any]],
-            EarlyReturn | None,
-        ]
-        | None
-    ) = None
-    after_dry_run: Callable[[RuntimeContext, Identity, dict[str, Any]], None] | None = None
-
-
-def run_decorated_call(spec: DecoratorSpec, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+def run_decorated_call(
+    binding: _CommandBinding | _MeasurementBinding | _VerificationBinding,
+    *args: Any,  # noqa: ANN401
+    **kwargs: Any,  # noqa: ANN401
+) -> Any:  # noqa: ANN401
     """Run the shared decorator pipeline for one evidence kind."""
     ctx = ensure_runtime_context()
-    if spec.should_skip(ctx):
+    if binding.should_skip(ctx):
         return None
-    identity = spec.resolve_identity(ctx, kwargs)
+    identity = binding.resolve_identity(ctx, kwargs)
     if capture_parameter_export(
         ctx,
-        kind=spec.kind,
-        command=spec.command,
+        kind=binding.kind,
+        command=binding.command,
         key=identity.key_text,
         kwargs=kwargs,
     ):
         return None
-    early = _run_before_dry_run(spec, ctx, identity, args, kwargs)
+    early = _run_before_dry_run(binding, ctx, identity, args, kwargs)
     if early is not None:
         return early.value
-    if finish_dry_run_log(ctx, **spec.dry_run_fields(identity, args, kwargs)):
+    if finish_dry_run_log(ctx, **binding.dry_run_fields(identity, args, kwargs)):
         return None
-    if spec.after_dry_run is not None:
-        spec.after_dry_run(ctx, identity, kwargs)
-    prepared = spec.prepare(ctx, identity, args, kwargs)
+    if binding.kind == "measurement":
+        binding.after_dry_run(ctx, identity, kwargs)
+    prepared = binding.prepare(ctx, identity, args, kwargs)
     if isinstance(prepared, EarlyReturn):
         return prepared.value
     handled, value = invoke_dry_run_substitute(
         ctx,
-        kind=spec.kind,
-        domain=spec.domain,
-        command=spec.command,
+        kind=binding.kind,
+        domain=binding.domain,
+        command=binding.command,
         key=identity.key_text,
         optional=prepared.optional,
-        policy=spec.dry_run,
+        policy=binding.dry_run,
         call_args=args,
         call_kwargs=prepared.call_kwargs,
         logged_kwargs=prepared.logged_kwargs,
@@ -122,23 +92,23 @@ def run_decorated_call(spec: DecoratorSpec, *args: Any, **kwargs: Any) -> Any:  
     )
     if handled:
         return value
-    return _invoke_body(spec, ctx, identity, prepared, args)
+    return _invoke_body(binding, ctx, identity, prepared, args)
 
 
 def _run_before_dry_run(
-    spec: DecoratorSpec,
+    binding: _CommandBinding | _MeasurementBinding | _VerificationBinding,
     ctx: RuntimeContext,
     identity: Identity,
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> EarlyReturn | None:
-    if spec.before_dry_run is None:
-        return None
-    return spec.before_dry_run(ctx, identity, args, kwargs)
+    if binding.kind == "measurement":
+        return binding.before_dry_run(ctx, identity, args, kwargs)
+    return None
 
 
 def _invoke_body(
-    spec: DecoratorSpec,
+    binding: _CommandBinding | _MeasurementBinding | _VerificationBinding,
     ctx: RuntimeContext,
     identity: Identity,
     prepared: PreparedCall,
@@ -146,7 +116,7 @@ def _invoke_body(
 ) -> Any:  # noqa: ANN401
     try:
         prepared.call_kwargs = coerce_units(prepared.call_kwargs)
-        value = spec.func(*args, **prepared.call_kwargs)
-        return spec.persist_success(ctx, identity, prepared, value)
+        value = binding.func(*args, **prepared.call_kwargs)
+        return binding.persist_success(ctx, identity, prepared, value)
     except Exception as exc:  # noqa: BLE001
-        return spec.persist_error(ctx, identity, prepared, exc)
+        return binding.persist_error(ctx, identity, prepared, exc)

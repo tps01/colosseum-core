@@ -141,19 +141,7 @@ def _finalize_shutdown_and_drain(ctx: RuntimeContext, policy: FinalizePolicy) ->
         _insert_blocked_owed_keys(ctx)
 
 
-@dataclass
-class _CollectedFinalize:
-    code: int
-    overall: str
-    measurement_count: int
-    command_count: int
-    verifications: list[VerificationRecord]
-    measurements: list[MeasurementRecord]
-    commands: list[CommandRecord]
-    summary: dict[str, Any]
-
-
-def _finalize_collect(ctx: RuntimeContext, policy: FinalizePolicy) -> _CollectedFinalize:
+def _finalize_collect(ctx: RuntimeContext, policy: FinalizePolicy) -> FinalizeRunResult:
     code = ctx.result_aggregator.exit_code()
     overall = "PASS" if code == 0 else "FAIL"
 
@@ -191,8 +179,8 @@ def _finalize_collect(ctx: RuntimeContext, policy: FinalizePolicy) -> _Collected
         measurement_count=measurement_count,
         command_count=command_count,
     )
-    return _CollectedFinalize(
-        code=code,
+    return FinalizeRunResult(
+        exit_code=code,
         overall=overall,
         measurement_count=measurement_count,
         command_count=command_count,
@@ -206,20 +194,20 @@ def _finalize_collect(ctx: RuntimeContext, policy: FinalizePolicy) -> _Collected
 def _finalize_log_and_close(
     ctx: RuntimeContext,
     policy: FinalizePolicy,
-    collected: _CollectedFinalize,
+    result: FinalizeRunResult,
 ) -> None:
     if ctx.logger is not None:
         if policy.kind == "single" and policy.log_overall:
             ctx.logger.info(
                 "Overall result: %s (exit %s)",
-                collected.overall,
-                collected.code,
+                result.overall,
+                result.exit_code,
             )
         elif policy.log_overall:
             ctx.logger.info(
                 "Slot result: %s (exit %s)",
-                collected.overall,
-                collected.code,
+                result.overall,
+                result.exit_code,
             )
         if policy.write_summary:
             from colosseum.summary.requirements import (
@@ -227,7 +215,7 @@ def _finalize_log_and_close(
             )
 
             for line in requirement_lines(
-                collected.summary["requirements"],
+                result.summary["requirements"],
             ):
                 if line:
                     ctx.logger.info(line)
@@ -273,19 +261,8 @@ def finalize_run(
             ensure_runtime_ready(ctx)
 
         _finalize_shutdown_and_drain(ctx, policy)
-        collected = _finalize_collect(ctx, policy)
-        _finalize_log_and_close(ctx, policy, collected)
-
-        result = FinalizeRunResult(
-            exit_code=collected.code,
-            overall=collected.overall,
-            measurement_count=collected.measurement_count,
-            command_count=collected.command_count,
-            verifications=collected.verifications,
-            measurements=collected.measurements,
-            commands=collected.commands,
-            summary=collected.summary,
-        )
+        result = _finalize_collect(ctx, policy)
+        _finalize_log_and_close(ctx, policy, result)
         _finalize_persist_and_artifacts(ctx, policy, result)
         return result
     except BaseException:

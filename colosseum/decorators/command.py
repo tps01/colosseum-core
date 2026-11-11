@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import wraps
 from inspect import signature
-from typing import TYPE_CHECKING, Any, TypeVar, overload
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, TypeVar, overload
 
 from colosseum.config.parameters import (
     ParametersError,
@@ -24,7 +24,7 @@ from ._common import (
     should_skip_command,
 )
 from ._kernel import log_evidence, log_evidence_error, record_error_event, short_repr
-from ._pipeline import DecoratorSpec, EarlyReturn, Identity, PreparedCall, run_decorated_call
+from ._pipeline import EarlyReturn, Identity, PreparedCall, run_decorated_call
 from ._typing import ParamSpec
 
 if TYPE_CHECKING:
@@ -56,8 +56,9 @@ def _command_cause(exc: BaseException) -> str:
 
 @dataclass
 class _CommandBinding:
+    kind: ClassVar[Literal["command"]] = "command"
     domain: str
-    command_name: str
+    command: str
     func: Callable[..., Any]
     dry_run: object
     accepts_optional: bool
@@ -81,7 +82,7 @@ class _CommandBinding:
         return {
             "kind": "command",
             "domain": self.domain,
-            "command": self.command_name,
+            "command": self.command,
             "key": identity.key_text,
             "optional": False,
             "policy": self.dry_run,
@@ -162,7 +163,7 @@ class _CommandBinding:
         ctx.db.insert_command(
             CommandRow(
                 domain=self.domain,
-                command=self.command_name,
+                command=self.command,
                 key=identity.key_text,
                 result=stored,
                 status=result.status,
@@ -173,7 +174,7 @@ class _CommandBinding:
         ctx.result_aggregator.record_command(
             result,
             key=identity.key_text,
-            command=self.command_name,
+            command=self.command,
             domain=self.domain,
         )
         detail = f"value={short_repr(stored)}" if stored is not None else ""
@@ -181,7 +182,7 @@ class _CommandBinding:
             ctx,
             kind="command",
             domain=self.domain,
-            command=self.command_name,
+            command=self.command,
             key=identity.key_text,
             status=result.status,
             optional=result.optional,
@@ -230,17 +231,17 @@ class _CommandBinding:
             ctx,
             kind="command",
             domain=self.domain,
-            command=self.command_name,
+            command=self.command,
             key=identity.key_text,
             cause=cause,
             call_args=call_args,
             kwargs=logged_kwargs,
         )
-        record_error_event(ctx, domain=self.domain, command=self.command_name, exc=exc)
+        record_error_event(ctx, domain=self.domain, command=self.command, exc=exc)
         ctx.db.insert_command(
             CommandRow(
                 domain=self.domain,
-                command=self.command_name,
+                command=self.command,
                 key=identity.key_text,
                 result=None,
                 status="ERROR",
@@ -252,24 +253,9 @@ class _CommandBinding:
         ctx.result_aggregator.record_command(
             result,
             key=identity.key_text,
-            command=self.command_name,
+            command=self.command,
             domain=self.domain,
             cause=cause,
-        )
-
-    def as_spec(self) -> DecoratorSpec:
-        return DecoratorSpec(
-            kind="command",
-            domain=self.domain,
-            command=self.command_name,
-            func=self.func,
-            dry_run=self.dry_run,
-            should_skip=self.should_skip,
-            resolve_identity=self.resolve_identity,
-            dry_run_fields=self.dry_run_fields,
-            prepare=self.prepare,
-            persist_success=self.persist_success,
-            persist_error=self.persist_error,
         )
 
 
@@ -291,17 +277,16 @@ def command(_func: Callable[..., Any] | None = None, *, dry_run: object = "log")
         params = signature(func).parameters
         binding = _CommandBinding(
             domain=resolve_domain(func),
-            command_name=resolve_command(func),
+            command=resolve_command(func),
             func=func,
             dry_run=dry_run,
             accepts_optional="optional" in params,
             accepts_key="key" in params,
         )
-        spec = binding.as_spec()
 
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-            return run_decorated_call(spec, *args, **kwargs)
+            return run_decorated_call(binding, *args, **kwargs)
 
         setattr(wrapper, COLOSSEUM_DECORATOR, "command")
         bind_dry_run_policy(wrapper, dry_run)
