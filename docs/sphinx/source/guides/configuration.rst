@@ -104,18 +104,54 @@ CLI ``-g`` / ``-m`` paths remain relative to the working directory. Pinned scrip
 loads are ignored before checking any paths; ``force=True`` enables resolution
 and replacement. Paths stored *inside* config files keep their existing semantics.
 
-Plain string tokens may omit quotes when they contain only supported path/token
-characters. Standard TOML quoting remains recommended for portable configuration.
+Standard TOML required
+----------------------
 
-Standard TOML uses lowercase ``true`` and ``false``. Use those spellings in
-portable configuration files. Colosseum also accepts bare boolean *spellings*
-(``yes``, ``True``, ``F``, …) by rewriting them to TOML ``true`` / ``false``
-before parse. Quoted strings stay strings: ``label = "no"`` remains the text
-``"no"``, not a boolean. Unquoted ``1`` and ``0`` stay numbers.
+Configuration files must be standard TOML. Colosseum does not rewrite the text
+before parsing: bare words are not quoted for you, and spellings such as
+``yes``, ``True``, or ``F`` are not converted to booleans. A file that is not
+valid TOML fails at load time with a parse error. Examples of each value type:
 
-API helpers such as ``coerce_config_bool`` / parameter ``optional`` still accept
-the common spellings (including string ``"yes"`` / ``"no"``) when a value is
-known to be boolean.
+**Strings** are quoted::
+
+   serial = "TEMPLATE-001"
+   resource = "COM5"
+   path = 'C:\data\bench'     # single quotes: literal string, no escapes
+
+**Booleans** are lowercase ``true`` / ``false``, unquoted::
+
+   enabled = true
+   simulate = false
+   label = "no"               # a string, not a boolean
+
+**Numbers** are unquoted. ``1`` and ``0`` are integers, not booleans::
+
+   device_id = 1
+   timeout_s = 2.5
+
+**Arrays (lists)** use square brackets; elements are standard TOML values::
+
+   channels = [1, 2, 3]
+   ports = ["COM3", "COM4"]
+
+**Inline tables (dictionaries)** use braces on one line::
+
+   limits = { min = 0.0, max = 5.0 }
+
+**Nested tables** use dotted headers or dotted keys::
+
+   [template.device.options]
+   retries = 3
+   mode = "fast"
+
+   [template.device]
+   calibration.offset = 0.01
+   calibration.gain = 1.0
+
+After parsing, ``coerce_config_bool`` converts the value of a field known to be
+boolean (for example the string ``"yes"`` or ``"no"``, or parameter
+``optional``) to ``bool``. This applies only to known boolean fields; it is not
+a general rewrite of the file.
 
 Suite TOML (``colosseum run-suite``) lists scripts. It is not a plugin section
 file; pass config separately with ``--config``.

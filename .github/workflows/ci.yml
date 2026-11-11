@@ -4,7 +4,12 @@ on:
   push:
     branches: [develop, main]
   pull_request:
+    branches: [develop, main]
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -34,10 +39,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: toml_relaxed
-            corpus: tests/fuzz/corpus
-            max_len: 4096
-            timeout: 5
           - target: database
             corpus: tests/fuzz/database_corpus
             max_len: 512

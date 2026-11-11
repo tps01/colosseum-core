@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import wraps
 from inspect import signature
-from typing import TYPE_CHECKING, Any, TypeVar, overload
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, TypeVar, overload
 
 from colosseum.config.parameters import coerce_optional_kwarg
 from colosseum.database import MeasurementRow
@@ -21,7 +21,7 @@ from ._common import (
 )
 from ._dry_run import finish_dry_run_missing_key
 from ._kernel import log_evidence, log_evidence_error, record_error_event, short_repr
-from ._pipeline import DecoratorSpec, EarlyReturn, Identity, PreparedCall, run_decorated_call
+from ._pipeline import EarlyReturn, Identity, PreparedCall, run_decorated_call
 from ._typing import ParamSpec
 from .command import COLOSSEUM_DECORATOR, CommandResult
 
@@ -40,6 +40,7 @@ class MeasurementKeyError(RuntimeError):
 
 @dataclass
 class _MeasurementBinding:
+    kind: ClassVar[Literal["measurement"]] = "measurement"
     domain: str
     command: str
     func: Callable[..., Any]
@@ -239,23 +240,6 @@ class _MeasurementBinding:
             return None
         raise exc
 
-    def as_spec(self) -> DecoratorSpec:
-        return DecoratorSpec(
-            kind="measurement",
-            domain=self.domain,
-            command=self.command,
-            func=self.func,
-            dry_run=self.dry_run,
-            should_skip=self.should_skip,
-            resolve_identity=self.resolve_identity,
-            dry_run_fields=self.dry_run_fields,
-            prepare=self.prepare,
-            persist_success=self.persist_success,
-            persist_error=self.persist_error,
-            before_dry_run=self.before_dry_run,
-            after_dry_run=self.after_dry_run,
-        )
-
 
 def _stored_measurement_value(value: object) -> object:
     if not isinstance(value, (bytes, bytearray)):
@@ -299,11 +283,10 @@ def measurement(
             accepts_optional="optional" in parameters,
             accepts_key="key" in parameters,
         )
-        spec = binding.as_spec()
 
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-            return run_decorated_call(spec, *args, **kwargs)
+            return run_decorated_call(binding, *args, **kwargs)
 
         setattr(wrapper, COLOSSEUM_DECORATOR, "measurement")
         bind_dry_run_policy(wrapper, dry_run)

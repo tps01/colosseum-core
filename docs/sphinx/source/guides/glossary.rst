@@ -60,8 +60,8 @@ Terms used in the runtime and in the user guides. See
 
    load_parameter
       ``col.load_parameter(key, field=...)``. Returns one field from the loaded
-      :term:`parameters file`. A missing key returns ``None``. Collection-shaped
-      strings become lists, dicts, sets, or tuples. See :doc:`using_parameters`.
+      :term:`parameters file`. A missing key returns ``None``. Values are returned
+      as ``tomllib`` loaded them (real arrays and tables). See :doc:`using_parameters`.
 
    measurement
       A decorated plugin call that stores a captured value under

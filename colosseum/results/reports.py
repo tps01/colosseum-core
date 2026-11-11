@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from colosseum.config.toml_relaxed import coerce_config_bool
+from colosseum.config.toml_io import coerce_config_bool
 
 if TYPE_CHECKING:
     from colosseum.context import RuntimeContext

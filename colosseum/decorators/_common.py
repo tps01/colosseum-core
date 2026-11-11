@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any
 from colosseum.config.parameters import (
     ParametersError,
     coerce_bool,
-    toml_value_supported,
 )
 from colosseum.context import RuntimeContext, get_context
 from colosseum.runner.runtime import ensure_runtime_ready
@@ -168,38 +167,6 @@ def missing_key_guidance(*, kind: str, command: str) -> str:
     return f"`{command}` {kind} was missing a key; pass key=... or call col.auto_key() near the start of main()"
 
 
-def note_dry_run_tip(ctx: RuntimeContext, message: str) -> None:
-    """Record a soft dry-run tip once and mirror it to the run log."""
-    if not ctx.run_options.dry_run:
-        return
-    if message in ctx.dry_run_tips:
-        return
-    ctx.dry_run_tips.append(message)
-    if ctx.logger is not None:
-        ctx.logger.warning(message)
-
-
-def finalize_dry_run_tips(ctx: RuntimeContext) -> None:
-    """Add end-of-walk tips (unused parameters, empty walk) before summary write."""
-    if not ctx.run_options.dry_run:
-        return
-    records = ctx.result_aggregator._records  # noqa: SLF001
-    evidence_kinds = {"command", "measurement", "verification"}
-    if not any(row.get("kind") in evidence_kinds for row in records):
-        note_dry_run_tip(
-            ctx,
-            "dry-run saw no command/measurement/verification calls; check that main() runs and plugins are loaded",
-        )
-    if ctx.parameters_map:
-        unused = sorted(key for key in ctx.parameters_map if key not in ctx.dry_run_keys_seen)
-        if unused:
-            listed = ", ".join(repr(key) for key in unused)
-            note_dry_run_tip(
-                ctx,
-                f"parameters file has unused section(s): {listed}; check for typos or stale keys",
-            )
-
-
 def _publish_keyword_parameter(
     wrapper: Callable[..., Any],
     func: Callable[..., Any],
@@ -244,7 +211,6 @@ def publish_optional_parameter(wrapper: Callable[..., Any], func: Callable[..., 
 
 
 DRY_RUN_ATTR = "__colosseum_dry_run__"
-_EXPORT_OMIT = frozenset({"key", "row_index"})
 _OUTCOME_STATUSES = frozenset({"PASS", "FAIL", "ERROR", "BLOCKED", "DRY"})
 _OUTCOME_STATUS_ALIASES = {
     "PASSED": "PASS",
@@ -277,38 +243,6 @@ def bind_dry_run_policy(wrapper: Callable[..., Any], policy: object) -> None:
             f"dry_run must be 'log', 'call', or a callable, got {type(policy).__name__}",
         )
     setattr(wrapper, DRY_RUN_ATTR, policy)
-
-
-def capture_parameter_export(
-    ctx: RuntimeContext,
-    *,
-    kind: str,
-    command: str,
-    key: str,
-    kwargs: dict[str, Any],
-) -> bool:
-    """Store one keyed call while exporting parameters.
-
-    Returns True when this call should not run. Commands and verifications
-    without a key are omitted. A measurement without a key is an export error.
-    """
-    if ctx.parameter_export is None:
-        return False
-    if not key:
-        if kind == "measurement":
-            ctx.export_errors.append(missing_key_guidance(kind=kind, command=command))
-        return True
-    section = ctx.parameter_export.setdefault(key, {})
-    for name, value in kwargs.items():
-        if name in _EXPORT_OMIT:
-            continue
-        if not toml_value_supported(value):
-            ctx.export_errors.append(
-                f"key={key!r} field {name} cannot be exported ({type(value).__name__})",
-            )
-            continue
-        section[name] = value
-    return True
 
 
 def optional_from_caller(kwargs: dict[str, Any]) -> bool:

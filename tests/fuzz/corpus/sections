@@ -1,6 +1,0 @@
-[[fuzz.device]]
-device_id=-1
-label=generic
-[[fuzz.device]]
-device_id=0
-label=other

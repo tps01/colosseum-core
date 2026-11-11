@@ -1,4 +1,4 @@
-"""Keyed measurement and verification for dry-run and parameter export."""
+"""Keyed measurement and verification for dry-run."""
 
 from __future__ import annotations
 

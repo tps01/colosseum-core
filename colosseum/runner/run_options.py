@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
 ExecutionMode = Literal["full", "procedure", "verify_only"]
-ExportKind = Literal["parameters"]
 _ALLOWED_MODES: frozenset[str] = frozenset({"full", "procedure", "verify_only"})
-_ALLOWED_EXPORTS: frozenset[str] = frozenset({"parameters"})
 
 
 class RunOptionsError(ValueError):
@@ -22,14 +20,12 @@ class RunOptions:
     outputs_root: Path | None = None
     execution_mode: ExecutionMode = "full"
     previous_output_dir: Path | None = None
-    plugin_commands: list[str] = field(default_factory=list)
     show_faults: bool = False
     parameters_path: Path | None = None
     # None means use [colosseum.reports] from config; a list (possibly empty)
     # means CLI --report replaced the table for this process.
     report_cli: list[str] | None = None
     dry_run: bool = False
-    export: ExportKind | None = None
 
 
 def resolve_input_path(input_dir: Path | None, positional: str) -> Path:
@@ -51,51 +47,21 @@ def resolve_outputs_root(options: RunOptions) -> Path:
 
 def validate_run_flags(
     *,
-    command: Literal["run", "run-suite"],
     dry_run: bool = False,
-    export: str | None = None,
     mode: str | None = None,
     procedure: bool = False,
     previous_output: Path | None = None,
-    plugin_commands: list[str] | None = None,
-    parameters_path: Path | None = None,
-    has_test_file: bool = True,
     no_artifacts: bool = False,
 ) -> None:
-    """Reject ``--dry-run`` and ``--export`` combinations before a run folder exists."""
-    if export is not None and export not in _ALLOWED_EXPORTS:
-        raise RunOptionsError(
-            f"Unknown --export {export!r}; expected one of: parameters",
-        )
-    if not dry_run and export is None:
+    """Reject ``--dry-run`` combinations before a run folder exists."""
+    if not dry_run:
         return
-
-    # First matching rule wins. ``None`` message means accept / early return.
-    rules: list[tuple[bool, str | None]] = [
-        (
-            command != "run" and export is not None,
-            "--export is only supported by colosseum run",
-        ),
-        (dry_run and export is not None, "--dry-run cannot be combined with --export"),
-        (
-            mode is not None or procedure or previous_output is not None,
-            ("--dry-run and --export cannot be combined with --mode, -p/--procedure, or -u/--use-previous-output"),
-        ),
-        (
-            no_artifacts,
-            "--dry-run and --export cannot be combined with --no-artifacts",
-        ),
-        (export is None, None),
-        (not has_test_file, "--export parameters requires a test file"),
-        (bool(plugin_commands), "--export cannot be combined with -c/--command"),
-        (parameters_path is not None, "--export cannot be combined with --parameters"),
-    ]
-    for matches, message in rules:
-        if not matches:
-            continue
-        if message is None:
-            return
-        raise RunOptionsError(message)
+    if mode is not None or procedure or previous_output is not None:
+        raise RunOptionsError(
+            "--dry-run cannot be combined with --mode, -p/--procedure, or -u/--use-previous-output",
+        )
+    if no_artifacts:
+        raise RunOptionsError("--dry-run cannot be combined with --no-artifacts")
 
 
 def resolve_execution_mode(

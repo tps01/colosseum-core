@@ -9,7 +9,7 @@ from colosseum.logging import get_logger
 from colosseum.plugins.loader import ensure_plugins_loaded
 
 from .metadata import validate_colosseum_metadata_table
-from .toml_relaxed import read_relaxed_toml
+from .toml_io import read_toml
 
 if TYPE_CHECKING:
     from .sections import ConfigSectionSpec
@@ -164,7 +164,7 @@ def _resolve_load_path(path: str | Path, *, label: str) -> Path:
 
 def _load_toml(config_path: Path) -> dict[str, Any]:
     try:
-        return read_relaxed_toml(config_path)
+        return read_toml(config_path)
     except UnicodeDecodeError as exc:
         raise ConfigError(f"Config file is not valid UTF-8: {config_path}: {exc}") from exc
     except tomllib.TOMLDecodeError as exc:

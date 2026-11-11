@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-import subprocess
 import sys
-from importlib.metadata import PackageNotFoundError
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -36,25 +34,10 @@ from colosseum.summary.writer import SuiteSummaryWriter, SummaryWriter
 
 
 class _Dist:
-    def __init__(
-        self,
-        name: str,
-        version: str,
-        *,
-        plugin: bool = False,
-        path: str = "",
-        direct_url: str | None = None,
-    ) -> None:
+    def __init__(self, name: str, version: str, *, plugin: bool = False) -> None:
         self.metadata = {"Name": name}
         self.version = version
         self.entry_points = [SimpleNamespace(group="colosseum.plugins")] if plugin else []
-        self._path = path
-        self._direct_url = direct_url
-
-    def read_text(self, name: str) -> str | None:
-        if name == "direct_url.json":
-            return self._direct_url
-        return None
 
 
 def _close_runtime(ctx: context_module.RuntimeContext) -> None:
@@ -65,38 +48,9 @@ def _close_runtime(ctx: context_module.RuntimeContext) -> None:
     context_module._ACTIVE_CONTEXT = None
 
 
-def test_repository_facts_refresh_between_collections(tmp_path, monkeypatch) -> None:
-    script = tmp_path / "probe.py"
-    script.write_text("pass", encoding="utf-8")
-    monkeypatch.setattr(provenance_module, "installed_packages", lambda: ({}, [], []))
-    monkeypatch.setattr(provenance_module, "_discover_git", lambda start: (tmp_path, tmp_path, tmp_path))
-    commits = iter(["old", "new"])
-    dirty = iter([False, True])
-    monkeypatch.setattr(provenance_module, "_read_git_commit", lambda *args: next(commits))
-    monkeypatch.setattr(provenance_module, "_git_worktree_dirty", lambda root: next(dirty))
-    provenance_module._git_repository_cache.clear()
-    first = provenance_module.collect_provenance([InputFile("script", script)])
-    second = provenance_module.collect_provenance([InputFile("script", script)])
-    assert first["repositories"][0]["commit"] == "old"
-    assert second["repositories"][0]["commit"] == "new"
-    assert second["repositories"][0]["dirty"] is True
-
-
 def test_outputs_root_probe_accepts_temp_directory(tmp_path: Path) -> None:
     ensure_outputs_writable(tmp_path)
     assert list(tmp_path.iterdir()) == []
-
-
-def test_repository_misses_expire_between_collections(tmp_path, monkeypatch):
-    script = tmp_path / "probe.py"
-    script.write_text("pass", encoding="utf-8")
-    probes = iter([None, (tmp_path, tmp_path, tmp_path)])
-    monkeypatch.setattr(provenance_module, "installed_packages", lambda: ({}, [], []))
-    monkeypatch.setattr(provenance_module, "_discover_git", lambda start: next(probes))
-    monkeypatch.setattr(provenance_module, "_read_git_commit", lambda *args: "new")
-    monkeypatch.setattr(provenance_module, "_git_worktree_dirty", lambda root: False)
-    assert provenance_module.collect_provenance([InputFile("script", script)])["repositories"] == []
-    assert provenance_module.collect_provenance([InputFile("script", script)])["repositories"][0]["commit"] == "new"
 
 
 def test_probe_wraps_write_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -156,7 +110,7 @@ def test_no_artifacts_skips_writable_probe(tmp_path: Path) -> None:
         record_single_provenance(ctx, script, None)
         assert ctx.output_dir is None
         sections = {row["section"] for row in ctx.db.fetch_table_rows("provenance")}
-        assert sections == {"platform", "packages", "inputs", "repositories"}
+        assert sections == {"platform", "packages", "inputs"}
         assert set(tmp_path.iterdir()) == {blocked, script}
     finally:
         _close_runtime(ctx)
@@ -171,7 +125,11 @@ def test_cli_cancels_when_output_root_is_not_a_directory(
     marker = tmp_path / "ran.txt"
     script = tmp_path / "should_not_run.py"
     script.write_text(
-        "from pathlib import Path\n" "def main():\n" f"    Path({str(marker)!r}).write_text('ran', encoding='utf-8')\n",
+        (
+            "from pathlib import Path\n"
+            "def main():\n"
+            f"    Path({str(marker)!r}).write_text('ran', encoding='utf-8')\n"
+        ),
         encoding="utf-8",
     )
     try:
@@ -187,7 +145,7 @@ def test_cli_cancels_when_output_root_is_not_a_directory(
             _close_runtime(ctx)
 
 
-def test_snapshot_hashes_each_path_once_and_sorts_packages(
+def test_snapshot_is_lean_and_hashes_each_path_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -199,15 +157,11 @@ def test_snapshot_hashes_each_path_once_and_sorts_packages(
         "distributions",
         lambda: [
             _Dist("zzz", "1"),
+            _Dist("colosseum-core", "0.18.6"),
             _Dist("colosseum-equipment", "0.7.0", plugin=True),
             _Dist("Aaa", "2"),
         ],
     )
-
-    def _missing(name: str) -> _Dist:
-        raise PackageNotFoundError(name)
-
-    monkeypatch.setattr(provenance_module, "distribution", _missing)
     calls = {"n": 0}
     real_md5 = provenance_module._md5_file
 
@@ -220,6 +174,7 @@ def test_snapshot_hashes_each_path_once_and_sorts_packages(
         [InputFile("script", script), InputFile("test", script)],
     )
     assert calls["n"] == 1
+    assert set(snapshot) == {"platform", "packages", "inputs"}
     assert set(snapshot["platform"]) == {  # type: ignore[arg-type]
         "system",
         "release",
@@ -231,67 +186,18 @@ def test_snapshot_hashes_each_path_once_and_sorts_packages(
     }
     assert snapshot["platform"]["executable"] == sys.executable  # type: ignore[index]
     packages = snapshot["packages"]
+    # Only core and plugin distributions are recorded; unrelated packages and
+    # per-copy install details are not.
     assert packages["versions"] == {  # type: ignore[index]
-        "Aaa": "2",
+        "colosseum-core": "0.18.6",
         "colosseum-equipment": "0.7.0",
-        "zzz": "1",
     }
-    assert packages["plugins"] == ["colosseum-equipment"]  # type: ignore[index]
+    assert "installs" not in packages  # type: ignore[operator]
     digest = hashlib.md5(payload, usedforsecurity=False).hexdigest()
     inputs = snapshot["inputs"]
     assert inputs[0]["md5"] == digest  # type: ignore[index]
     assert inputs[1]["md5"] == digest  # type: ignore[index]
     assert hash_inputs([InputFile("script", tmp_path / "missing.py")]) == []
-
-
-def test_selected_install_wins_and_editable_repo_is_recorded(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    repo = tmp_path / "checkout"
-    repo.mkdir()
-    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
-    subprocess.run(
-        [
-            "git",
-            "-c",
-            "user.email=provenance@example.com",
-            "-c",
-            "user.name=provenance",
-            "commit",
-            "--allow-empty",
-            "-m",
-            "init",
-        ],
-        cwd=repo,
-        check=True,
-        capture_output=True,
-    )
-    direct_url = json.dumps(
-        {"url": repo.as_uri(), "dir_info": {"editable": True}},
-    )
-    leftover = _Dist("colosseum-core", "0.16.0", path=str(tmp_path / "old.dist-info"))
-    selected = _Dist(
-        "colosseum-core",
-        "0.17.6",
-        path=str(tmp_path / "new.dist-info"),
-        direct_url=direct_url,
-    )
-    monkeypatch.setattr(provenance_module, "distributions", lambda: [leftover, selected])
-    monkeypatch.setattr(provenance_module, "distribution", lambda _name: selected)
-
-    snapshot = provenance_module.collect_provenance([])
-    packages = snapshot["packages"]
-    assert packages["versions"]["colosseum-core"] == "0.17.6"  # type: ignore[index]
-    installs = packages["installs"]  # type: ignore[index]
-    by_version = {row["version"]: row for row in installs}
-    assert by_version["0.16.0"]["selected"] is False
-    assert by_version["0.17.6"]["selected"] is True
-    assert by_version["0.17.6"]["editable"]["commit"]
-    assert by_version["0.17.6"]["editable"]["dirty"] is False
-    repositories = snapshot["repositories"]
-    assert Path(str(repositories[0]["path"])).resolve() == repo.resolve()  # type: ignore[index]
-    assert repositories[0]["dirty"] is False  # type: ignore[index]
 
 
 def test_suite_inputs_stack_cli_and_sibling_by_default(tmp_path: Path) -> None:
@@ -496,7 +402,7 @@ def test_single_run_provenance_skips_console(
         log_text = (ctx.output_dir / "debug.log").read_text(encoding="utf-8")
         assert log_text.count("Provenance: platform=") == 1
         sections = {row["section"] for row in ctx.db.fetch_table_rows("provenance")}
-        assert sections == {"platform", "packages", "inputs", "repositories"}
+        assert sections == {"platform", "packages", "inputs"}
     finally:
         _close_runtime(ctx)
 
@@ -536,7 +442,7 @@ def test_suite_provenance_is_container_only(
             stored = {row["section"] for row in container_db.fetch_table_rows("provenance")}
         finally:
             container_db.close()
-        assert stored == {"platform", "packages", "inputs", "repositories"}
+        assert stored == {"platform", "packages", "inputs"}
 
         begin_script_slot(ctx, script.stem, phase="test", affects_suite_result=True)
         slot_dir = ctx.output_dir

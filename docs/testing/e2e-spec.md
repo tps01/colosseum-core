@@ -36,10 +36,10 @@ for faster feedback; this document is the user-facing CLI specification.
   `--report wats` is passed.
 - `run_metadata` records `overall_status=PASS` and `exit_code=0`.
 - Stdout includes `Colosseum version:` and `Overall result: PASS`.
-- `summary.json` `provenance` has `platform`, `packages` (selected versions,
-  every install, and plugins), `inputs` (the script MD5), and `repositories`.
-  `debug.log` contains `Provenance:` and stdout does not. The `provenance`
-  table has sections `platform`, `packages`, `inputs`, and `repositories`.
+- `summary.json` `provenance` has `platform`, `packages` (`versions` for core
+  and plugins), and `inputs` (the script MD5). It has no `installs` or
+  `repositories`. `debug.log` contains `Provenance:` and stdout does not. The
+  `provenance` table has sections `platform`, `packages`, and `inputs`.
 
 **Fixtures:** `tests/fixtures/scripts/optional_fail_test.py`,
 `tests/fixtures/core.toml`
@@ -185,12 +185,15 @@ finalize it is renamed with `-pass` or `-fail`.
 
 ### E2E-RUN-11
 
-**Behavior:** Standalone `-c/--command` runs produce command evidence and artifacts.
+**Behavior:** A script run with `colosseum run` that calls an installed plugin `@command`
+produces command evidence and artifacts.
 
 **Acceptance criteria:**
 
 - Exit code 0.
-- `commands` table contains the invoked plugin command row.
+- `commands` table contains the plugin command row called by the script.
+
+**Fixtures:** `scripts/contract_probe_command.py`
 
 **Test:** `test_plugin_contract.py::test_installed_plugin_is_discovered_and_attached`
 
@@ -240,23 +243,6 @@ verifications.
 
 **Test:** `test_run_cli.py::test_dry_run_logs_calls_without_running_bodies`
 
-### E2E-RUN-15
-
-**Behavior:** `--export parameters` writes `parameters.toml` from keyed call
-kwargs and does not score the run.
-
-**Acceptance criteria:**
-
-- Exit code 0.
-- Run directory name has no `-pass` or `-fail` suffix.
-- `parameters.toml` contains one section per key, with the keyword values passed
-  in the script.
-- `summary.txt` is not written.
-
-**Fixtures:** `keyed_values_test.py`
-
-**Test:** `test_run_cli.py::test_export_parameters_writes_file_without_scoring`
-
 ## Direct Python execution
 
 ### E2E-DIR-01
@@ -301,8 +287,8 @@ passes.
 - Container directory ends with `-pass`.
 - Container `summary.txt` reports overall PASS.
 - Test slot has `execution.sqlite`.
-- Container `summary.json` `provenance` (`platform`, `packages`, `inputs`,
-  `repositories`), `debug.log`, and `provenance` rows are written once. Stdout
+- Container `summary.json` `provenance` (`platform`, `packages`, `inputs`),
+  `debug.log`, and `provenance` rows are written once. Stdout
   and slot `debug.log` / `summary.json` / `provenance` rows do not repeat that
   snapshot.
 

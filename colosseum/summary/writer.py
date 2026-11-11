@@ -23,7 +23,7 @@ def _description_prefix(row: OutcomeRecord) -> str:
     return f"{text} " if text else ""
 
 
-def _dry_run_lines(records: list[OutcomeRecord], tips: list[str] | None = None) -> list[str]:
+def _dry_run_lines(records: list[OutcomeRecord]) -> list[str]:
     lines = ["", "Dry run calls:"]
     if not records:
         lines.append("  (none)")
@@ -33,9 +33,6 @@ def _dry_run_lines(records: list[OutcomeRecord], tips: list[str] | None = None) 
                 f"  - [{row.get('kind', 'outcome')}] {row.get('domain', '')}."
                 f"{row.get('command', '')} key={row.get('key', '')}: {row.get('status', '')}",
             )
-    if tips:
-        lines.extend(["", "Dry-run tips:"])
-        lines.extend(f"  - {tip}" for tip in tips)
     return lines
 
 
@@ -172,7 +169,7 @@ class SummaryWriter:
                 "optional command",
                 optional_commands,
             ),
-            *(_dry_run_lines(records, tips=payload.get("dry_run_tips")) if payload.get("dry_run") else []),
+            *(_dry_run_lines(records) if payload.get("dry_run") else []),
             *_outcome_lines(failed_required, header="Failed required outcomes:"),
             *_outcome_lines(payload["optional_outcomes"], header="Optional outcomes:"),
             *requirement_lines(payload["requirements"]),

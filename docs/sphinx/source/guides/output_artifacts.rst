@@ -28,8 +28,8 @@ for directory naming and :doc:`writing_test_scripts` for a full example run.
    * - File
      - Description
    * - ``debug.log``
-     - Run header, execution log, and a provenance block (platform, installed
-       packages, and MD5 hashes of the input files). Lines use ``%(name)s``
+     - Run header, execution log, and a provenance block (platform,
+       core and plugin package versions, and MD5 hashes of the input files). Lines use ``%(name)s``
        (for example ``[colosseum.template]``). Plugin code must call
        ``colosseum.logging.get_logger`` with ``colosseum.<namespace>`` so
        DEBUG records reach this file (see :doc:`plugins`). The provenance
@@ -136,18 +136,16 @@ each slot.
 - ``platform`` — ``system``, ``release``, ``version``, ``machine``,
   ``python_version``, ``python_implementation``, and ``executable`` (the
   Python binary that ran the test).
-- ``packages.versions`` — every distribution name in that interpreter, mapped
-  to the version ``importlib.metadata.version`` resolves. ``packages.installs``
-  lists every copy, including leftovers, with ``version``, ``location``,
-  ``selected``, and, for an editable install, ``editable.path`` plus git
-  ``commit`` and ``dirty`` when that checkout is a repository.
-  ``packages.plugins`` lists selected distributions that expose a
-  ``colosseum.plugins`` entry point.
+- ``packages.versions`` — the version of ``colosseum-core`` plus each plugin
+  distribution that exposes a ``colosseum.plugins`` entry point, as
+  ``importlib.metadata`` resolves it. Other installed packages are not listed.
+  ``packages.plugins`` names those plugin distributions.
 - ``inputs`` — ``role``, ``path``, and ``md5`` for each existing input file
   (script, config, metadata, parameters, and, for a suite, the suite file and
   its setup, test, between, and teardown scripts).
-- ``repositories`` — git ``path``, ``commit``, and ``dirty`` for input files
-  and editable checkouts that live in a work tree. One entry per repository.
+
+Provenance is intentionally lean: it does not record every installed copy of a
+package or any git repository state.
 
 ``debug.log`` appends one ``Provenance:`` line per section. The ``provenance``
 table stores the same three sections as JSON. ``--no-artifacts`` skips the log

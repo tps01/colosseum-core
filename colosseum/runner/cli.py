@@ -12,7 +12,6 @@ if TYPE_CHECKING:
 from colosseum.config import ConfigError
 from colosseum.paths import absolute_path
 from colosseum.runner.run_options import (
-    ExportKind,
     RunOptions,
     RunOptionsError,
     resolve_execution_mode,
@@ -28,11 +27,9 @@ from .suite_toml import SuiteError
 _DESCRIPTION = "Colosseum test automation: run Python test scripts and suites with configuration."
 _EPILOG = """examples:
   colosseum run my_test.py -g config.toml
-  colosseum run -c template.arm_device,key=dev1 -g config.toml
   colosseum run-suite suite.toml -g config.toml -d
   colosseum run my_test.py --dry-run -g config.toml
   colosseum run-suite suite.toml --dry-run -g config.toml
-  colosseum run my_test.py --export parameters -g config.toml
   colosseum run-suite suite.toml -g config.toml --profile
   colosseum run-suite suite.toml -g config.toml --no-sleep
   colosseum --gui
@@ -109,7 +106,8 @@ def _add_shared_run_options(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help=(
             "Profile the run with pyinstrument; write profile.html to the output "
-            "directory (text only with --no-artifacts)"
+            "directory (text only with --no-artifacts). Requires developer install "
+            "(pip install -r requirements.txt)"
         ),
     )
     parser.add_argument(
@@ -159,21 +157,6 @@ def _add_run_only_options(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Enable faulthandler crash dumps for this run",
     )
-    parser.add_argument(
-        "--export",
-        choices=("parameters",),
-        default=None,
-        help="Write parameters.toml from keyed calls and do not run the test",
-    )
-    parser.add_argument(
-        "-c",
-        "--command",
-        dest="plugin_commands",
-        action="append",
-        default=[],
-        metavar="SPEC",
-        help="Invoke a plugin @command (namespace.function,key=val,...); repeatable",
-    )
     _add_execution_mode_options(parser, allow_verify_only=True)
 
 
@@ -194,8 +177,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument(
         "test_file",
-        nargs="?",
-        help="Path to the Python test script (optional when -c is used)",
+        help="Path to the Python test script",
     )
     _add_shared_run_options(run_parser)
     _add_run_only_options(run_parser)
@@ -240,7 +222,6 @@ def _shared_run_options(
     args: argparse.Namespace,
     *,
     command: str,
-    has_test_file: bool = True,
 ) -> RunOptions:
     """Resolve mode flags before any output-directory allocation."""
     previous_raw = getattr(args, "previous_output_dir", None)
@@ -248,21 +229,13 @@ def _shared_run_options(
     parameters_raw = getattr(args, "parameters_path", None)
     parameters_path = absolute_path(parameters_raw) if parameters_raw is not None else None
     dry_run = bool(getattr(args, "dry_run", False))
-    export_arg = getattr(args, "export", None)
-    export_text = export_arg if isinstance(export_arg, str) else None
     validate_run_flags(
-        command=command,  # type: ignore[arg-type]
         dry_run=dry_run,
-        export=export_text,
         mode=getattr(args, "execution_mode", None),
         procedure=bool(getattr(args, "procedure", False)),
         previous_output=previous_path,
-        plugin_commands=list(getattr(args, "plugin_commands", []) or []),
-        parameters_path=parameters_path,
-        has_test_file=has_test_file,
         no_artifacts=bool(getattr(args, "no_artifacts", False)),
     )
-    export: ExportKind | None = "parameters" if export_text == "parameters" else None
     execution_mode, previous_output_dir = resolve_execution_mode(
         command=command,  # type: ignore[arg-type]
         mode=getattr(args, "execution_mode", None),
@@ -279,12 +252,10 @@ def _shared_run_options(
         outputs_root=outputs_root,
         execution_mode=execution_mode,
         previous_output_dir=previous_output_dir,
-        plugin_commands=list(getattr(args, "plugin_commands", []) or []),
         show_faults=bool(getattr(args, "show_faults", False)),
         parameters_path=parameters_path,
         report_cli=list(report_cli) if report_cli is not None else None,
         dry_run=dry_run,
-        export=export,
     )
 
 
@@ -298,23 +269,15 @@ def _exit_with_message(message: str) -> NoReturn:
     raise SystemExit(1) from None
 
 
-def _dispatch_run(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
+def _dispatch_run(args: argparse.Namespace) -> int:
     try:
-        run_options = _shared_run_options(
-            args,
-            command="run",
-            has_test_file=bool(args.test_file),
-        )
+        run_options = _shared_run_options(args, command="run")
     except RunOptionsError as exc:
         _exit_with_message(str(exc))
     _maybe_enable_faulthandler(show_faults=run_options.show_faults)
-    if not args.test_file and not run_options.plugin_commands:
-        parser.error("run requires a test_file and/or at least one -c/--command")
-    test_path = None
-    if args.test_file:
-        test_path = resolve_input_path(run_options.input_dir, args.test_file)
-        if not test_path.exists():
-            _exit_with_message(f"Test file not found: {test_path}")
+    test_path = resolve_input_path(run_options.input_dir, args.test_file)
+    if not test_path.exists():
+        _exit_with_message(f"Test file not found: {test_path}")
     try:
         _run_single_test(
             test_path,
@@ -404,7 +367,7 @@ def run_cli(argv: list[str] | None = None) -> int:
 
     if args.command == "run":
         return _wrap_dispatch(
-            lambda: _dispatch_run(parser, args),
+            lambda: _dispatch_run(args),
             profile=profile,
             no_sleep=no_sleep,
             no_artifacts=no_artifacts,

@@ -4,13 +4,24 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-import pyinstrument
-
 if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
 _PROFILE_HTML_NAME = "profile.html"
+_MISSING_PYINSTRUMENT = (
+    "Profiling requires pyinstrument. Install developer dependencies with "
+    "'python -m pip install -r requirements.txt'."
+)
+
+
+def _load_pyinstrument() -> Any:  # noqa: ANN401
+    """Import pyinstrument lazily so runtime installs omit the dependency."""
+    try:
+        import pyinstrument
+    except ImportError as exc:
+        raise SystemExit(_MISSING_PYINSTRUMENT) from exc
+    return pyinstrument
 
 
 def _profile_destination() -> Path | None:
@@ -56,6 +67,7 @@ def run_with_profile(action: Callable[[], int], *, no_artifacts: bool) -> int:
     :returns: Exit code from ``action`` (including coerced ``SystemExit``).
     :rtype: int
     """
+    pyinstrument = _load_pyinstrument()
     profiler = pyinstrument.Profiler()
     profiler.start()
     code = 0
