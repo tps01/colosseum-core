@@ -169,10 +169,6 @@ def _finalize_collect(ctx: RuntimeContext, policy: FinalizePolicy) -> FinalizeRu
         commands = ctx.db.fetch_all_commands()
         ctx.db.flush()
 
-    if ctx.run_options.dry_run:
-        from colosseum.decorators._common import finalize_dry_run_tips
-
-        finalize_dry_run_tips(ctx)
     summary = build_run_summary(
         ctx,
         ctx.result_aggregator,

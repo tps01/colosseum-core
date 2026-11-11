@@ -17,7 +17,7 @@ declare those arguments. Per-key parameter fields override command arguments.
 Measurements also strip an undeclared ``optional=``; a measurement needs a key
 unless automatic keying is enabled. Identity consists of domain, command, key,
 and row index. Use ``multi_row=True`` for indexed series. See
-:doc:`using_parameters` for parameter loading and export behavior.
+:doc:`using_parameters` for parameter loading behavior.
 
 A ``bytes`` measurement is returned to the caller unchanged and serialized as
 ``{"encoding": "hex", "data": "<hex>", "nbytes": N}`` in SQLite. Other values
@@ -31,8 +31,8 @@ For a voltage-style check, first follow ``@measurement`` in
 ``decorators/verification.py``. Each wrapper has three recognizable stages:
 
 1. **Before the body:** obtain the runtime, check the execution mode, resolve
-   the key, and handle parameter export or dry-run logging. Automatic keys are
-   assigned by ``resolve_auto_key`` in ``_common.py``. A skipped/exported/logged
+   the key, and handle dry-run logging. Automatic keys are
+   assigned by ``resolve_auto_key`` in ``_common.py``. A skipped/logged
    call returns without running the body. A configured dry-run substitute can
    return a value in place of the body.
 2. **Arguments at the body:** matching parameter fields override caller
@@ -42,7 +42,7 @@ For a voltage-style check, first follow ``@measurement`` in
    measurement key can be stripped when the body does not declare it.
    ``coerce_units`` resolves explicit unit values just before invocation.
    Measurement wrappers only take ``optional`` from their parameter section;
-   explicit ``load_parameter`` collection coercion is a separate operation.
+   ``load_parameter`` returns TOML values as loaded, with no coercion.
 3. **After the body:** a measurement records its value and returns the original
    object. A verifier normalizes a measured value against supplied limits, a
    boolean into PASS/FAIL, or an explicit ``VerificationResult`` directly.

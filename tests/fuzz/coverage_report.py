@@ -14,7 +14,6 @@ MODULES = {
         "runner/runtime.py",
         "summary/writer.py",
     ),
-    "toml_relaxed": ("config/toml_relaxed.py", "config/loader.py"),
     "database": ("database/manager.py", "database/write_queue.py"),
     "results": ("results/aggregation.py",),
     "finalization": ("results/finalize.py", "results/exit_policy.py", "results/finalize_policy.py"),
@@ -28,7 +27,7 @@ def main() -> int:
     parser.add_argument("--corpus", type=Path, help="Default: tracked seeds for this target")
     parser.add_argument("--output", type=Path, help="Default: .fuzz-work/coverage/TARGET")
     args = parser.parse_args()
-    seed_name = "corpus" if args.target == "toml_relaxed" else f"{args.target}_corpus"
+    seed_name = f"{args.target}_corpus"
     corpus = (args.corpus or REPO / "tests/fuzz" / seed_name).resolve()
     if not corpus.is_dir():
         parser.error(f"Corpus directory does not exist: {corpus}")

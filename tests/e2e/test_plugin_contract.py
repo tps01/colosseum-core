@@ -28,6 +28,7 @@ BROKEN_ROOT = FIXTURES / "plugins" / "colosseum_contract_broken"
 BROKEN_DIST = "colosseum-contract-broken"
 PROBE_SMOKE = FIXTURES / "scripts" / "contract_probe_smoke.py"
 BROKEN_LOAD = FIXTURES / "scripts" / "contract_broken_load.py"
+PROBE_COMMAND = FIXTURES / "scripts" / "contract_probe_command.py"
 PROBE_CONFIG = PROBE_ROOT / "configs" / "contract_probe.toml"
 
 
@@ -169,8 +170,7 @@ def test_installed_plugin_is_discovered_and_attached(
             "-m",
             "colosseum.runner.cli",
             "run",
-            "-c",
-            "contract_probe.ping",
+            str(PROBE_COMMAND),
             "--config",
             str(PROBE_CONFIG),
         ],

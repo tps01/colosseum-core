@@ -38,7 +38,7 @@ def test_run_with_profile_writes_html(
 ) -> None:
     out = tmp_path / "run-pass"
     out.mkdir()
-    monkeypatch.setattr(profiling, "pyinstrument", _FakePyinstrument)
+    monkeypatch.setattr(profiling, "_load_pyinstrument", lambda: _FakePyinstrument)
     monkeypatch.setattr(
         profiling,
         "_profile_destination",
@@ -59,7 +59,7 @@ def test_run_with_profile_text_only_when_no_artifacts(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    monkeypatch.setattr(profiling, "pyinstrument", _FakePyinstrument)
+    monkeypatch.setattr(profiling, "_load_pyinstrument", lambda: _FakePyinstrument)
     monkeypatch.setattr(profiling, "_profile_destination", lambda: tmp_path)
 
     code = profiling.run_with_profile(lambda: 7, no_artifacts=True)
@@ -73,7 +73,7 @@ def test_run_with_profile_text_only_when_no_artifacts(
 def test_run_with_profile_coerces_system_exit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(profiling, "pyinstrument", _FakePyinstrument)
+    monkeypatch.setattr(profiling, "_load_pyinstrument", lambda: _FakePyinstrument)
     monkeypatch.setattr(profiling, "_emit_profile", lambda *_a, **_k: None)
 
     def _boom() -> int:
@@ -108,27 +108,34 @@ def test_cli_profile_flag_registered() -> None:
 
 @pytest.mark.parametrize("profile,no_sleep", [(False, False), (True, False), (False, True), (True, True)])
 @pytest.mark.parametrize("dispatch", ["run", "run-suite"])
-def test_dispatch_wrappers_compose(monkeypatch, profile, no_sleep, dispatch) -> None:
+def test_dispatch_wrappers_compose(
+    monkeypatch: pytest.MonkeyPatch,
+    profile: bool,
+    no_sleep: bool,
+    dispatch: str,
+) -> None:
     import colosseum.runner.cli as cli
 
-    calls = []
+    calls: list[str] = []
 
-    def run_profile(action, **kwargs):
+    def run_profile(action: object, **_kwargs: object) -> object:
         calls.append("profile")
+        assert callable(action)
         return action()
 
-    def run_awake(action):
+    def run_awake(action: object) -> object:
         calls.append("awake")
+        assert callable(action)
         return action()
 
-    def action():
+    def action() -> int:
         calls.append("action")
         return 3
 
     monkeypatch.setattr(profiling, "run_with_profile", run_profile)
     monkeypatch.setattr("colosseum.runner.keep_awake.run_with_no_sleep", run_awake)
-    monkeypatch.setattr(cli, "_dispatch_run", lambda parser, args: action())
-    monkeypatch.setattr(cli, "_dispatch_run_suite", lambda args: action())
+    monkeypatch.setattr(cli, "_dispatch_run", lambda _args: action())
+    monkeypatch.setattr(cli, "_dispatch_run_suite", lambda _args: action())
     argv = [dispatch, "x.py" if dispatch == "run" else "s.toml", "--no-artifacts"]
     if profile:
         argv.append("--profile")

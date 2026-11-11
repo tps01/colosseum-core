@@ -1,43 +1,16 @@
-# Relaxed TOML fuzzing
+# Fuzzing
 
-One core-only Atheris target checks malformed UTF-8/TOML, preprocessing
-idempotence, quoted-string preservation, generated bare words, boolean aliases,
-and multiline string preservation. It does not load plugins or bootstrap runs.
-Only known-valid generated TOML is compared with the standard parser, since
-relaxed parsing intentionally changes some other TOML values.
-
-On Linux AMD64 with Python 3.12, install `requirements.txt`, then from core's root:
-
-```sh
-mkdir -p .fuzz-work/corpus .fuzz-work/artifacts
-cp -n tests/fuzz/corpus/* .fuzz-work/corpus/
-python -m tests.fuzz.toml_relaxed .fuzz-work/corpus -max_total_time=30 -max_len=4096 -timeout=5 -artifact_prefix=.fuzz-work/artifacts/
-```
-
-Use a larger `-max_total_time` for longer exploration. Replay a failure by replacing
-the corpus directory argument with its artifact filename. Reduce discoveries and
-keep named pytest regressions before fixing them. Generated files are ignored;
-tracked seeds also run in normal pytest without Atheris. CI runs this bounded
-target only on Ubuntu/Python 3.12. No equipment installation is required.
+Core-only Atheris targets exercise the database write queue, result scoring, and
+run finalization. None of them load plugins or bootstrap full runs. Each target
+keeps tracked seeds in a `TARGET_corpus` directory; the seeds also run in normal
+pytest without Atheris. On Linux AMD64 with Python 3.12, install
+`requirements.txt` and run the commands in each section below from core's root.
+Use a larger `-max_total_time` for longer exploration. Replay a failure by
+replacing the corpus directory argument with its artifact filename. Reduce
+discoveries and keep named pytest regressions before fixing them. Generated
+files are ignored. CI runs each bounded target only on Ubuntu/Python 3.12. No
+equipment installation is required.
 Atheris is Apache-2.0: https://github.com/google/atheris/blob/master/LICENSE
-
-
-## Incremental coverage
-
-The target now checks three additional areas on each accepted UTF-8 input:
-
-1. Basic/literal multiline strings, three-to-five closing quotes, line
-   continuations, CRLF, and relaxation resuming after a closed string.
-2. Multiline arrays, inline tables, quoted keys, integer bases and signs,
-   scientific notation, and special float literals (`inf`/`nan`). Generated
-   standard TOML is checked against `tomllib`, including numeric types.
-3. Parsed sections through `normalize_sections` and `ConfigStore`: preserved
-   rows, table/array equivalence, row-order independence, sorted lookups,
-   duplicate/invalid IDs, missing required fields, and input preservation on
-   success and rejection. The spec is local and never registered as a plugin.
-
-All three reuse the same corpus, CLI, and bounded CI job. Named regressions
-cover signed infinity/NaN values being silently converted into strings.
 
 
 ## Database evidence and write queue
@@ -60,7 +33,7 @@ cp -n tests/fuzz/database_corpus/* .fuzz-work/database/corpus/
 python -m tests.fuzz.database .fuzz-work/database/corpus -max_total_time=30 -max_len=512 -timeout=5 -artifact_prefix=.fuzz-work/database/artifacts/
 ```
 
-CI runs this independently of TOML fuzzing. The seeds are also normal pytest
+CI runs this as its own job. The seeds are also normal pytest
 cases using the production manager and background queue on Windows and Linux.
 
 
@@ -99,7 +72,6 @@ With developer requirements installed, replay a target's tracked seeds and
 generate HTML, JSON, and terminal line/branch reports on Windows or Linux:
 
 ```sh
-python -m tests.fuzz.coverage_report toml_relaxed
 python -m tests.fuzz.coverage_report database
 python -m tests.fuzz.coverage_report results
 python -m tests.fuzz.coverage_report finalization
@@ -108,7 +80,7 @@ python -m tests.fuzz.coverage_report finalization
 To inspect an evolved corpus instead, supply its directory:
 
 ```sh
-python -m tests.fuzz.coverage_report toml_relaxed --corpus .fuzz-work/corpus
+python -m tests.fuzz.coverage_report database --corpus .fuzz-work/database/corpus
 ```
 
 Reports go to `.fuzz-work/coverage/TARGET/` (or `--output`).

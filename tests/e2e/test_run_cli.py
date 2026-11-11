@@ -309,36 +309,6 @@ def test_dry_run_logs_calls_without_running_bodies(
     assert query_db(run_dir, "SELECT COUNT(*) FROM measurements")[0][0] == 0
 
 
-@pytest.mark.requirement("E2E-RUN-15")
-def test_export_parameters_writes_file_without_scoring(
-    core_config,
-    isolated_cwd,
-    subprocess_env,
-) -> None:
-    """--export parameters writes parameters.toml and does not score the run."""
-    try:
-        import tomllib
-    except ModuleNotFoundError:  # pragma: no cover
-        import tomli as tomllib  # type: ignore[no-redef]
-
-    proc = run_cli(
-        KEYED_VALUES,
-        core_config,
-        isolated_cwd,
-        subprocess_env,
-        extra_args=["--export", "parameters"],
-    )
-    assert proc.returncode == 0, proc.stderr + proc.stdout
-    run_dir = latest_output_dir(isolated_cwd)
-    assert not run_dir.name.endswith("-pass")
-    assert not run_dir.name.endswith("-fail")
-    assert not (run_dir / "summary.txt").exists()
-    loaded = tomllib.loads((run_dir / "parameters.toml").read_text(encoding="utf-8"))
-    assert loaded["rx_level"]["value"] == 0.0
-    assert loaded["rx_level"]["expected_val"] == 0.0
-    assert loaded["rx_level"]["tolerance"] == 0.5
-
-
 def test_cli_config_and_metadata_pin_ignore_script_loads(
     isolated_cwd,
     subprocess_env,

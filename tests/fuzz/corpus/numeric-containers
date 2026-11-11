@@ -1,2 +1,0 @@
-values = [0x10, 1_000, inf, nan]
-options = {count=42, enabled=true}

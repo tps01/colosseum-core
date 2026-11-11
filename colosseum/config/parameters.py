@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import ast
-import math
-from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from colosseum.config.toml_relaxed import coerce_config_bool, read_relaxed_toml
+from colosseum.config.toml_io import coerce_config_bool, read_toml
 from colosseum.exceptions import ProceduralFault
 
 if TYPE_CHECKING:
@@ -80,7 +77,7 @@ def load_parameters_file(path: Path) -> dict[str, dict[str, Any]]:
     if not resolved.is_file():
         raise ParametersError(f"Parameters file not found: {resolved}")
     try:
-        raw = read_relaxed_toml(resolved)
+        raw = read_toml(resolved)
     except UnicodeDecodeError as exc:
         raise ParametersError(f"Parameters file is not valid UTF-8: {resolved}: {exc}") from exc
     except tomllib.TOMLDecodeError as exc:
@@ -150,90 +147,6 @@ def apply_parameters_to_kwargs(
     return merged
 
 
-def toml_value_supported(value: object) -> bool:
-    """Return whether ``value`` can be written into an exported parameters file."""
-    if isinstance(value, bool):
-        return True
-    if isinstance(value, int):
-        return True
-    if isinstance(value, float):
-        return math.isfinite(value)
-    if isinstance(value, str):
-        return True
-    if isinstance(value, list):
-        return all(toml_value_supported(item) for item in value)
-    if isinstance(value, dict):
-        return all(isinstance(key, str) and toml_value_supported(item) for key, item in value.items())
-    return False
-
-
-_TOML_ESCAPES = {
-    "\\": "\\\\",
-    '"': '\\"',
-    "\b": "\\b",
-    "\t": "\\t",
-    "\n": "\\n",
-    "\f": "\\f",
-    "\r": "\\r",
-}
-
-
-def _escape_toml_char(char: str) -> str:
-    escaped = _TOML_ESCAPES.get(char)
-    if escaped is not None:
-        return escaped
-    code = ord(char)
-    if code < 0x20 or code == 0x7F:
-        return f"\\u{code:04x}"
-    return char
-
-
-def _toml_quoted(text: str) -> str:
-    """Quote a TOML basic string, escaping controls so tomllib can reload it."""
-    return '"' + "".join(_escape_toml_char(char) for char in text) + '"'
-
-
-def _toml_key(name: str) -> str:
-    """Format a key; bare keys are ASCII letters/digits/underscore/dash only."""
-    if name and all(char.isascii() and (char.isalnum() or char in {"_", "-"}) for char in name):
-        return name
-    return _toml_quoted(name)
-
-
-def _toml_value(value: object) -> str:
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, int):
-        return str(value)
-    if isinstance(value, float):
-        return repr(value)
-    if isinstance(value, str):
-        return _toml_quoted(value)
-    if isinstance(value, list):
-        return "[" + ", ".join(_toml_value(item) for item in value) + "]"
-    if isinstance(value, dict):
-        fields = ", ".join(f"{_toml_key(str(key))} = {_toml_value(item)}" for key, item in value.items())
-        return "{ " + fields + " }"
-    raise ParametersError(
-        f"cannot export value of type {type(value).__name__}",
-    )
-
-
-def write_parameters_file(path: Path, tables: dict[str, dict[str, Any]]) -> None:
-    """Write parameter sections in first-seen key order."""
-    lines: list[str] = []
-    for key, fields in tables.items():
-        lines.append(f"[{_toml_quoted(key)}]")
-        for name, value in fields.items():
-            if not toml_value_supported(value):
-                raise ParametersError(
-                    f"key={key!r} field {name} cannot be exported ({type(value).__name__})",
-                )
-            lines.append(f"{_toml_key(name)} = {_toml_value(value)}")
-        lines.append("")
-    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
-
-
 def _suite_parameter_paths(
     *,
     script_path: Path | None,
@@ -291,18 +204,12 @@ def attach_stacked_parameters(
     _attach_parameter_sources(ctx, [path for path in (test_path, suite_path) if path is not None])
 
 
-_CONTAINER_CLOSERS = {"[": "]", "{": "}", "(": ")"}
-_BARE_BOOLS = {"true": True, "yes": True, "false": False, "no": False}
-
-
 def load_parameter(key: str, *, field: str) -> Any:  # noqa: ANN401
     """Return one field from the loaded parameters file.
 
     ``key`` is a TOML table name and ``field`` is a name in that table.
-    A missing key returns ``None``. Ints, floats, bools, and ordinary strings
-    are returned as loaded. A string shaped like a list, dict, set, or tuple is
-    parsed into that value. ``key=`` injection still receives the TOML value
-    stored on the context.
+    A missing key returns ``None``. Values are returned exactly as tomllib
+    loaded them (arrays, tables, strings, numbers, and booleans).
     """
     from colosseum.context import get_context
 
@@ -315,207 +222,4 @@ def load_parameter(key: str, *, field: str) -> Any:  # noqa: ANN401
     ctx.note_parameter_use(key)
     if field not in table:
         raise ParametersError(f"parameters field {field!r} not found in [{key}]")
-    try:
-        return coerce_parameter_value(table[field])
-    except ParametersError as exc:
-        raise ParametersError(
-            f"cannot parse parameters field {field!r} in [{key}]: {exc}",
-        ) from exc
-
-
-def coerce_parameter_value(value: object) -> object:
-    """Copy ``value``, parsing collection-shaped strings into Python objects.
-
-    Quoted numbers stay strings. A matched ``[]``, ``{}``, or ``()`` string is
-    ``ast.literal_eval`` when it is a Python literal, otherwise bare words become
-    strings. Bare ``true``, ``false``, ``yes``, and ``no`` become bools. A
-    one-element list whose text contains whitespace stays a string.
-    """
-    if isinstance(value, str):
-        return _coerce_parameter_string(value)
-    if isinstance(value, list):
-        return [coerce_parameter_value(item) for item in value]
-    if isinstance(value, dict):
-        return {item_key: coerce_parameter_value(item) for item_key, item in value.items()}
-    return value
-
-
-def _parse_error(text: str) -> ParametersError:
-    return ParametersError(f"cannot parse parameter value {text!r}")
-
-
-def _matched_container(text: str) -> bool:
-    if len(text) < 2:
-        return False
-    closer = _CONTAINER_CLOSERS.get(text[0])
-    return closer is not None and text[-1] == closer
-
-
-def _coerce_parameter_string(raw: str) -> object:
-    text = raw.strip()
-    if not _matched_container(text):
-        return raw
-    try:
-        return ast.literal_eval(text)
-    except (SyntaxError, ValueError, TypeError):
-        parsed = _parse_bare_container(text)
-    if isinstance(parsed, str):
-        return raw
-    return parsed
-
-
-@dataclass
-class _ScanState:
-    closers: list[str] = field(default_factory=list)
-    in_single: bool = False
-    in_double: bool = False
-    escaped: bool = False
-
-    @property
-    def in_quote(self) -> bool:
-        return self.in_single or self.in_double
-
-    @property
-    def unfinished(self) -> bool:
-        return bool(self.closers) or self.in_quote
-
-
-def _step_quoted(state: _ScanState, char: str) -> bool:
-    if char == "\\":
-        state.escaped = True
-        return False
-    if char == "'" and state.in_single:
-        state.in_single = False
-    elif char == '"' and state.in_double:
-        state.in_double = False
-    return False
-
-
-def _step_unquoted(
-    state: _ScanState,
-    char: str,
-    *,
-    separator: str,
-    source: str,
-) -> bool:
-    if char == "'":
-        state.in_single = True
-        return False
-    if char == '"':
-        state.in_double = True
-        return False
-    if char in _CONTAINER_CLOSERS:
-        state.closers.append(_CONTAINER_CLOSERS[char])
-        return False
-    if char in _CONTAINER_CLOSERS.values():
-        if not state.closers or state.closers.pop() != char:
-            raise _parse_error(source)
-        return False
-    return char == separator and not state.closers
-
-
-def _step_scan(state: _ScanState, char: str, *, separator: str, source: str) -> bool:
-    """Advance the scan FSM one character; True means a top-level separator."""
-    if state.escaped:
-        state.escaped = False
-        return False
-    if state.in_quote:
-        return _step_quoted(state, char)
-    return _step_unquoted(state, char, separator=separator, source=source)
-
-
-def _top_level_indexes(text: str, *, separator: str, source: str) -> list[int]:
-    """Return indexes of ``separator`` outside quotes and nested brackets."""
-    indexes: list[int] = []
-    state = _ScanState()
-    for index, char in enumerate(text):
-        if _step_scan(state, char, separator=separator, source=source):
-            indexes.append(index)
-    if state.unfinished:
-        raise _parse_error(source)
-    return indexes
-
-
-def _split_top_level(text: str, *, separator: str, source: str) -> list[str]:
-    parts: list[str] = []
-    start = 0
-    for index in _top_level_indexes(text, separator=separator, source=source):
-        parts.append(text[start:index])
-        start = index + 1
-    parts.append(text[start:])
-    return parts
-
-
-def _is_unquoted_prose(atom: str) -> bool:
-    if atom[0] in {"'", '"', "[", "{", "("}:
-        return False
-    return any(char.isspace() for char in atom)
-
-
-def _parse_atom(part: str, *, source: str) -> object:
-    atom = part.strip()
-    if not atom:
-        raise _parse_error(source)
-    if _matched_container(atom):
-        return _coerce_parameter_string(atom)
-    try:
-        return ast.literal_eval(atom)
-    except (SyntaxError, ValueError, TypeError):
-        parsed = _BARE_BOOLS.get(atom.lower())
-        if parsed is not None:
-            return parsed
-        return atom
-
-
-def _require_hashable(value: object, *, source: str) -> None:
-    try:
-        hash(value)
-    except TypeError as exc:
-        raise _parse_error(source) from exc
-
-
-def _parse_bare_set(parts: list[str], *, source: str) -> set[Any]:
-    items: set[Any] = set()
-    for part in parts:
-        item = _parse_atom(part, source=source)
-        _require_hashable(item, source=source)
-        items.add(item)
-    return items
-
-
-def _parse_bare_dict(parts: list[str], *, source: str) -> dict[Any, Any]:
-    parsed: dict[Any, Any] = {}
-    for part in parts:
-        colons = _top_level_indexes(part, separator=":", source=source)
-        if not colons:
-            raise _parse_error(source)
-        split_at = colons[0]
-        key = _parse_atom(part[:split_at], source=source)
-        _require_hashable(key, source=source)
-        parsed[key] = _parse_atom(part[split_at + 1 :], source=source)
-    return parsed
-
-
-def _parse_bare_container(text: str) -> object:
-    opener = text[0]
-    inner = text[1:-1]
-    if not inner.strip():
-        if opener == "[":
-            return []
-        if opener == "(":
-            return ()
-        return {}
-    parts = _split_top_level(inner, separator=",", source=text)
-    if parts and not parts[-1].strip():
-        parts.pop()
-    if not parts or any(not part.strip() for part in parts):
-        raise _parse_error(text)
-    if opener == "[":
-        if len(parts) == 1 and _is_unquoted_prose(parts[0].strip()):
-            return text
-        return [_parse_atom(part, source=text) for part in parts]
-    if opener == "(":
-        return tuple(_parse_atom(part, source=text) for part in parts)
-    if any(_top_level_indexes(part, separator=":", source=text) for part in parts):
-        return _parse_bare_dict(parts, source=text)
-    return _parse_bare_set(parts, source=text)
+    return table[field]

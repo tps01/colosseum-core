@@ -29,11 +29,9 @@ Choose an execution mode
      - ``--procedure``
    * - Recheck evidence from a previous run
      - ``--use-previous-output PATH``
-   * - Generate per-key parameters
-     - ``--export parameters``
    * - Keep the PC from sleeping during a long run
      - ``--no-sleep``
-   * - Profile with pyinstrument
+   * - Profile with pyinstrument (developer install)
      - ``--profile``
 
 Dry run still executes ordinary Python in ``main()``. It is not a sandbox for
@@ -110,49 +108,38 @@ Shared path and config flags for ``colosseum run`` and ``colosseum run-suite``:
 - ``--no-sleep`` - prevent system sleep until the run or suite completes
   (screen may still blank or lock; uses wakepy ``keep.running``)
 - ``--profile`` - profile with pyinstrument; write ``profile.html`` under the
-  output directory (text only with ``--no-artifacts``)
+  output directory (text only with ``--no-artifacts``). ``pyinstrument`` is a
+  developer dependency (``requirements.txt``) and is not installed with a
+  runtime-only install; ``--profile`` reports an error until you install the
+  developer dependencies.
 - ``--dry-run`` - walk each script and log every command, measurement, and
-  verification. The default policy logs arguments and does not call the function.
-  Omitted measurement keys fail the slot unless the script called
-  ``col.auto_key()`` (the ERROR text suggests ``key=`` or ``col.auto_key()``).
-  Omitted verification keys are allowed for spot-checks; dry-run records a tip
-  instead of failing. The walk checks duplicate measurements, ``multi_row`` row
-  indexes, call signatures, and argument types where the function has a type
-  hint. Duration and frequency strings are checked after they are parsed. An
-  argument with no hint is not checked. A key with no parameters-file section
-  keeps the call arguments. Soft tips also cover unused parameters-file
-  sections (a section read with ``col.load_parameter`` counts as used), keyed
-  verifications with no prior measurement in the walk, and an empty walk with
-  no decorated calls. Tips appear in ``debug.log`` and under
-  **Dry-run tips:** in ``summary.txt``. It records each problem and continues,
-  and a required error fails the slot. ``debug.log``, ``summary.txt``, and
-  ``summary.json`` are still written. ``run-suite --dry-run`` uses the same
-  checks on every slot.
+  verification. The default policy logs arguments and does not call the function;
+  a decorator can opt in to a substitute (see :doc:`plugins`). Omitted
+  measurement keys fail the slot unless the script called ``col.auto_key()``
+  (the ERROR text suggests ``key=`` or ``col.auto_key()``). The walk checks
+  duplicate measurements, ``multi_row`` row indexes, and call signatures. It does
+  not type-check arguments and does not produce tips. ``debug.log``,
+  ``summary.txt``, and ``summary.json`` are still written. ``run-suite
+  --dry-run`` uses the same walk on every slot.
 - ``--parameters PATH`` - parameters TOML (limits and per-key kwargs) for this run
 - ``--report NAME`` - enable a report listener (``wats``, ``junit``); repeatable.
   When any ``--report`` is present, that set replaces ``[colosseum.reports]``
 
 ``colosseum run`` additionally supports:
 
-- ``-c/--command SPEC`` - invoke a plugin ``@command`` (``namespace.function,key=val,...``);
-  repeatable; may be used without a script path
 - ``-p/--procedure`` - run commands and measurements; skip verifications
 - ``-u/--use-previous-output PATH`` - import prior measurements/commands from a completed
   run directory and re-run verifications only (mutually exclusive with ``-p``).
   For Windows quoted paths, see :doc:`troubleshooting`.
 - ``--show-faults`` - opt-in ``faulthandler`` crash dumps for this run
-- ``--export parameters`` - walk the script, write ``parameters.toml`` in the run
-  folder from the keys and keyword values that were passed, and do not run decorated
-  functions or score the run. The folder is not renamed ``-pass`` or ``-fail``.
 
-``--dry-run`` and ``--export`` cannot be combined with each other, with
-``--mode`` / ``-p`` / ``-u``, or with ``--no-artifacts``. ``--export parameters``
-also requires a test file and cannot be combined with ``-c`` or ``--parameters``.
+``--dry-run`` cannot be combined with ``--mode`` / ``-p`` / ``-u`` or with
+``--no-artifacts``.
 
 Examples::
 
    colosseum run my_test.py -i scripts -g config/config.toml -m config/metadata.yaml
-   colosseum run -o D:/test_runs -c template.arm_device,device_id=1 -g config/config.toml
+   colosseum run -o D:/test_runs my_test.py -g config/config.toml
    colosseum run scripts/my_test.py -p -g config/config.toml
    colosseum run scripts/my_test.py -u outputs/2026-01-01_120000_my_test-pass -g config/config.toml
    colosseum run scripts/my_test.py -u "D:\runs\prior run" -g config/config.toml
@@ -160,11 +147,6 @@ Examples::
    colosseum run scripts/my_test.py --parameters limits.toml --report wats --report junit -g config/config.toml
    colosseum run scripts/my_test.py --dry-run -g config/config.toml
    colosseum run-suite suite.toml --dry-run -g config/config.toml
-   colosseum run scripts/my_test.py --export parameters -g config/config.toml
-
-Standalone ``-c`` runs allocate a normal output directory and record command evidence
-without executing a test script. Combine ``-c`` with a script path to run plugin commands
-and the script in one process and one output directory.
 
 See :doc:`running_suites` for suite-specific flags (including ``-p`` on test slots).
 
@@ -184,3 +166,15 @@ The recorded 3.3 is checked against 3.5 +/- 0.05 and fails. The previous run
 stays intact; inspect the newly created run folder. Keep the procedure and keys
 compatible with the original acquisition. Verifiers that inspect live UI or
 files can still need those resources; a database cannot recreate them.
+
+Desktop runner
+--------------
+
+Launch ``colosseum --gui`` to run tests or suites and browse completed runs.
+The **Log** tab streams execution messages and displays the selected run's
+``debug.log``; its wrap button toggles line wrapping. The **Summary** tab shows
+the recorded outcome and links to individual suite slots. Select a run or slot
+in the browser, or use **Open output folder** to inspect its files.
+
+The desktop viewer uses these two tabs. Detailed evidence remains in
+``execution.sqlite`` and the generated reports; see :doc:`output_artifacts`.
