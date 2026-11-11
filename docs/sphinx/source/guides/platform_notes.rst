@@ -12,8 +12,9 @@ Create and activate a virtual environment with::
    python -m venv .venv
    .\.venv\Scripts\Activate.ps1
 
-python.org CPython installers include ``tkinter``, so ``colosseum --gui`` works after a
-normal ``colosseum-core`` (or offline wheelhouse) install.
+Core itself needs no GUI toolkit. The optional desktop runner is
+``colosseum-ui`` (Qt / PySide6); see that package's docs for host prerequisites
+(`GitHub <https://github.com/tps01/colosseum-ui>`__).
 
 Linux
 -----
@@ -23,13 +24,9 @@ Create and activate a virtual environment with::
    python3 -m venv .venv
    . .venv/bin/activate
 
-For GUI use, the Python build must provide ``tkinter`` (Debian/Ubuntu: ``python3-tk``).
-That is an OS/image prerequisite, not a pip package. Air-gapped hosts should bake it into
-the golden image together with Python. See ``offline/README.md`` in the integration
-checkout.
-
-SSH X11 forwarding (``ssh -X``) still requires Tk on the Linux side and a working
-``DISPLAY``.
+Core CLI and offline wheelhouses are headless. For the desktop runner, install
+``colosseum-ui`` and follow its platform notes for Qt libraries and display
+requirements.
 
 Documentation
 -------------

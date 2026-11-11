@@ -13,7 +13,6 @@ Bundle layout::
     INSTALL.txt
     install.bat / install.sh
     start_cli.bat / start_cli.sh
-    start_gui.bat / start_gui.sh
 
 Archives: Windows → ``.zip``; Linux/macOS → ``.tar.gz``.
 
@@ -154,7 +153,7 @@ def _write_bundle_scripts(wheelhouse: Path, packages: list[str]) -> None:
                 "echo.",
                 "echo Offline install complete.",
                 "echo   CLI operators:  start_cli.bat",
-                "echo   GUI operators:  start_gui.bat",
+                "echo   Desktop UI:     install colosseum-ui from its GitHub Releases",
                 "endlocal",
                 "",
             ],
@@ -179,7 +178,7 @@ def _write_bundle_scripts(wheelhouse: Path, packages: list[str]) -> None:
                 "echo",
                 'echo "Offline install complete."',
                 'echo "  CLI operators:  ./start_cli.sh"',
-                'echo "  GUI operators:  ./start_gui.sh"',
+                'echo "  Desktop UI:     install colosseum-ui from its GitHub Releases"',
                 "",
             ],
         ),
@@ -405,7 +404,9 @@ def main(argv: list[str] | None = None) -> int:
                 "3. Day-to-day use:",
                 "",
                 "   CLI operators:  start_cli.bat   or  ./start_cli.sh",
-                "   GUI operators:  start_gui.bat   or  ./start_gui.sh",
+                "",
+                "   Desktop UI: install the separate colosseum-ui offline bundle",
+                "   from https://github.com/tps01/colosseum-ui/releases",
                 "",
                 "Manual equivalent:",
                 "",
@@ -416,9 +417,7 @@ def main(argv: list[str] | None = None) -> int:
                 archive_note,
                 "",
                 "Linux archives are CPU-specific (linux-x86_64 vs linux-aarch64).",
-                "GUI (colosseum-core): tkinter must already be part of this Python.",
-                "Windows python.org builds usually include it.",
-                "Linux: bake python3-tk (or a Tk-enabled Python) into the host image.",
+                "Core offline archives are headless (CLI only).",
                 "",
             ],
         ),
