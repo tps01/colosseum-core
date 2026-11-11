@@ -16,10 +16,18 @@ from ._browser import (
     load_run_snapshot,
 )
 from ._icon import apply_window_icon, init_windows_taskbar, wrap_icon_photo
-from ._results import load_run_evidence
-from ._results_ui import ResultsPanel, set_text
 from ._run_browser_ui import RunBrowserPanel
 from .run_worker import RunFinished, RunKind, RunRequest, RunWorker
+
+
+def set_text(textbox: Any, text: str) -> None:  # noqa: ANN401
+    textbox.configure(state="normal")
+    textbox.delete("1.0", "end")
+    if text:
+        textbox.insert("end", text)
+        textbox.see("1.0")
+    textbox.configure(state="disabled")
+
 
 
 def _pane_bg(root: Any, ctk: Any) -> str:  # noqa: ANN401
@@ -190,7 +198,7 @@ class ColosseumApp:
         self._log_wrap_btn.place(relx=1.0, rely=0.0, x=-4, y=4, anchor="ne")
         self._log_wrap_btn.lift()
 
-    def _build_summary_tab(self) -> Any:  # noqa: ANN401
+    def _build_summary_tab(self) -> None:
         ctk = self._ctk
         summary_tab = self._tabs.tab("Summary")
         summary_tab.grid_rowconfigure(0, weight=0)
@@ -201,7 +209,8 @@ class ColosseumApp:
         slot_list.grid_remove()
         self._summary_text = ctk.CTkTextbox(summary_tab, state="disabled")
         self._summary_text.grid(row=1, column=0, sticky="nsew", padx=2, pady=2)
-        return slot_list
+        self._slot_list = slot_list
+        self._slot_buttons: list[Any] = []
 
     def _build_body(self, pane_bg: str) -> None:
         ctk, root = self._ctk, self._root
@@ -223,19 +232,8 @@ class ColosseumApp:
         self._tabs.grid(row=1, column=0, sticky="nsew", padx=4, pady=4)
         self._tabs.add("Log")
         self._tabs.add("Summary")
-        self._tabs.add("Results")
         self._build_log_tab(scale=scale)
-        slot_list = self._build_summary_tab()
-        self._results = ResultsPanel(
-            ctk,
-            self._tabs.tab("Results"),
-            slot_list,
-            selected_run_dir=lambda: self._selected_run_dir,
-            on_select_run=self._select_run,
-            set_status=self._status.set,
-            set_clipboard=self._set_clipboard,
-            focus_tab=lambda: self._tabs.set("Results"),
-        )
+        self._build_summary_tab()
         self._runs = RunBrowserPanel(
             ctk,
             body,
@@ -253,9 +251,48 @@ class ColosseumApp:
         body.add(runs_panel, minsize=runs_min, stretch="always")
         self._root.after(100, lambda: _set_initial_sashes(body))
 
-    def _set_clipboard(self, text: str) -> None:
-        self._root.clipboard_clear()
-        self._root.clipboard_append(text)
+    def _render_slots(self, summary: dict[str, Any] | None) -> None:
+        self.clear_slot_buttons()
+        slots = []
+        if isinstance(summary, dict):
+            raw = summary.get("all_slots") or summary.get("test_slots") or []
+            slots = [slot for slot in raw if isinstance(slot, dict)]
+        if not slots:
+            self._slot_list.grid_remove()
+            return
+        self._slot_list.grid()
+        for slot in slots:
+            label = f"{slot.get('phase')} [{slot.get('overall_result')}] {Path(str(slot.get('script') or '')).name}"
+            repeat = slot.get("repeat_index")
+            if repeat is not None:
+                label += f" repeat={repeat}"
+            cycle = slot.get("cycle_index")
+            if cycle is not None:
+                label += f" cycle={cycle}"
+            folder = Path(str(slot.get("output_directory") or ""))
+            button = self._ctk.CTkButton(
+                self._slot_list,
+                text=label,
+                anchor="w",
+                fg_color="transparent",
+                hover_color=("gray85", "gray25"),
+                command=lambda path=folder: self._select_slot(path),
+            )
+            button.pack(fill="x", pady=1)
+            self._slot_buttons.append(button)
+
+
+    def clear_slot_buttons(self) -> None:
+        for button in self._slot_buttons:
+            button.destroy()
+        self._slot_buttons = []
+        self._slot_list.grid_remove()
+
+
+    def _select_slot(self, folder: Path) -> None:
+        if folder.is_dir():
+            self._select_run(folder)
+
 
     def _config_value(self) -> str | None:
         v = self._config_path.get().strip()
@@ -343,13 +380,9 @@ class ColosseumApp:
         gen = self._detail_generation
         set_text(self._log_text, f"Loading debug.log for {run_dir.name}...")
         set_text(self._summary_text, f"Loading summary for {run_dir.name}...")
-        self._results.begin_load(run_dir)
+        self.clear_slot_buttons()
         threading.Thread(
             target=lambda: self._ui_events.put(("run", gen, load_run_snapshot(run_dir))),
-            daemon=True,
-        ).start()
-        threading.Thread(
-            target=lambda: self._ui_events.put(("evidence", gen, load_run_evidence(run_dir))),
             daemon=True,
         ).start()
 
@@ -364,7 +397,7 @@ class ColosseumApp:
             log = snap.log_text if snap.log_text.endswith("\n") else snap.log_text + "\n"
         set_text(self._log_text, log)
         set_text(self._summary_text, format_summary_text(snap.summary))
-        self._results.apply_summary(snap.summary)
+        self._render_slots(snap.summary)
 
     def _open_selected_folder(self) -> None:
         folder = self._selected_run_dir
@@ -417,10 +450,6 @@ class ColosseumApp:
         if payload[0] == self._detail_generation:
             self._apply_run_snapshot(payload[1])
 
-    def _on_ui_evidence(self, payload: list[Any]) -> None:
-        if payload[0] == self._detail_generation:
-            self._results.apply_evidence(payload[1])
-
     def _drain_event_queue(
         self,
         events: queue.Queue[Any],
@@ -450,7 +479,6 @@ class ColosseumApp:
             {
                 "browser": self._on_ui_browser,
                 "run": self._on_ui_run,
-                "evidence": self._on_ui_evidence,
             },
         )
         self._root.after(200, self._poll_worker)
