@@ -123,8 +123,7 @@ Parameters (optional)
 ---------------------
 
 A parameters TOML file supplies command arguments and verification limits by
-evidence key. See :doc:`using_parameters` for precedence, a worked limit change,
-and parameter export.
+evidence key. See :doc:`using_parameters` for precedence, and a worked limit change.
 
 Metadata (optional)
 -------------------

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
-from colosseum.config.toml_relaxed import coerce_config_bool, read_relaxed_toml
+from colosseum.config.toml_io import coerce_config_bool, read_toml
 from colosseum.paths import absolute_path
 
 if TYPE_CHECKING:
@@ -176,7 +176,7 @@ def _read_suite_toml(suite_path: Path) -> dict[str, Any]:
     if not suite_path.exists():
         raise SuiteError(f"Suite file not found: {suite_path}")
     try:
-        return read_relaxed_toml(suite_path)
+        return read_toml(suite_path)
     except UnicodeDecodeError as exc:
         raise SuiteError(f"Suite file is not valid UTF-8: {suite_path}: {exc}") from exc
     except tomllib.TOMLDecodeError as exc:

@@ -231,11 +231,10 @@ measurement keys are an error unless the procedure called ``col.auto_key()``.
 Omitted verification keys are auto-assigned with a warning. On the default
 ``"log"`` policy the body is not called; the walk checks structure a real run
 enforces (duplicate measurement keys, ``multi_row`` without ``row_index``,
-signature mismatches after parameters fill-in). ``dry_run="call"`` runs the
-**real** body (side effects happen). A callable substitute runs instead of the
-body and honors ``optional=`` the same way as live mode. ``--export parameters``
-uses the same walk to collect keys and keyword values into ``parameters.toml``,
-and does not call decorated bodies or write a scored summary.
+signature mismatches after parameters fill-in) and logs each call. It does not
+type-check arguments or emit tips. ``dry_run="call"`` runs the **real** body
+(side effects happen). A callable substitute runs instead of the body and
+honors ``optional=`` the same way as live mode.
 
 ``-u`` copies ``measurements`` and ``commands`` from the prior
 ``execution.sqlite`` and sets ``imported_from`` in metadata, then re-runs only

@@ -1,3 +1,3 @@
-name = fixture_endex_then_verify
+name = "fixture_endex_then_verify"
 
 tests = ["../scripts/endex_then_verify.py"]

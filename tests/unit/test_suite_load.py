@@ -58,8 +58,15 @@ def test_fail_fast_true_loads(fixtures_dir) -> None:
 def test_fail_fast_accepts_bool_spellings(tmp_path, fixtures_dir) -> None:
     script = fixtures_dir / "scripts" / "pass_test.py"
     path = tmp_path / "fail_fast_t.toml"
+    # Bare non-TOML spellings are invalid; quoted values still coerce.
     path.write_text(
         f'name = "x"\nfail_fast = T\ntests = ["{script.as_posix()}"]\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(SuiteError, match="Invalid suite TOML"):
+        load_suite_toml(path)
+    path.write_text(
+        f'name = "x"\nfail_fast = "T"\ntests = ["{script.as_posix()}"]\n',
         encoding="utf-8",
     )
     assert load_suite_toml(path).fail_fast is True

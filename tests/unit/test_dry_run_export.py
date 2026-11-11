@@ -1,22 +1,12 @@
-"""Dry-run policies and parameter export collection."""
+"""Dry-run policies and structure checks."""
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
-from colosseum.config.parameters import ParametersError, load_parameter, write_parameters_file
 from colosseum.results.finalize import _insert_blocked_owed_keys
-from colosseum.context import auto_key
 from colosseum.decorators import VerificationResult, command, measurement, verification
-from colosseum.decorators._common import DRY_RUN_ATTR, finalize_dry_run_tips
-from colosseum.runner.single_run import finish_parameter_export
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover
-    import tomli as tomllib  # type: ignore[no-redef]
+from colosseum.decorators._common import DRY_RUN_ATTR
 
 
 def test_dry_run_log_skips_the_body(unit_runtime_context) -> None:
@@ -148,50 +138,6 @@ def test_dry_run_allows_verification_before_measurement(unit_runtime_context) ->
     assert capture(key="late", value=1.0) is None
     assert check(key="late", expected_val=1.0) is None
     assert _statuses(ctx) == ["DRY", "DRY", "DRY"]
-    assert any("no measurement in this walk yet" in tip for tip in ctx.dry_run_tips)
-
-
-def test_finalize_dry_run_tips_unused_parameters_and_empty_walk(unit_runtime_context) -> None:
-    ctx = unit_runtime_context
-    ctx.run_options.dry_run = True
-    ctx.parameters_map = {"stale": {"value": 1.0}}
-    finalize_dry_run_tips(ctx)
-    assert any("unused section" in tip for tip in ctx.dry_run_tips)
-    assert any("no command/measurement/verification" in tip for tip in ctx.dry_run_tips)
-
-
-def test_finalize_dry_run_tips_load_parameter_marks_section_used(
-    unit_runtime_context,
-) -> None:
-    ctx = unit_runtime_context
-    ctx.run_options.dry_run = True
-    ctx.parameters_map = {
-        "voltage": {"limit": "5V"},
-        "stale": {"value": 1.0},
-    }
-    assert load_parameter("voltage", field="limit") == "5V"
-    finalize_dry_run_tips(ctx)
-    unused_tips = [tip for tip in ctx.dry_run_tips if "unused section" in tip]
-    assert len(unused_tips) == 1
-    assert "'stale'" in unused_tips[0]
-    assert "'voltage'" not in unused_tips[0]
-
-    ctx.dry_run_tips.clear()
-    ctx.dry_run_keys_seen.clear()
-    assert load_parameter("voltage", field="limit") == "5V"
-    assert load_parameter("stale", field="value") == 1.0
-    finalize_dry_run_tips(ctx)
-    assert not any("unused section" in tip for tip in ctx.dry_run_tips)
-
-    ctx.dry_run_tips.clear()
-    ctx.dry_run_keys_seen.clear()
-    with pytest.raises(ParametersError, match=r"field 'missing' not found in \[voltage\]"):
-        load_parameter("voltage", field="missing")
-    finalize_dry_run_tips(ctx)
-    unused_tips = [tip for tip in ctx.dry_run_tips if "unused section" in tip]
-    assert len(unused_tips) == 1
-    assert "'stale'" in unused_tips[0]
-    assert "'voltage'" not in unused_tips[0]
 
 
 def test_dry_run_allows_keyless_verification(unit_runtime_context) -> None:
@@ -268,28 +214,6 @@ def test_dry_run_fills_parameters_then_checks_the_signature(unit_runtime_context
     assert "unexpected keyword" in messages[6]
 
 
-def test_dry_run_checks_argument_types(unit_runtime_context) -> None:
-    ctx = unit_runtime_context
-    ctx.run_options.dry_run = True
-
-    @command
-    def label(*, text: str, note) -> None:  # noqa: ANN001
-        raise AssertionError("body ran")
-
-    @command
-    def wait(*, timeout: float) -> None:
-        raise AssertionError("body ran")
-
-    assert label(text=1, note=object()) is None
-    assert label(text="ok", note=object()) is None
-    assert wait(timeout="61s") is None
-    assert wait(timeout="nope") is None
-    records = ctx.result_aggregator._records  # noqa: SLF001
-    assert [row["status"] for row in records] == ["ERROR", "DRY", "DRY", "ERROR"]
-    assert "text" in records[0]["message"]
-    assert "duration" in records[3]["message"]
-
-
 def test_dry_run_owed_limit_blocks_only_unmeasured_keys(unit_runtime_context) -> None:
     ctx = unit_runtime_context
     ctx.run_options.dry_run = True
@@ -314,161 +238,3 @@ def test_dry_run_policy_must_be_log_call_or_callable() -> None:
         @command(dry_run=1)
         def ping(*, message: str) -> None:
             return None
-
-
-def test_export_merges_keyed_kwargs_and_skips_bookkeeping(unit_runtime_context) -> None:
-    ctx = unit_runtime_context
-    ctx.parameter_export = {}
-
-    @command
-    def note(*, message: str) -> None:
-        raise AssertionError("body ran")
-
-    @measurement
-    def capture(*, key: str, value: float) -> float:
-        raise AssertionError("body ran")
-
-    @verification
-    def check(
-        *,
-        key: str,
-        expected_val: float,
-        tolerance: float = 0.0,
-        optional: bool = False,
-    ) -> VerificationResult:
-        raise AssertionError("body ran")
-
-    assert note(message="hello") is None
-    assert capture(key="rx_level", value=0.0) is None
-    assert (
-        check(
-            key="rx_level",
-            expected_val=1.5,
-            tolerance=0.25,
-            optional=True,
-            description="level",
-            row_index=3,
-        )
-        is None
-    )
-    assert ctx.parameter_export == {
-        "rx_level": {
-            "value": 0.0,
-            "expected_val": 1.5,
-            "tolerance": 0.25,
-            "optional": True,
-            "description": "level",
-        },
-    }
-    assert ctx.export_errors == []
-
-
-def test_export_records_missing_keys_and_keeps_walking(unit_runtime_context) -> None:
-    ctx = unit_runtime_context
-    ctx.parameter_export = {}
-
-    @measurement
-    def capture(*, key: str, value: float) -> float:
-        raise AssertionError("body ran")
-
-    @verification
-    def check(*, key: str, expected_val: float) -> VerificationResult:
-        raise AssertionError("body ran")
-
-    assert capture(value=1.0) is None
-    assert check(expected_val=1.0) is None
-    assert capture(key="ok", value=2.0) is None
-    assert len(ctx.export_errors) == 1
-    assert "was missing a key" in ctx.export_errors[0]
-    assert "col.auto_key()" in ctx.export_errors[0]
-    # Verification omitted key= is auto-assigned; measurement without key is an error.
-    assert ctx.parameter_export == {
-        "1": {"expected_val": 1.0},
-        "ok": {"value": 2.0},
-    }
-
-
-def test_export_uses_auto_key(unit_runtime_context) -> None:
-    ctx = unit_runtime_context
-    ctx.parameter_export = {}
-    auto_key()
-
-    @measurement
-    def capture(*, key: str, value: float) -> float:
-        raise AssertionError("body ran")
-
-    assert capture(value=1.25) is None
-    assert ctx.parameter_export == {"1": {"value": 1.25}}
-
-
-def test_export_rejects_values_that_are_not_toml(unit_runtime_context) -> None:
-    ctx = unit_runtime_context
-    ctx.parameter_export = {}
-
-    @command
-    def tagged(*, key: str, payload: object) -> None:
-        raise AssertionError("body ran")
-
-    assert tagged(key="rx_level", payload=object()) is None
-    assert any("payload" in message for message in ctx.export_errors)
-    assert "payload" not in ctx.parameter_export["rx_level"]
-
-
-def test_write_parameters_file_round_trip(tmp_path: Path) -> None:
-    path = tmp_path / "parameters.toml"
-    write_parameters_file(
-        path,
-        {
-            "rx_level": {
-                "value": 0.0,
-                "enabled": True,
-                "notes": 'a "b"',
-                "limits": [1, 2],
-                "nested": {"unit": "V"},
-            },
-        },
-    )
-    loaded = tomllib.loads(path.read_text(encoding="utf-8"))
-    assert loaded["rx_level"]["value"] == 0.0
-    assert loaded["rx_level"]["enabled"] is True
-    assert loaded["rx_level"]["notes"] == 'a "b"'
-    assert loaded["rx_level"]["limits"] == [1, 2]
-    assert loaded["rx_level"]["nested"] == {"unit": "V"}
-
-
-def test_write_parameters_file_round_trips_unicode_keys_and_controls(tmp_path: Path) -> None:
-    from colosseum.config.parameters import load_parameters_file
-
-    path = tmp_path / "parameters.toml"
-    tables = {
-        "rail": {
-            "温度": 25,
-            "expected": "ready\x1b[0m",
-            "nested": {"µV": 1, "ctrl": "\x00\x07\x08\x0b\x0c\x1f\x7f"},
-        },
-    }
-    write_parameters_file(path, tables)
-    loaded = load_parameters_file(path)
-    assert loaded == tables
-
-
-def test_finish_writes_parameters_without_a_summary(unit_runtime_context) -> None:
-    ctx = unit_runtime_context
-    ctx.parameter_export = {"rx_level": {"value": 1.0}}
-    assert ctx.output_dir is not None
-    code = finish_parameter_export(ctx, failed=False)
-    assert code == 0
-    assert (ctx.output_dir / "parameters.toml").is_file()
-    assert not (ctx.output_dir / "summary.txt").exists()
-
-
-def test_finish_skips_the_file_when_export_failed(unit_runtime_context) -> None:
-    ctx = unit_runtime_context
-    ctx.parameter_export = {"rx_level": {"value": 1.0}}
-    ctx.export_errors.append(
-        "`capture` measurement was missing a key; " "pass key=... or call col.auto_key() near the start of main()"
-    )
-    assert ctx.output_dir is not None
-    code = finish_parameter_export(ctx, failed=False)
-    assert code == 1
-    assert not (ctx.output_dir / "parameters.toml").exists()

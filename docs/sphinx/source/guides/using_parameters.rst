@@ -71,10 +71,10 @@ configured limits, finalization records the corresponding verification as
 
 ``col.load_parameter(key, field=...)`` returns one value from the loaded
 parameters file. The key may be positional or a keyword. A procedure uses it
-for a list of paths or another setting the script reads itself. Ints, floats,
-bools, and ordinary strings come back as written. A TOML array or inline table
-comes back as a list or dict. A quoted Python literal is parsed, and so is a
-bracketed list of bare words. A missing key returns ``None``.
+for a list of paths or another setting the script reads itself. The value is
+returned exactly as ``tomllib`` loaded it: strings, ints, floats, and bools as
+written, a TOML array as a ``list``, and an inline or nested table as a
+``dict``. Nothing is parsed out of strings. A missing key returns ``None``.
 
 **Optional suite override**::
 
@@ -90,7 +90,7 @@ bracketed list of bare words. A missing key returns ``None``.
 **captures.toml**::
 
    [captures]
-   files = "[trace.bin, C:/data/other.bin]"
+   files = ["trace.bin", "C:/data/other.bin"]
    count = 3
 
 **Script**::
@@ -99,30 +99,48 @@ bracketed list of bare words. A missing key returns ``None``.
    for path in files:
        measure_capture(path)
 
-``[thing1, thing2]`` becomes a list of strings. ``{1, 2}`` becomes a set and
-``{'a': 1}`` becomes a dict. Bare ``true``, ``false``, ``yes``, and ``no``
-inside a list become bools. A note such as ``[see manual]`` stays a string.
-A quoted number such as ``"99"`` stays a string; unquoted ``99`` is an int.
-``key=`` calls receive the value as loaded from TOML.
+``files`` is a real ``list`` of strings. Quote every string; a bare word such
+as ``trace.bin`` is not valid TOML. A quoted number such as ``"99"`` stays a
+string; unquoted ``99`` is an int. ``key=`` calls receive the value as loaded
+from TOML.
 
 No parameters file loaded, or a missing field inside a present key, raises
-``ParametersError``. A matched bracket string that cannot be parsed, such as an
-empty slot or an unclosed inner bracket, raises ``ParametersError`` as well.
-``{}`` is an empty dict. An empty set has no literal form.
+``ParametersError``.
+
+Standard TOML for list, dict, and table fields
+----------------------------------------------
+
+Parameters files are standard TOML (see :doc:`configuration`). Use native TOML
+containers for fields that hold collections.
+
+**List field** (array)::
+
+   [sweep]
+   frequencies_hz = [1000, 2000, 5000]
+   labels = ["low", "mid", "high"]
+
+**Dict field** (inline table)::
+
+   [sweep]
+   limits = { min = 0.0, max = 5.0 }
+
+**Dict field** (nested table)::
+
+   [sweep.limits]
+   min = 0.0
+   max = 5.0
+
+**Script**::
+
+   freqs = col.load_parameter("sweep", field="frequencies_hz")   # [1000, 2000, 5000]
+   limits = col.load_parameter("sweep", field="limits")          # {"min": 0.0, "max": 5.0}
+   high = limits["max"]
+
+Both dict spellings load as the same ``dict``. The same values passed as call
+keyword arguments through ``key=`` arrive as ``list`` and ``dict`` objects too.
 
 See ``examples/parameters/`` in the core repository checkout. For ready-made bench procedures,
 copy a folder from :doc:`testware_library`.
-
-``colosseum run SCRIPT --export parameters`` walks ``main()`` and writes
-``parameters.toml`` in the run folder. Sections are the evidence keys. Values are
-the keyword arguments passed on ``@command``, ``@measurement``, and
-``@verification`` calls, except ``key`` and ``row_index``. ``key`` is already
-the section name. ``row_index`` identifies one row of a multi-row measurement
-(together with the domain, command, and key). Export keeps a single section per
-key and later calls overwrite earlier fields, so a series would collapse to the
-last index. The script chooses the row as it loops. Decorated functions are not
-called, and the folder is not renamed with a pass or fail suffix. Variables and
-``col.auto_key()`` are evaluated because ``main()`` still runs.
 
 Resolved-value example
 ----------------------
@@ -162,7 +180,6 @@ overriding 3.3 +/- 0.1 on the call, and records FAIL. Change only the file's
      - 0.3 (file)
      - PASS
 
-Commands and verifications receive per-key overrides. Measurements are included
-in parameter export, but their acquisition arguments are not overridden by
-this mechanism. Suite stacking merges the suite-level file onto each test file
+Commands and verifications receive per-key overrides. Measurement acquisition
+arguments are not overridden by this mechanism. Suite stacking merges the suite-level file onto each test file
 by default; a single ``colosseum run`` still loads one file.

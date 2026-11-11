@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from colosseum.units import coerce_units
 
-from ._common import capture_parameter_export, ensure_runtime_context
+from ._common import ensure_runtime_context
 from ._dry_run import finish_dry_run_log, invoke_dry_run_substitute
 
 if TYPE_CHECKING:
@@ -58,14 +58,6 @@ def run_decorated_call(
     if binding.should_skip(ctx):
         return None
     identity = binding.resolve_identity(ctx, kwargs)
-    if capture_parameter_export(
-        ctx,
-        kind=binding.kind,
-        command=binding.command,
-        key=identity.key_text,
-        kwargs=kwargs,
-    ):
-        return None
     early = _run_before_dry_run(binding, ctx, identity, args, kwargs)
     if early is not None:
         return early.value

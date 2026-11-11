@@ -276,8 +276,6 @@ def build_run_summary(
         payload["dry_run_calls"] = [
             {name: row.get(name, "") for name in ("kind", "domain", "command", "key", "status")} for row in records
         ]
-        if ctx.dry_run_tips:
-            payload["dry_run_tips"] = list(ctx.dry_run_tips)
     return payload
 
 

@@ -120,16 +120,15 @@ def assert_provenance_artifact(run_dir: Path) -> dict[str, Any]:
     assert set(provenance["platform"]) == _PLATFORM_FIELDS
     packages = provenance["packages"]
     assert isinstance(packages["versions"], dict) and packages["versions"]
-    assert isinstance(packages["plugins"], list)
-    assert isinstance(packages["installs"], list) and packages["installs"]
-    assert isinstance(provenance["repositories"], list)
+    assert "installs" not in packages
+    assert "repositories" not in provenance
     assert isinstance(provenance["inputs"], list)
     log_text = (run_dir / "debug.log").read_text(encoding="utf-8")
-    for section in ("platform", "packages", "inputs", "repositories"):
+    for section in ("platform", "packages", "inputs"):
         assert f"Provenance: {section}=" in log_text
     assert "Provenance:" not in (run_dir / "summary.txt").read_text(encoding="utf-8")
     sections = [row[0] for row in query_db(run_dir, "SELECT section FROM provenance ORDER BY section")]
-    assert sections == ["inputs", "packages", "platform", "repositories"]
+    assert sections == ["inputs", "packages", "platform"]
     return provenance
 
 
