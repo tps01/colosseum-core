@@ -14,9 +14,9 @@ provides:
 - TOML configuration and plugin registration
 - test and test suite runners
 - SQLite database, logs, summaries, and artifacts
-- desktop runner for operators (`colosseum --gui`)
+- optional desktop runner via the separate [`colosseum-ui`](https://github.com/tps01/colosseum-ui) package (`colosseum --gui` after install)
 
-The GUI automation plugin controls applications under test through `col.gui.*`.
+The GUI automation plugin (`colosseum-gui`) controls applications under test through `col.gui.*`.
 Choose plugins by task in the [feature directory](https://tps01.github.io/colosseum-core/guides/first_party_plugins.html).
 
 ## Install
