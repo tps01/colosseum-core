@@ -288,6 +288,8 @@ returned as bytes and stored as JSON ``{"encoding": "hex", "data": "...",
 "nbytes": N}``. Row identity is domain, command, key, and ``row_index``.
 
 Use ``col.database.read_verifications`` for inspection only; do not use read helpers to
-decide pass/fail (use ``col.endex()``). The operator GUI browses completed
-runs through ``summary.json`` and ``debug.log``. It does not provide a
-SQLite measurement, verification, or event-table browser.
+decide pass/fail (use ``col.endex()``). The optional
+`colosseum-ui <https://github.com/tps01/colosseum-ui>`__ desktop runner
+(``colosseum --gui``) browses completed runs through ``summary.json`` and
+``debug.log``. It does not provide a SQLite measurement, verification, or
+event-table browser.
