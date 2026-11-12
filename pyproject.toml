@@ -11,7 +11,6 @@ license = "MIT"
 dependencies = [
   "tomli>=2.0,<3; python_version < '3.11'",
   "typing_extensions>=4.0,<5; python_version < '3.10'",
-  "customtkinter>=5.2,<6",
   "PyYAML>=6.0,<7",
   "wakepy>=0.10",
   "pyinstaller>=6.22,<7",
@@ -23,7 +22,6 @@ testpaths = ["tests/unit", "tests/integration", "tests/e2e"]
 pythonpath = ["."]
 markers = [
     "requirement(id): traceability to test-plan requirement ID",
-    "gui: requires display and tkinter",
 ]
 
 [project.scripts]
@@ -34,7 +32,6 @@ include = ["colosseum", "colosseum.*"]
 
 [tool.setuptools.package-data]
 colosseum = ["py.typed", "hooks/hook-colosseum.py"]
-"colosseum.gui" = ["assets/*"]
 
 [tool.black]
 line-length = 120
@@ -78,8 +75,6 @@ check_untyped_defs = true
 
 [[tool.mypy.overrides]]
 module = [
-  "customtkinter.*",
-  "tkinter.*",
   "sphinx.*",
   "pytest",
   "tomli",

@@ -81,8 +81,10 @@ supported, but generic BSD labels, unknown licenses, and unrecognized license
 text require review. SPDX `OR` permits an approved choice; `AND` requires every
 term to be approved. `WITH` exceptions are not stripped or implicitly approved.
 LGPL is not automatically approved: the unmodified-artifact condition requires
-review, which metadata alone cannot establish. No dependency exceptions are
-preapproved. Do not broaden mappings or ignore packages just to make CI pass.
+review, which metadata alone cannot establish. PyInstaller is the specific
+exception documented in `RULES.md`; its expected license metadata is checked
+without approving the same license for other packages. Do not broaden mappings
+or ignore packages just to make CI pass.
 
 This checks declared package metadata. It does not scan copied source, verify
 license text, or discover native components omitted from that metadata. The

@@ -84,6 +84,18 @@ def test_invalid_spdx_is_rejected() -> None:
         audit.expression_allowed("MIT OR", {"MIT"})
 
 
+@pytest.mark.parametrize("license_text", [audit.PYINSTALLER_LEGACY_LICENSE, "GPL-2.0-or-later WITH Bootloader-exception"])
+def test_pyinstaller_exception_is_package_and_license_specific(license_text: str) -> None:
+    allowed, aliases = audit.load_policy()
+    kwargs = {"expression" if " WITH " in license_text else "legacy": license_text}
+    dist = distribution(**kwargs)
+    assert not audit.inspect_distribution(dist, allowed, aliases)["passed"]
+    dist.metadata.replace_header("Name", "pyinstaller")
+    assert audit.inspect_distribution(dist, allowed, aliases)["passed"]
+    dist.metadata.replace_header("License-Expression" if "expression" in kwargs else "License", "GPL-3.0-only")
+    assert not audit.inspect_distribution(dist, allowed, aliases)["passed"]
+
+
 def test_rules_drift_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     (tmp_path / "RULES.md").write_text(
         "Only the following licenses are allowed:\n- MIT License\n---",

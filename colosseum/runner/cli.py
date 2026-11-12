@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import faulthandler
 import sys
+from importlib import import_module
 from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn
 
@@ -348,10 +349,14 @@ def run_cli(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.gui:
-        from colosseum.gui.app import main as gui_main
-
-        gui_main()
-        return 0
+        try:
+            gui_main = import_module("colosseum_ui.app").main
+        except ModuleNotFoundError as exc:
+            if exc.name != "colosseum_ui":
+                raise
+            print("The desktop UI is not installed. Install colosseum-ui to use --gui.", file=sys.stderr)
+            return 1
+        return int(gui_main())
 
     if args.command is None:
         _print_help(parser)
