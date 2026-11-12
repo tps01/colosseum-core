@@ -52,6 +52,10 @@ Only the following licenses are allowed:
 - If an existing dependency is found non-compliant, flag it immediately for
   remediation.
 
+Exception: PyInstaller is approved under GPL-2.0-or-later with its bootloader
+exception. This approval applies only to PyInstaller, not other GPL-licensed
+dependencies. Distributing modified PyInstaller remains subject to its license.
+
 ## Packaging
 
 - Put runtime packages in `[project].dependencies` in `pyproject.toml`. Wheel

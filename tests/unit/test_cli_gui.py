@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import io
+import sys
 from contextlib import redirect_stdout
+from types import ModuleType
 
 import pytest
-
+import colosseum.runner.cli as cli
 from colosseum.runner.cli import _build_parser, run_cli
 
 
@@ -14,6 +16,25 @@ def test_build_parser_accepts_gui_without_subcommand() -> None:
     args = _build_parser().parse_args(["--gui"])
     assert args.gui is True
     assert args.command is None
+
+
+def test_gui_delegates_and_returns_ui_exit_code(monkeypatch: pytest.MonkeyPatch) -> None:
+    package = ModuleType("colosseum_ui")
+    package.__path__ = []  # type: ignore[attr-defined]
+    app = ModuleType("colosseum_ui.app")
+    app.main = lambda: 7  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "colosseum_ui", package)
+    monkeypatch.setitem(sys.modules, "colosseum_ui.app", app)
+    assert run_cli(["--gui"]) == 7
+
+
+def test_gui_reports_missing_ui(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    def missing(name: str) -> ModuleType:
+        raise ModuleNotFoundError("No module named 'colosseum_ui'", name="colosseum_ui")
+
+    monkeypatch.setattr(cli, "import_module", missing)
+    assert run_cli(["--gui"]) == 1
+    assert "Install colosseum-ui" in capsys.readouterr().err
 
 
 def test_run_cli_without_subcommand_prints_help() -> None:

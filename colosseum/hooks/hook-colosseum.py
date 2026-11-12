@@ -48,7 +48,7 @@ binaries = []
 
 # colosseum/__init__.py calls metadata.version("colosseum-core") on import.
 datas += copy_metadata("colosseum-core")
-datas += collect_data_files("colosseum")  # gui/assets next to colosseum.gui
+datas += collect_data_files("colosseum")
 
 seen_dists = set()
 for entry_point in _plugin_entry_points():
