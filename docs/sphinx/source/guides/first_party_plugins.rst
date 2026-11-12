@@ -25,8 +25,7 @@ Find an API by task
    * - Automate a browser or desktop application
      - `GUI automation <https://tps01.github.io/colosseum-gui/guides/drivers_locators.html>`__
    * - Launch and monitor Colosseum tests
-     - Install `colosseum-ui <https://github.com/tps01/colosseum-ui>`__, then
-       ``colosseum --gui``
+     - Core desktop runner: ``colosseum --gui``
 
 Serial/SCPI talks to a configured instrument or serial port. SSH executes on a
 remote operating system. Host inspects the machine running the Colosseum

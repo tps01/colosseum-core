@@ -48,11 +48,9 @@ From a GitHub Release
 
       colosseum --help
 
-   The Python import is ``import colosseum as col``. The optional desktop
-   runner lives in the separate ``colosseum-ui`` package
-   (`GitHub <https://github.com/tps01/colosseum-ui>`__); install it, then run
-   ``colosseum --gui``. See :doc:`platform_notes` and the
-   `UI docs <https://tps01.github.io/colosseum-ui/>`__.
+   The Python import is ``import colosseum as col``. The desktop runner
+   (``colosseum --gui``) ships with core; see :doc:`platform_notes` for Tcl/Tk
+   notes on Linux.
 
 5. Run a smoke test (replace paths with your script and config)::
 
@@ -70,20 +68,17 @@ matches the target OS and Python minor::
    colosseum-core-offline-windows-py{3.9,3.12,3.14}.zip
    colosseum-core-offline-linux-py{3.9,3.12,3.14}.tar.gz
 
-Each archive keeps wheels under ``wheels/`` and ships CLI operator scripts at the
-root (core bundles are headless):
+Each archive keeps wheels under ``wheels/`` and ships operator scripts at the
+root:
 
-* Windows: run ``install.bat``, then ``start_cli.bat``.
+* Windows: run ``install.bat``, then ``start_cli.bat`` (CLI) or ``start_gui.bat``
+  (desktop runner).
 * Linux: ``chmod +x install.sh start_*.sh && ./install.sh``, then
-  ``./start_cli.sh``.
+  ``./start_cli.sh`` or ``./start_gui.sh``.
 
 Manual equivalent (after extract)::
 
    python -m pip install --no-index --find-links=wheels colosseum-core
-
-Desktop operators install the separate ``colosseum-ui`` offline bundle from that
-package's GitHub Releases (see
-`colosseum-ui <https://github.com/tps01/colosseum-ui>`__).
 
 Building a custom combined wheelhouse from a parent checkout is documented in
 that checkout's ``offline/README.md``::
@@ -91,6 +86,9 @@ that checkout's ``offline/README.md``::
    python offline/build_wheelhouse.py
    python offline/install_offline.py --wheelhouse colosseum-wheelhouse
    python offline/verify_env.py
+
+``customtkinter`` ships in the wheelhouse; system Tcl/Tk does not. On Linux, bake
+``python3-tk`` (or a Tk-enabled Python) into the offline host image.
 
 Editable install (developers)
 -----------------------------

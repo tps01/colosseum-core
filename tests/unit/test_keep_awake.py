@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import colosseum.runner.keep_awake as keep_awake
 import pytest
-from colosseum.gui.run_worker import RunKind, RunRequest, RunWorker
 
 
 class _FakeRunning:
@@ -65,36 +62,3 @@ def test_run_with_no_sleep_coerces_system_exit(monkeypatch: pytest.MonkeyPatch) 
     assert keep_awake.run_with_no_sleep(_boom) == 3
     assert fake.entered is True
     assert fake.exited is True
-
-
-def test_build_argv_includes_no_sleep(tmp_path: Path) -> None:
-    worker = RunWorker(cwd=tmp_path)
-    script = tmp_path / "test_demo.py"
-    script.write_text("pass\n", encoding="utf-8")
-    argv = worker._build_argv(
-        RunRequest(
-            RunKind.TEST,
-            script,
-            config_path=None,
-            metadata_path=None,
-            debug=False,
-            no_sleep=True,
-        ),
-    )
-    assert "--no-sleep" in argv
-
-
-def test_build_argv_omits_no_sleep_by_default(tmp_path: Path) -> None:
-    worker = RunWorker(cwd=tmp_path)
-    script = tmp_path / "test_demo.py"
-    script.write_text("pass\n", encoding="utf-8")
-    argv = worker._build_argv(
-        RunRequest(
-            RunKind.TEST,
-            script,
-            config_path=None,
-            metadata_path=None,
-            debug=False,
-        ),
-    )
-    assert "--no-sleep" not in argv

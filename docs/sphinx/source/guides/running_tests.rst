@@ -170,12 +170,11 @@ files can still need those resources; a database cannot recreate them.
 Desktop runner
 --------------
 
-The optional desktop runner is the separate ``colosseum-ui`` package
-(`GitHub <https://github.com/tps01/colosseum-ui>`__,
-`docs <https://tps01.github.io/colosseum-ui/>`__). Install it into the same
-environment as ``colosseum-core``, then launch with ``colosseum --gui`` (or
-``colosseum-ui`` / ``python -m colosseum_ui``).
+Launch ``colosseum --gui`` to run tests or suites and browse completed runs.
+The **Log** tab streams execution messages and displays the selected run's
+``debug.log``; its wrap button toggles line wrapping. The **Summary** tab shows
+the recorded outcome and links to individual suite slots. Select a run or slot
+in the browser, or use **Open output folder** to inspect its files.
 
-Use it to run tests or suites and browse completed runs (log stream, summaries,
-and output folders). Detailed evidence remains in ``execution.sqlite`` and the
-generated reports; see :doc:`output_artifacts`.
+The desktop viewer uses these two tabs. Detailed evidence remains in
+``execution.sqlite`` and the generated reports; see :doc:`output_artifacts`.

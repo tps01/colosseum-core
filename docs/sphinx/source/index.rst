@@ -26,11 +26,9 @@ With Shared installed, a procedure can record and check a literal value::
        col.shared.verify.verify_field(key="voltage", expected_val=3.3, tolerance=0.1)
 
 See :doc:`guides/quickstart` for the complete runnable example. Scripts run
-individually or in suites. The optional **desktop runner** is the separate
-`colosseum-ui <https://github.com/tps01/colosseum-ui>`__ package
-(``colosseum --gui`` after install). The **GUI automation plugin**
-(``colosseum-gui``) instead controls the application under test through
-``col.gui.*``.
+individually or in suites. The **desktop runner** (``colosseum --gui``) lets
+operators launch and monitor tests. The **GUI automation plugin** instead
+controls the application under test through ``col.gui.*``.
 
 .. toctree::
    :maxdepth: 1
@@ -90,9 +88,6 @@ contains getting-started guides, workflows, configuration, and API reference.
 * `colosseum-gui <https://tps01.github.io/colosseum-gui/>`__ —
   product UI automation (`col.gui.*`) —
   `GitHub <https://github.com/tps01/colosseum-gui>`__
-* `colosseum-ui <https://tps01.github.io/colosseum-ui/>`__ —
-  optional desktop runner / inspector (`colosseum --gui`) —
-  `GitHub <https://github.com/tps01/colosseum-ui>`__
 * `colosseum-host <https://tps01.github.io/colosseum-host/>`__ —
   local host prerequisites and telemetry (`col.host.*`) —
   `GitHub <https://github.com/tps01/colosseum-host>`__

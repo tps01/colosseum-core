@@ -348,10 +348,14 @@ def run_cli(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.gui:
-        from colosseum.gui.app import main as gui_main
-
-        gui_main()
-        return 0
+        try:
+            from colosseum_ui.app import main as gui_main
+        except ModuleNotFoundError as exc:
+            if exc.name != "colosseum_ui":
+                raise
+            print("The desktop UI is not installed. Install colosseum-ui to use --gui.", file=sys.stderr)
+            return 1
+        return gui_main()
 
     if args.command is None:
         _print_help(parser)

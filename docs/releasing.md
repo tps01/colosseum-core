@@ -39,11 +39,9 @@ names look like:
 - `colosseum-core-offline-linux-x86_64-py{3.9,3.12,3.14}.tar.gz`
 - `colosseum-core-offline-linux-aarch64-py{3.9,3.12,3.14}.tar.gz`
 
-Wheels live under `wheels/`; `install.*` / `start_cli.*` sit at the archive
-root (CLI-only; the optional desktop runner is packaged in
-[`colosseum-ui`](https://github.com/tps01/colosseum-ui)). Linux houses are
-**CPU-specific** — an `x86_64` archive will not install on aarch64 (and vice
-versa).
+Wheels live under `wheels/`; `install.*` / `start_cli.*` / `start_gui.*` sit at
+the archive root. Linux houses are **CPU-specific** — an `x86_64` archive will
+not install on aarch64 (and vice versa).
 
 ## What a release publishes
 

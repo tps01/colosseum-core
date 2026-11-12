@@ -15,6 +15,10 @@ from packaging.licenses import InvalidLicenseExpression, canonicalize_license_ex
 
 REPO = Path(__file__).resolve().parents[2]
 POLICY = Path(__file__).with_name("license_policy.json")
+PYINSTALLER_LEGACY_LICENSE = (
+    "GPLv2-or-later with a special exception which allows to use PyInstaller to build and distribute "
+    "non-free programs (including commercial ones)"
+)
 
 
 def rule_labels(text: str) -> list[str]:
@@ -109,6 +113,12 @@ def inspect_distribution(
         "declared": declared,
         "expression": expression,
     }
+    if info.get("Name", "").lower().replace("_", "-") == "pyinstaller" and (
+        (source == "License" and declared == PYINSTALLER_LEGACY_LICENSE)
+        or (source == "License-Expression" and declared == "GPL-2.0-or-later WITH Bootloader-exception")
+    ):
+        row.update(passed=True, reason="approved PyInstaller-specific exception")
+        return row
     try:
         canonical = str(canonicalize_license_expression(expression))
         row["expression"] = canonical

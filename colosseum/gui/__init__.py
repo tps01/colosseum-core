@@ -1,1 +1,0 @@
-"""Colosseum desktop GUI runner."""

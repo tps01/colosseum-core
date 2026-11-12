@@ -239,7 +239,7 @@ jobs:
             Use the archive matching your OS, **CPU arch**, and Python (3.9, 3.12, or 3.14).
             Wheels live under `wheels/`; operator scripts are at the archive root.
 
-            - Windows: `colosseum-core-offline-windows-py*.zip` → `install.bat`, then `start_cli.bat`
+            - Windows: `colosseum-core-offline-windows-py*.zip` → `install.bat`, then `start_cli.bat` / `start_gui.bat`
             - Linux x86_64: `colosseum-core-offline-linux-x86_64-py*.tar.gz` → `./install.sh`
             - Linux aarch64: `colosseum-core-offline-linux-aarch64-py*.tar.gz` → `./install.sh`
 
@@ -249,8 +249,7 @@ jobs:
             cd wheelhouse && chmod +x install.sh start_*.sh && ./install.sh
             ```
 
-            Core offline archives are headless. The optional desktop runner is the
-            separate [`colosseum-ui`](https://github.com/tps01/colosseum-ui) package.
+            GUI requires Tk in the Python install (Windows python.org OK; Linux bake `python3-tk`).
 
             Documentation: PDF and `colosseum-docs-html.zip`.
           files: release-files/*
