@@ -10,7 +10,7 @@ the user explicitly requests it.
 
 - decorators and result aggregation
 - configuration and plugin specifications
-- test/suite runners and optional `--gui` delegate to `colosseum-ui`
+- test/suite runners and optional `--gui` delegate to `colosseum-extensions`
 - SQLite evidence, output paths, artifacts, logging, and summaries
 - user documentation (guides + generated config reference)
 
@@ -57,7 +57,7 @@ artifacts, and
    plugin entry points (see `docs/testing/e2e-spec.md` and user guides).
 
 Core owns the **runtime only** (decorators, runners, evidence DB, summaries,
-and a thin `--gui` delegate to standalone `colosseum-ui`).
+and a thin `--gui` delegate to standalone `colosseum-extensions`).
 If a helper is used by one plugin family, it belongs in that plugin (e.g.
 `toml_write` in
 equipment), not in core.
