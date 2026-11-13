@@ -350,11 +350,11 @@ def run_cli(argv: list[str] | None = None) -> int:
 
     if args.gui:
         try:
-            gui_main = import_module("colosseum_ui.app").main
+            gui_main = import_module("colosseum_extensions.ui.app").main
         except ModuleNotFoundError as exc:
-            if exc.name != "colosseum_ui":
+            if exc.name not in {"colosseum_extensions", "colosseum_extensions.ui", "colosseum_extensions.ui.app"}:
                 raise
-            print("The desktop UI is not installed. Install colosseum-ui to use --gui.", file=sys.stderr)
+            print("The desktop UI is not installed. Install colosseum-extensions to use --gui.", file=sys.stderr)
             return 1
         return int(gui_main())
 

@@ -12,7 +12,7 @@ Colosseum Core is the plugin-oriented runtime for Python-based test automation.
 - dynamic `col.<namespace>` plugin access
 - single-test and suite execution
 - SQLite evidence, logs, summaries, output paths, and artifact registration
-- optional `--gui` CLI delegate to the standalone `colosseum-ui` package
+- optional `--gui` CLI delegate to the standalone `colosseum-extensions` package
 - documentation generation (handwritten guides + config reference)
 
 ## Out of scope

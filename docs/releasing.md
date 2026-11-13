@@ -41,7 +41,7 @@ names look like:
 
 Wheels live under `wheels/`; `install.*` / `start_cli.*` sit at the archive
 root (CLI-only; the optional desktop runner is packaged in
-[`colosseum-ui`](https://github.com/tps01/colosseum-ui)). Linux houses are
+[`colosseum-extensions`](https://github.com/tps01/colosseum-extensions)). Linux houses are
 **CPU-specific** — an `x86_64` archive will not install on aarch64 (and vice
 versa).
 

@@ -13,8 +13,8 @@ Create and activate a virtual environment with::
    .\.venv\Scripts\Activate.ps1
 
 Core itself needs no GUI toolkit. The optional desktop runner is
-``colosseum-ui`` (Qt / PySide6); see that package's docs for host prerequisites
-(`GitHub <https://github.com/tps01/colosseum-ui>`__).
+``colosseum-extensions`` (Qt / PySide6); see that package's docs for host prerequisites
+(`GitHub <https://github.com/tps01/colosseum-extensions>`__).
 
 Linux
 -----
@@ -25,7 +25,7 @@ Create and activate a virtual environment with::
    . .venv/bin/activate
 
 Core CLI and offline wheelhouses are headless. For the desktop runner, install
-``colosseum-ui`` and follow its platform notes for Qt libraries and display
+``colosseum-extensions`` and follow its platform notes for Qt libraries and display
 requirements.
 
 Documentation
