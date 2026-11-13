@@ -27,7 +27,7 @@ With Shared installed, a procedure can record and check a literal value::
 
 See :doc:`guides/quickstart` for the complete runnable example. Scripts run
 individually or in suites. The optional **desktop runner** is the separate
-`colosseum-ui <https://github.com/tps01/colosseum-ui>`__ package
+`colosseum-extensions <https://github.com/tps01/colosseum-extensions>`__ package
 (``colosseum --gui`` after install). The **GUI automation plugin**
 (``colosseum-gui``) instead controls the application under test through
 ``col.gui.*``.
@@ -90,9 +90,9 @@ contains getting-started guides, workflows, configuration, and API reference.
 * `colosseum-gui <https://tps01.github.io/colosseum-gui/>`__ —
   product UI automation (`col.gui.*`) —
   `GitHub <https://github.com/tps01/colosseum-gui>`__
-* `colosseum-ui <https://tps01.github.io/colosseum-ui/>`__ —
+* `colosseum-extensions <https://tps01.github.io/colosseum-extensions/>`__ —
   optional desktop runner / inspector (`colosseum --gui`) —
-  `GitHub <https://github.com/tps01/colosseum-ui>`__
+  `GitHub <https://github.com/tps01/colosseum-extensions>`__
 * `colosseum-host <https://tps01.github.io/colosseum-host/>`__ —
   local host prerequisites and telemetry (`col.host.*`) —
   `GitHub <https://github.com/tps01/colosseum-host>`__

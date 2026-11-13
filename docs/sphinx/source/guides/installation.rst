@@ -49,10 +49,10 @@ From a GitHub Release
       colosseum --help
 
    The Python import is ``import colosseum as col``. The optional desktop
-   runner lives in the separate ``colosseum-ui`` package
-   (`GitHub <https://github.com/tps01/colosseum-ui>`__); install it, then run
+   runner lives in the separate ``colosseum-extensions`` package
+   (`GitHub <https://github.com/tps01/colosseum-extensions>`__); install it, then run
    ``colosseum --gui``. See :doc:`platform_notes` and the
-   `UI docs <https://tps01.github.io/colosseum-ui/>`__.
+   `UI docs <https://tps01.github.io/colosseum-extensions/>`__.
 
 5. Run a smoke test (replace paths with your script and config)::
 
@@ -81,9 +81,9 @@ Manual equivalent (after extract)::
 
    python -m pip install --no-index --find-links=wheels colosseum-core
 
-Desktop operators install the separate ``colosseum-ui`` offline bundle from that
+Desktop operators install the separate ``colosseum-extensions`` offline bundle from that
 package's GitHub Releases (see
-`colosseum-ui <https://github.com/tps01/colosseum-ui>`__).
+`colosseum-extensions <https://github.com/tps01/colosseum-extensions>`__).
 
 Building a custom combined wheelhouse from a parent checkout is documented in
 that checkout's ``offline/README.md``::
