@@ -250,7 +250,7 @@ jobs:
             ```
 
             Core offline archives are headless. The optional desktop runner is the
-            separate [`colosseum-ui`](https://github.com/tps01/colosseum-ui) package.
+            separate [`colosseum-extensions`](https://github.com/tps01/colosseum-extensions) package.
 
             Documentation: PDF and `colosseum-docs-html.zip`.
           files: release-files/*
