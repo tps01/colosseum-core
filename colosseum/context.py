@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
@@ -57,6 +58,8 @@ class RuntimeContext:
     metadata_path: str | None = None
     started_at: datetime | None = None
     suite_started_at: datetime | None = None
+    started_monotonic: float | None = None
+    suite_started_monotonic: float | None = None
     run_options: RunOptions = field(default_factory=RunOptions)
     active_execution_mode: ExecutionMode = "full"
     session: RunSession = field(default_factory=RunSession)
@@ -175,6 +178,7 @@ def init_context(
         auto_finalize=auto_finalize,
         metadata_path=str(absolute_path(metadata_path)) if metadata_path else None,
         started_at=datetime.now(timezone.utc).astimezone(),
+        started_monotonic=time.monotonic(),
         run_options=options,
         active_execution_mode=options.execution_mode,
         session=RunSession(

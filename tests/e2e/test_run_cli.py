@@ -82,6 +82,9 @@ def test_required_limit_fail_exits_one(core_config, isolated_cwd, subprocess_env
     row = verification_row(run_dir, "rail")
     assert row is not None and row[0] == "FAIL"
     summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+    assert summary["start_time_utc"]
+    assert summary["duration_seconds"] >= 0
+    assert "Runtime:" in (run_dir / "summary.txt").read_text(encoding="utf-8")
     assert summary["overall_result"] == "FAIL"
     assert summary["exit_code"] == 1
     failed = summary["failed_required_verifications"]

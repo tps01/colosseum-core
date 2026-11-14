@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from collections import Counter
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Protocol, TypedDict
@@ -269,6 +270,10 @@ def build_run_summary(
         "outcomes": records,
         "optional_outcomes": aggregator.optional_outcomes(),
     }
+    if ctx.started_at is not None:
+        payload["start_time_utc"] = ctx.started_at.astimezone(timezone.utc).isoformat()
+    if ctx.started_monotonic is not None:
+        payload["duration_seconds"] = time.monotonic() - ctx.started_monotonic
     if ctx.session.kind != "suite" and ctx.provenance is not None:
         payload["provenance"] = ctx.provenance
     if ctx.run_options.dry_run:
@@ -389,7 +394,8 @@ def build_suite_summary(ctx: RuntimeContext, *, exit_code: int, overall: str) ->
         payload["provenance"] = ctx.provenance
     if started_utc is not None:
         payload["start_time_utc"] = started_utc.isoformat()
-        payload["duration_seconds"] = (ended_at - started_utc).total_seconds()
+    if ctx.suite_started_monotonic is not None:
+        payload["duration_seconds"] = time.monotonic() - ctx.suite_started_monotonic
     return payload
 
 

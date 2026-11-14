@@ -80,11 +80,15 @@ def test_happy_suite_container_passes(core_config, fixtures_dir, isolated_cwd, s
     assert (test_slot / "execution.sqlite").is_file()
     for stem in ("setup_ok", "pass_test", "teardown_ok"):
         _assert_slot_has_no_provenance(_slot(container, stem))
+    slot_summary = read_summary_json(test_slot)
+    assert slot_summary["start_time_utc"]
+    assert slot_summary["duration_seconds"] >= 0
     assert_test_slot_full_artifacts(test_slot)
     assert_supporting_slot_artifacts(_slot(container, "setup_ok"))
     assert_supporting_slot_artifacts(_slot(container, "teardown_ok"))
     summary = read_summary_json(container)
     assert summary["overall_result"] == "PASS"
+    assert summary["duration_seconds"] >= 0
     assert len(summary["test_slots"]) == 1
     summary_text = (container / "summary.txt").read_text(encoding="utf-8")
     assert "Start time:" in summary_text

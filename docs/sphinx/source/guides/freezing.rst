@@ -17,6 +17,9 @@ What gets frozen
 environment. Every distribution that exposes a ``colosseum.plugins`` entry
 point in that environment is collected into the bundle, along with colosseum
 core. Install only the plugins you want to ship before you build.
+If ``colosseum-extensions`` is installed, its desktop UI is also bundled and
+opening the launcher without arguments starts the UI. Rebuild existing bundles
+after installing the extension.
 
 Test scripts, suite TOML files, and config files stay **outside** the archive.
 Operators run the frozen launcher the same way they would the CLI::
