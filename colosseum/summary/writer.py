@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from colosseum.database import DatabaseManager
@@ -143,6 +143,8 @@ class SummaryWriter:
             f"Metadata file: {payload['metadata_path'] or 'N/A'}",
             f"Output directory: {output_dir}",
             f"End time: {payload['end_time_utc']}",
+            *([f"Start time: {payload['start_time_utc']}"] if "start_time_utc" in payload else []),
+            *([f"Runtime: {timedelta(seconds=payload['duration_seconds'])}"] if "duration_seconds" in payload else []),
             f"Overall result: {payload['overall_result']}",
             f"Exit code: {payload['exit_code']}",
             *(["Dry run: yes"] if payload.get("dry_run") else []),
@@ -218,7 +220,8 @@ class SuiteSummaryWriter:
         ]
         if started_utc is not None:
             lines.append(f"Start time: {started_utc.isoformat()}")
-            lines.append(f"Runtime: {ended_at - started_utc}")
+        if "duration_seconds" in payload:
+            lines.append(f"Runtime: {timedelta(seconds=payload['duration_seconds'])}")
         lines.extend(_slot_count_lines(slot_counts))
         lines.extend(
             [

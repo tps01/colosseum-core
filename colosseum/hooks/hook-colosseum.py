@@ -9,6 +9,7 @@ Those names have to be listed here or they are absent from the exe.
 from __future__ import annotations
 
 from importlib.metadata import entry_points
+from importlib.util import find_spec
 
 try:
     from importlib.metadata import packages_distributions
@@ -49,6 +50,10 @@ binaries = []
 # colosseum/__init__.py calls metadata.version("colosseum-core") on import.
 datas += copy_metadata("colosseum-core")
 datas += collect_data_files("colosseum")
+if find_spec("colosseum_extensions") is not None:
+    hiddenimports += collect_submodules("colosseum_extensions")
+    datas += collect_data_files("colosseum_extensions")
+    datas += copy_metadata("colosseum-extensions")
 
 seen_dists = set()
 for entry_point in _plugin_entry_points():

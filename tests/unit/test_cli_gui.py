@@ -63,6 +63,12 @@ def test_run_cli_without_subcommand_prints_help() -> None:
     assert "run" in buffer.getvalue()
 
 
+def test_frozen_no_arguments_launches_ui(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(cli, "_frozen_gui", lambda: 7)
+    assert run_cli([]) == 7
+
+
 @pytest.mark.parametrize("flag", ["-h", "--help"])
 def test_run_cli_top_level_help_exits_zero(flag: str) -> None:
     with pytest.raises(SystemExit) as exc:

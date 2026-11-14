@@ -54,6 +54,11 @@ Every run with artifacts still writes ``debug.log``, ``execution.sqlite``,
 ``summary.txt``, and ``summary.json``. Opt-in report listeners never replace
 those defaults.
 
+Script and suite summaries include UTC start and end timestamps and a runtime
+measured using a monotonic clock. ``summary.json`` exposes the elapsed time as
+``duration_seconds``; it can differ from the timestamp difference if the system
+clock changes. Existing summaries are not updated retroactively.
+
 Completed results in SQLite
 ---------------------------
 
