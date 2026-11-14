@@ -1,8 +1,6 @@
 name: CI
 
 on:
-  push:
-    branches: [develop, main]
   pull_request:
     branches: [develop, main]
   workflow_dispatch:
@@ -31,8 +29,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
       - run: python -m pip install -U pip setuptools wheel
-      - run: python -m pip install -r requirements.txt
-      - run: python scripts/run_tests.py --durations=15
+      - run: python -m pip install -e . "pytest>=8.0,<9" "pytest-xdist>=3.6,<4" "packaging>=24.2"
+      - run: python scripts/run_tests.py --durations=15 ${{ runner.os == 'Windows' && '-n 2' || '' }}
 
   fuzz:
     strategy:
