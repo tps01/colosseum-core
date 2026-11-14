@@ -466,7 +466,13 @@ def test_endex_then_raise_fails_suite_and_continues(
     first = _slot_with_stem(container, "endex_then_raise")
     # Post-endex failure re-stamps the slot folder to match suite FAIL.
     assert first.name.endswith("-fail")
-    assert _slot_with_stem(container, "pass_test").name.endswith("-pass")
+    second = _slot_with_stem(container, "pass_test")
+    assert second.name.endswith("-pass")
+    for slot_dir in (first, second):
+        slot_summary = _container_summary(slot_dir)
+        assert slot_summary["start_time_utc"]
+        assert slot_summary["duration_seconds"] >= 0
+        assert "Runtime:" in (slot_dir / "summary.txt").read_text(encoding="utf-8")
     assert _slot_with_stem(container, "teardown_ok")
     summary = _container_summary(container)
     assert summary["overall_result"] == "FAIL"

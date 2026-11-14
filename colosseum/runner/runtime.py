@@ -239,6 +239,7 @@ class SuiteSlotResult:
 def ensure_suite_runtime_ready(ctx: RuntimeContext, suite_name: str) -> None:
     if ctx.suite_started_at is None:
         ctx.suite_started_at = datetime.now(timezone.utc)
+        ctx.suite_started_monotonic = time.monotonic()
     if ctx.suite_output_dir is not None:
         return
     console_level = logging.DEBUG if ctx.debug_logging else logging.INFO
@@ -295,6 +296,7 @@ def begin_script_slot(
     ctx.dry_run_measurements.clear()
     ctx.dry_run_keys_seen.clear()
     ctx.started_at = datetime.now(timezone.utc).astimezone()
+    ctx.started_monotonic = time.monotonic()
     # Mode/phase bookkeeping must run before the no-artifacts early return so
     # procedure applies only to test slots and supporting phases stay full.
     ctx.active_execution_mode = (

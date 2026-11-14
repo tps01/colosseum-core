@@ -344,6 +344,16 @@ def _wrap_dispatch(
     return wrapped()
 
 
+def _frozen_gui() -> int | None:
+    try:
+        gui_main = import_module("colosseum_extensions.ui.app").main
+    except ModuleNotFoundError as exc:
+        if exc.name not in {"colosseum_extensions", "colosseum_extensions.ui", "colosseum_extensions.ui.app"}:
+            raise
+        return None
+    return int(gui_main())
+
+
 def run_cli(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -359,6 +369,10 @@ def run_cli(argv: list[str] | None = None) -> int:
         return int(gui_main())
 
     if args.command is None:
+        if getattr(sys, "frozen", False) and not (argv if argv is not None else sys.argv[1:]):
+            result = _frozen_gui()
+            if result is not None:
+                return result
         _print_help(parser)
         return 0
 
@@ -391,6 +405,10 @@ def run_cli(argv: list[str] | None = None) -> int:
 
 
 def main(argv: list[str] | None = None) -> None:
+    if getattr(sys, "frozen", False):
+        for stream in (sys.stdout, sys.stderr):
+            if hasattr(stream, "reconfigure"):
+                stream.reconfigure(line_buffering=True, write_through=True)
     try:
         sys.exit(run_cli(argv))
     except SystemExit as exc:

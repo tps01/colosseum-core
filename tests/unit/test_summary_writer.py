@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 from colosseum.decorators.verification import VerificationResult
+from colosseum.results import aggregation
 from colosseum.runner.runtime import SuiteSlotResult
 from colosseum.summary.writer import SuiteSummaryWriter, SummaryWriter
 
@@ -216,7 +218,7 @@ def test_suite_summary_lists_slot_input_files(unit_runtime_context) -> None:
     assert payload["all_slots"][0]["config_path"] == slot.config_path
 
 
-def test_suite_summary_reports_slot_rates_and_runtime(unit_runtime_context) -> None:
+def test_suite_summary_reports_slot_rates_and_runtime(unit_runtime_context, monkeypatch) -> None:
     ctx = unit_runtime_context
     root = ctx.output_dir
     assert root is not None
@@ -224,6 +226,8 @@ def test_suite_summary_reports_slot_rates_and_runtime(unit_runtime_context) -> N
     container.mkdir()
     started = datetime(2026, 10, 23, 18, 0, tzinfo=timezone.utc)
     ctx.suite_started_at = started
+    ctx.suite_started_monotonic = 100.0
+    monkeypatch.setattr(aggregation, "time", SimpleNamespace(monotonic=lambda: 102.5))
     ctx.suite_name = "boot_soak"
     slots = []
     for index, overall in enumerate(("PASS", "PASS", "PASS", "FAIL")):
@@ -236,12 +240,11 @@ def test_suite_summary_reports_slot_rates_and_runtime(unit_runtime_context) -> N
 
     text = (container / "summary.txt").read_text(encoding="utf-8")
     payload = json.loads((container / "summary.json").read_text(encoding="utf-8"))
-    ended = datetime.fromisoformat(payload["end_time_utc"])
     assert "Test slots: 4 (3 pass, 1 fail)" in text
     assert "Pass: 75.0%" in text
     assert "Fail: 25.0%" in text
     assert "Start time: 2026-10-23T18:00:00+00:00" in text
-    assert f"Runtime: {ended - started}" in text
+    assert "Runtime: 0:00:02.500000" in text
     assert "Most common failed verifications:" not in text
     assert payload["test_slot_counts"] == {
         "total": 4,
@@ -251,7 +254,42 @@ def test_suite_summary_reports_slot_rates_and_runtime(unit_runtime_context) -> N
         "fail_percent": 25.0,
     }
     assert payload["start_time_utc"] == "2026-10-23T18:00:00+00:00"
-    assert payload["duration_seconds"] == (ended - started).total_seconds()
+    assert payload["duration_seconds"] == 2.5
+
+
+def test_script_and_suite_duration_ignore_wall_clock_changes(unit_runtime_context, monkeypatch) -> None:
+    ctx = unit_runtime_context
+    out = ctx.output_dir
+    assert out is not None
+    monkeypatch.setattr(aggregation, "time", SimpleNamespace(monotonic=lambda: 105.0))
+    ctx.started_monotonic = 100.0
+    ctx.suite_started_monotonic = 100.0
+    for offset in (-1, 1):
+        start = datetime.now(timezone.utc) + timedelta(days=offset)
+        ctx.started_at = start
+        ctx.suite_started_at = start
+        SummaryWriter().write(out, ctx.result_aggregator, ctx)
+        script = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+        assert script["start_time_utc"] == start.isoformat()
+        assert script["duration_seconds"] == 5.0
+        assert "Runtime: 0:00:05" in (out / "summary.txt").read_text(encoding="utf-8")
+        SuiteSummaryWriter().write(out, ctx, exit_code=0, overall="PASS")
+        suite = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+        assert suite["duration_seconds"] == 5.0
+        assert "Runtime: 0:00:05" in (out / "summary.txt").read_text(encoding="utf-8")
+
+
+def test_script_summary_without_monotonic_start_omits_duration(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    out = ctx.output_dir
+    assert out is not None
+    ctx.started_at = datetime(2026, 10, 23, tzinfo=timezone.utc)
+    ctx.started_monotonic = None
+    SummaryWriter().write(out, ctx.result_aggregator, ctx)
+    payload = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+    assert payload["start_time_utc"] == "2026-10-23T00:00:00+00:00"
+    assert "duration_seconds" not in payload
+    assert "Runtime:" not in (out / "summary.txt").read_text(encoding="utf-8")
 
 
 def test_suite_summary_ranks_repeated_verification_failures(unit_runtime_context) -> None:
