@@ -56,6 +56,22 @@ def _outcome_lines(rows: list[OutcomeRecord], *, header: str) -> list[str]:
     return lines
 
 
+def _verification_lines(rows: list[OutcomeRecord]) -> list[str]:
+    lines = ["", "Verifications:"]
+    verifications = [row for row in rows if row["kind"] == "verification"]
+    if not verifications:
+        lines.append("  (none)")
+    for row in verifications:
+        designation = "optional" if row["optional"] else "required"
+        key = row.get("key") or row.get("command") or "?"
+        message = f" — {row['message']}" if row.get("message") else ""
+        lines.append(
+            f"  - [verification] [{designation}] {_description_prefix(row)}{row['domain']}.{row['command']} "
+            f"key={key}: {row['status']}{message}",
+        )
+    return lines
+
+
 def _count_lines(label: str, prefix: str, counts: dict[str, int]) -> list[str]:
     if not counts:
         return []
@@ -128,7 +144,8 @@ class SummaryWriter:
         required_commands = payload["command_counts"]["required"]
         optional_commands = payload["command_counts"]["optional"]
         failed_required = [
-            row for row in records if not row["optional"] and row["status"] in {"FAIL", "ERROR", "BLOCKED"}
+            row for row in records if row["kind"] != "verification"
+            and not row["optional"] and row["status"] in {"FAIL", "ERROR", "BLOCKED"}
         ]
         measurement_count = payload["measurement_count"]
         command_count = payload["command_count"]
@@ -172,8 +189,10 @@ class SummaryWriter:
                 optional_commands,
             ),
             *(_dry_run_lines(records) if payload.get("dry_run") else []),
+            *_verification_lines(records),
             *_outcome_lines(failed_required, header="Failed required outcomes:"),
-            *_outcome_lines(payload["optional_outcomes"], header="Optional outcomes:"),
+            *_outcome_lines([row for row in payload["optional_outcomes"] if row["kind"] != "verification"],
+                            header="Optional outcomes:"),
             *requirement_lines(payload["requirements"]),
         ]
         summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")

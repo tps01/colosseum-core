@@ -1,13 +1,17 @@
 Colosseum
 =========
 
-A Python test automation framework for hardware and software testing.
+**Pitting DUTs against requirements**
+
+Colosseum is a Python test automation framework for hardware and software testing.
 
 This site is the **documentation hub** for Colosseum core. Install from GitHub
 Release wheels. First-party plugins publish their own
 GitHub Pages sites (linked below). Copy-out test stubs live in the
 `colosseum-library <https://github.com/tps01/colosseum-library>`__ catalog; see
 :doc:`guides/testware_library`.
+
+For suite-wide and per-test parameters, see :ref:`suite-parameter-stacking`.
 
 How Colosseum works
 -------------------

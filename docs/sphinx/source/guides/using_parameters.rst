@@ -29,6 +29,8 @@ union of its test-level file and the suite-level file. A shared key is replaced
 as a whole table by the suite-level section. ``parameter_stacking = false``
 restores one-file selection (suite-level file when set, otherwise the test
 file). Setup, between, and teardown slots load only the suite-level file.
+See :ref:`suite-parameter-stacking` for a worked example of the resulting
+tables, CLI precedence, and disabling stacking.
 
 .. figure:: ../_static/uml/parameters-resolution.png
    :alt: Parameters file resolution and BLOCKED owed limits
