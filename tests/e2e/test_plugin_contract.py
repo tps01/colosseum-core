@@ -51,30 +51,36 @@ def _pip(python: Path, *args: str) -> None:
     assert proc.returncode == 0, detail
 
 
+@pytest.fixture(scope="session")
+def plugin_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Prepare tooling once; individual tests receive separate copies."""
+    directory = tmp_path_factory.mktemp("plugin-template")
+    venv.EnvBuilder(with_pip=True).create(directory)
+    python = directory / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    # Keep the build backend out of host site-packages and plugin metadata.
+    _pip(python, "install", "setuptools>=68")
+    packages = directory / (
+        "Lib/site-packages"
+        if os.name == "nt"
+        else f"lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages"
+    )
+    # Only core's import-time dependencies; never inherit installed plugin metadata.
+    for name in ("yaml", "tomli", "typing_extensions"):
+        spec = importlib.util.find_spec(name)
+        if spec is not None and spec.origin:
+            source = Path(spec.origin)
+            if spec.submodule_search_locations:
+                shutil.copytree(source.parent, packages / name, ignore=shutil.ignore_patterns("__pycache__"))
+            else:
+                shutil.copy2(source, packages / source.name)
+    return directory
+
+
 @pytest.fixture
-def plugin_python(tmp_path: Path) -> Path:
+def plugin_python(tmp_path: Path, plugin_template: Path) -> Path:
     """Install fixture plugins only in a disposable interpreter, even if setup fails."""
     with tempfile.TemporaryDirectory(dir=tmp_path) as directory:
-        venv.EnvBuilder(with_pip=True).create(directory)
-        python = Path(directory) / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-        # ensurepip provides pip. setuptools is the build backend and is not
-        # part of every Python install, so the disposable environment gets it
-        # itself instead of inheriting the host site-packages.
-        _pip(python, "install", "setuptools>=68")
-        packages = Path(directory) / (
-            "Lib/site-packages"
-            if os.name == "nt"
-            else f"lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages"
-        )
-        # Only core's import-time dependencies; never inherit installed plugin metadata.
-        for name in ("yaml", "tomli", "typing_extensions"):
-            spec = importlib.util.find_spec(name)
-            if spec is not None and spec.origin:
-                source = Path(spec.origin)
-                if spec.submodule_search_locations:
-                    shutil.copytree(source.parent, packages / name, ignore=shutil.ignore_patterns("__pycache__"))
-                else:
-                    shutil.copy2(source, packages / source.name)
+        shutil.copytree(plugin_template, directory, dirs_exist_ok=True)
         yield Path(directory) / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 
 

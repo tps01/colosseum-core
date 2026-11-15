@@ -140,6 +140,24 @@ def test_dry_run_allows_verification_before_measurement(unit_runtime_context) ->
     assert _statuses(ctx) == ["DRY", "DRY", "DRY"]
 
 
+def test_dry_run_summary_lists_verification_status(unit_runtime_context) -> None:
+    from colosseum.summary.writer import SummaryWriter
+
+    ctx = unit_runtime_context
+    ctx.run_options.dry_run = True
+
+    @verification
+    def check(*, key: str) -> VerificationResult:
+        raise AssertionError("body ran")
+
+    check(key="dry_check", optional=True)
+    assert ctx.output_dir is not None
+    SummaryWriter().write(ctx.output_dir, ctx.result_aggregator, ctx)
+    text = (ctx.output_dir / "summary.txt").read_text(encoding="utf-8")
+    assert "Dry run calls:" in text
+    assert "[verification] [optional]" in text and "key=dry_check: DRY" in text
+
+
 def test_dry_run_allows_keyless_verification(unit_runtime_context) -> None:
     from colosseum.logging.setup import setup_logging
 

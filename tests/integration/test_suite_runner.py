@@ -31,6 +31,28 @@ def _slot_with_stem(container, stem: str):
     return matches[-1]
 
 
+def test_suite_slot_summary_lists_passing_and_optional_verifications(isolated_cwd, core_config):
+    script = isolated_cwd / "summary_check.py"
+    script.write_text(
+        "from colosseum.decorators import verification\n"
+        "@verification\n"
+        "def check(*, key): return key == 'good'\n"
+        "def main():\n"
+        "    check(key='good')\n"
+        "    check(key='optional_bad', optional=True)\n",
+        encoding="utf-8",
+    )
+    suite = isolated_cwd / "suite.toml"
+    suite.write_text('name="summary"\ntests=["summary_check.py"]\n', encoding="utf-8")
+    _run_suite_expect_exit(suite, core_config, isolated_cwd, 0)
+    container = latest_suite_container(isolated_cwd)
+    slot = _slot_with_stem(container, "summary_check")
+    text = (slot / "summary.txt").read_text(encoding="utf-8")
+    assert "[verification] [required]" in text and "key=good: PASS" in text
+    assert "[verification] [optional]" in text and "key=optional_bad: FAIL" in text
+    assert "Verifications:" not in (container / "summary.txt").read_text(encoding="utf-8")
+
+
 def test_post_endex_decorator_does_not_leave_sibling_outputs(
     fixtures_dir,
     core_config,

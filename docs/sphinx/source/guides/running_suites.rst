@@ -71,8 +71,10 @@ Suite flow
    each set ``parameters``. Suite-level ``parameters`` stacks onto those files by
    default; CLI ``--parameters`` overrides the suite TOML path.
 
-Parameterized suite example
----------------------------
+.. _suite-parameter-stacking:
+
+Suite parameter stacking
+------------------------
 
 Suite-level file plus two per-entry limit files (paths relative to the suite
 TOML). Stacking is the default, so each test slot loads the union of
@@ -93,9 +95,54 @@ Run::
 
    colosseum run-suite receiver_suite.toml -g config.toml --report junit
 
-``--parameters other.toml`` uses ``other.toml`` instead of ``suite_limits.toml``.
-See ``examples/parameters/`` in the core package and :doc:`testware_library` for
-copy-out stubs.
+For example, a test-level file ``limits_low.toml`` can contain::
+
+   [voltage]
+   expected_val = 3.3
+   tolerance = 0.1
+
+   [current]
+   maximum = 0.5
+
+And the suite-level ``suite_limits.toml`` can contain::
+
+   [voltage]
+   expected_val = 3.25
+
+The resulting parameter tables for that test slot are::
+
+   [voltage]
+   expected_val = 3.25
+
+   [current]
+   maximum = 0.5
+
+The suite replaces the **entire** ``[voltage]`` table: ``tolerance`` is not
+inherited from the test file. Include every field that the suite-level table
+must supply. If a field is absent from the resulting table, any argument passed
+in the test call remains in effect; an argument omitted there uses the called
+function's default, if it has one. Unshared tables such as ``[current]`` remain.
+
+Selection and precedence:
+
+* Suite and test-entry paths in the suite TOML are relative to the suite file.
+  If a test entry has no ``parameters`` field, Colosseum looks for
+  ``parameters.toml`` beside that test script.
+* ``--parameters other.toml`` selects a suite-level file **instead of** the
+  suite TOML's ``parameters`` path. CLI relative paths resolve from the current
+  working directory. By default, this file still stacks over each test file.
+* ``parameter_stacking = false`` in the suite TOML selects just the suite-level
+  file when one is provided (including through the CLI). Without a suite-level
+  file, it selects the test-entry file or the test script's sibling file.
+* Setup, ``between_tests``, and teardown scripts receive only the suite-level
+  file, if present; they do not load test-entry or sibling parameter files.
+* Explicitly selected missing or invalid parameter files fail the slot. An
+  absent optional sibling file is simply not loaded. Tables with limit fields
+  can create owed verifications, so only configure checks the test should run.
+
+For the parameter-file format and lookup by evidence key, see
+:doc:`using_parameters`. See ``examples/parameters/`` in the core repository
+and :doc:`testware_library` for copy-out examples.
 
 Suite CLI options
 -----------------
