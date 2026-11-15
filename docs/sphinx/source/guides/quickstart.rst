@@ -57,7 +57,7 @@ Its fields include::
 There is one required PASS verification. Change ``expected_val`` to ``5.0`` and
 run the same command again. This run exits 1 and writes a ``-fail`` folder;
 the summary shows ``Overall result: FAIL`` and lists ``voltage`` under
-``Failed required outcomes``. A failed verification still lets later steps run.
+``Verifications`` as a required FAIL. A failed verification still lets later steps run.
 
 Each run also writes ``debug.log`` (diagnostics), ``execution.sqlite`` (recorded
 evidence), and ``summary.json`` (machine-readable results). Reports are optional;

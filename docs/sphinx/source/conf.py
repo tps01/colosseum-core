@@ -36,7 +36,7 @@ html_logo = "_static/colosseum-logo.png"
 html_favicon = "_static/colosseum.ico"
 html_theme_options = {
     "logo_name": True,
-    "description": "Test automation for hardware and software",
+    "description": "Pitting DUTs against requirements",
 }
 
 latex_engine = "pdflatex"

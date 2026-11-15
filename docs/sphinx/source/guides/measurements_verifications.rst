@@ -132,7 +132,7 @@ For example, with the environment variable below unset::
 
 The measurement records ERROR; the required check of its null value does not
 pass. Its ``summary.txt`` has ``Overall result: FAIL`` and lists the required
-verification under ``Failed required outcomes``. SQLite has a null ERROR
+verification under ``Verifications``. SQLite has a null ERROR
 measurement and a failed required verification with ``optional=0``. Later steps
 still run. By contrast, this intentional optional failure
 allows an otherwise successful run to pass::
@@ -141,7 +141,7 @@ allows an otherwise successful run to pass::
    col.shared.verify.verify_field(key="trial", expected_val=2, optional=True)
 
 In ``summary.txt``, the latter run has ``Overall result: PASS``, ``Exit code: 0``,
-and a FAIL entry under ``Optional outcomes``. In SQLite, the trial measurement
+and an optional FAIL entry under ``Verifications``. In SQLite, the trial measurement
 has ``status='PASS'`` and the verification has ``status='FAIL', optional=1``.
 Measurements have no ``optional`` column: inspect their status and the log.
 See :doc:`output_artifacts` for queries and actual summary fields.

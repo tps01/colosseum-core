@@ -3,6 +3,8 @@
 Colosseum
 =========
 
+**Pitting DUTs against requirements**
+
 User guide for running tests and developing plugins.
 
 .. raw:: latex

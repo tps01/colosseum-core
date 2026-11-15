@@ -38,8 +38,8 @@ for directory naming and :doc:`writing_test_scripts` for a full example run.
      - Measurements, verifications, events, metadata, and a ``provenance``
        table (``platform``, ``packages``, and ``inputs`` sections)
    * - ``summary.txt``
-     - End-of-run human summary (written by ``col.endex()``). Provenance is
-       not copied here.
+     - End-of-run human summary (written by ``col.endex()``), listing all
+       required and optional verification outcomes. Provenance is not copied here.
    * - ``summary.json``
      - End-of-run machine-readable summary, including a ``provenance`` object
        with the same platform, package, and input data as ``debug.log``

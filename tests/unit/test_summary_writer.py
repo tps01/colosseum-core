@@ -105,8 +105,8 @@ def test_summary_prints_verification_description(unit_runtime_context) -> None:
     )
     SummaryWriter().write(out, ctx.result_aggregator, ctx)
     text = (out / "summary.txt").read_text(encoding="utf-8")
-    assert ("[verification] Verify rail voltage equipment.verify_voltage key=rail_a: out of tolerance") in text
-    assert "[verification] equipment.verify_voltage key=rail_b: other" in text
+    assert "[verification] [required] Verify rail voltage equipment.verify_voltage key=rail_a: FAIL — out of tolerance" in text
+    assert "[verification] [required] equipment.verify_voltage key=rail_b: FAIL — other" in text
     payload = json.loads((out / "summary.json").read_text(encoding="utf-8"))
     described, plain = payload["failed_required_verifications"]
     assert described["description"] == "Verify rail voltage"
@@ -149,7 +149,47 @@ def test_summary_json_splits_failed_commands_from_verifications(unit_runtime_con
     text = (out / "summary.txt").read_text(encoding="utf-8")
     assert "[verification]" in text
     assert "[command]" in text
-    assert "Optional outcomes:" in text
+    assert "[verification] [optional] equipment.verify_noise key=probe: FAIL — noise" in text
+    assert "Optional outcomes:" not in text
+
+
+def test_summary_lists_every_verification_once_and_keeps_command_outcomes(unit_runtime_context) -> None:
+    from colosseum.decorators import CommandResult
+
+    ctx = unit_runtime_context
+    out = ctx.output_dir
+    assert out is not None
+    for optional in (False, True):
+        for status in ("PASS", "FAIL", "ERROR", "BLOCKED"):
+            key = f"{'optional' if optional else 'required'}_{status}"
+            ctx.result_aggregator.record_verification(
+                VerificationResult(status=status, message=f"detail_{key}", optional=optional),
+                key=key, command="verify_value", domain="example", description="Check value",
+            )
+    ctx.result_aggregator.record_command(CommandResult(status="ERROR", message="failed command"),
+                                         key="required_command", command="set", domain="example")
+    ctx.result_aggregator.record_command(CommandResult(status="ERROR", message="optional command", optional=True),
+                                         key="optional_command", command="set", domain="example")
+    SummaryWriter().write(out, ctx.result_aggregator, ctx)
+    text = (out / "summary.txt").read_text(encoding="utf-8")
+    listing = text.split("Verifications:\n", 1)[1].split("\n\n", 1)[0]
+    for optional in (False, True):
+        for status in ("PASS", "FAIL", "ERROR", "BLOCKED"):
+            designation = "optional" if optional else "required"
+            key = f"{designation}_{status}"
+            assert listing.count(f"key={key}:") == 1
+            assert f"[verification] [{designation}] Check value example.verify_value key={key}: {status} — detail_{key}" in listing
+    assert "[command] example.set key=required_command: failed command" in text
+    assert "[command] example.set key=optional_command: ERROR" in text
+    assert text.index("key=required_PASS:") < text.index("key=required_FAIL:") < text.index("key=optional_PASS:")
+
+
+def test_summary_has_empty_verifications_section(unit_runtime_context) -> None:
+    ctx = unit_runtime_context
+    out = ctx.output_dir
+    assert out is not None
+    SummaryWriter().write(out, ctx.result_aggregator, ctx)
+    assert "Verifications:\n  (none)" in (out / "summary.txt").read_text(encoding="utf-8")
 
 
 def _slot(
