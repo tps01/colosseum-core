@@ -97,6 +97,7 @@ def check_input(data: bytes) -> None:
     if storage_error:
         ctx.db._write_queue.put(WriteJob(apply=fail_write))
     silent = SimpleNamespace(exception=lambda *_args, **_kwargs: None)
+    silent.debug = silent.exception
     try:
         with (
             patch.object(context_module, "_ACTIVE_CONTEXT", ctx),
