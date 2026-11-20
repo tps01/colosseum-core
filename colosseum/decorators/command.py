@@ -234,6 +234,7 @@ class _CommandBinding:
             command=self.command,
             key=identity.key_text,
             cause=cause,
+            optional=optional,
             call_args=call_args,
             kwargs=logged_kwargs,
         )

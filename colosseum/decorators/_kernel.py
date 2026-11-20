@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -71,6 +72,7 @@ def log_evidence_error(
     domain: str,
     command: str,
     key: str,
+    optional: bool,
     cause: str = "",
     call_args: tuple[Any, ...] = (),
     kwargs: dict[str, Any] | None = None,
@@ -81,7 +83,10 @@ def log_evidence_error(
     if kwargs is not None or call_args:
         args_text = " " + call_args_text(call_args, kwargs or {})
     cause_text = f" cause={cause}" if cause else ""
-    ctx.logger.exception(
+    if optional:
+        ctx.logger.info("%s %s.%s failed but was optional. Continuing... (key=%s)", kind, domain, command, key)
+    ctx.logger.log(
+        logging.DEBUG if optional else logging.ERROR,
         "%s %s.%s key=%s status=ERROR%s%s",
         kind,
         domain,
@@ -89,6 +94,7 @@ def log_evidence_error(
         key,
         cause_text,
         args_text,
+        exc_info=True,
     )
 
 

@@ -4,6 +4,11 @@ Troubleshooting
 Start with the failed run's ``summary.txt`` and ``debug.log``. In a suite,
 inspect the individual slot folder as well as the container summary.
 
+For plugin shutdown failures, inspect the suite container's ``debug.log``.
+DEBUG messages name each shutdown hook's module and callable before execution
+and after successful completion. Failure messages include the same name and
+traceback. Pass ``--debug`` to also show DEBUG messages on the console.
+
 .. list-table::
    :header-rows: 1
 

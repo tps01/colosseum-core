@@ -52,8 +52,19 @@ def test_command_error_records_and_raises(ctx) -> None:
     assert ResultAggregator().exit_code() == 0
 
 
-def test_optional_command_error_does_not_fail_run(ctx) -> None:
+def test_optional_command_error_does_not_fail_run(ctx, capsys) -> None:
+    from colosseum.logging.setup import setup_logging
+
+    ctx.logger = setup_logging(ctx, console=True, file=True)
+    capsys.readouterr()
     assert _failing(optional=True) is None
+    console = capsys.readouterr().out
+    assert "command core._failing failed but was optional. Continuing..." in console
+    assert "Traceback" not in console
+    assert ctx.output_dir is not None
+    debug_log = (ctx.output_dir / "debug.log").read_text(encoding="utf-8")
+    assert "Traceback (most recent call last)" in debug_log
+    assert "RuntimeError: bench action failed" in debug_log
     assert ctx.result_aggregator.overall_pass() is True
     row = ctx.db.fetch_table_rows("commands")[-1]
     assert row["status"] == "ERROR"
