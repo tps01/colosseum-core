@@ -92,9 +92,19 @@ class PluginRegistry:
     def run_shutdown(self) -> None:
         for hook in reversed(self._shutdown_hooks):
             try:
+                name = (
+                    f"{getattr(hook, '__module__', type(hook).__module__)}."
+                    f"{getattr(hook, '__qualname__', type(hook).__qualname__)}"
+                )
+            except Exception:  # noqa: BLE001 - a callable can raise during attribute lookup
+                name = "unknown"
+            _logger.debug("Running plugin shutdown hook `%s`", name)
+            try:
                 hook()
             except Exception:
-                _logger.exception("Plugin shutdown hook failed")
+                _logger.exception("Plugin shutdown hook `%s` failed", name)
+            else:
+                _logger.debug("Completed plugin shutdown hook `%s`", name)
 
     @property
     def loaded(self) -> bool:

@@ -324,6 +324,7 @@ class _VerificationBinding:
             domain=self.domain,
             command=self.command,
             key=identity.key_text,
+            optional=prepared.optional,
             call_args=prepared.call_args,
             kwargs=prepared.logged_kwargs,
         )

@@ -216,6 +216,7 @@ class _MeasurementBinding:
             domain=self.domain,
             command=self.command,
             key=identity.key,
+            optional=prepared.optional,
             call_args=prepared.call_args,
             kwargs=prepared.logged_kwargs,
         )

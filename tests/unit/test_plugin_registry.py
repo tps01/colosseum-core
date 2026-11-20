@@ -23,6 +23,35 @@ def test_shutdown_hooks_run_in_reverse_order() -> None:
     assert order == [2, 1]
 
 
+def test_shutdown_logs_identify_hooks_and_continue_after_failure(caplog, monkeypatch) -> None:
+    from colosseum.plugins import registry
+
+    class Cleanup:
+        def __call__(self) -> None:
+            pass
+
+    def broken() -> None:
+        raise RuntimeError("shutdown failure")
+
+    monkeypatch.setattr(registry._logger, "handlers", [caplog.handler])
+    monkeypatch.setattr(registry._logger, "propagate", False)
+    reg = PluginRegistry()
+    reg.register_shutdown(Cleanup())
+    reg.register_shutdown(broken)
+    with caplog.at_level("DEBUG", logger="colosseum.plugins"):
+        reg.run_shutdown()
+
+    cleanup_name = f"{Cleanup.__module__}.{Cleanup.__qualname__}"
+    broken_name = f"{broken.__module__}.{broken.__qualname__}"
+    assert [(record.levelname, record.getMessage()) for record in caplog.records] == [
+        ("DEBUG", f"Running plugin shutdown hook `{broken_name}`"),
+        ("ERROR", f"Plugin shutdown hook `{broken_name}` failed"),
+        ("DEBUG", f"Running plugin shutdown hook `{cleanup_name}`"),
+        ("DEBUG", f"Completed plugin shutdown hook `{cleanup_name}`"),
+    ]
+    assert caplog.records[1].exc_info[1].args == ("shutdown failure",)
+
+
 def test_duplicate_section_spec_fails_fast() -> None:
     reg = PluginRegistry()
     spec = ConfigSectionSpec("equipment.psu", "psu_id", ("driver",))
@@ -158,3 +187,29 @@ def test_loader_fails_fast_on_namespace_collision(monkeypatch: pytest.MonkeyPatc
     reg = PluginRegistry()
     with pytest.raises(PluginRegistrationError, match="already registered"):
         ensure_plugins_loaded(reg)
+
+
+def test_shutdown_continues_after_expired_callable_proxy() -> None:
+    from weakref import proxy
+
+    registry = PluginRegistry()
+    calls: list[str] = []
+    class Cleanup:
+        def __getattribute__(self, name: str):
+            if name == "__module__":
+                raise RuntimeError("hook name unavailable")
+            return super().__getattribute__(name)
+
+        def __call__(self) -> None:
+            calls.append("cleanup")
+
+    registry.register_shutdown(Cleanup())
+
+    def ephemeral() -> None:
+        calls.append("expired")
+
+    registry.register_shutdown(proxy(ephemeral))
+    del ephemeral
+    registry.run_shutdown()
+
+    assert calls == ["cleanup"]

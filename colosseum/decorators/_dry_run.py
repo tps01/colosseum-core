@@ -507,6 +507,7 @@ def invoke_dry_run_substitute(
             domain=domain,
             command=command,
             key=key,
+            optional=optional,
             call_args=call_args,
             kwargs=logged_kwargs,
         )
