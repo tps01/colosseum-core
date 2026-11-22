@@ -285,22 +285,23 @@ def record_suite_provenance(
     teardown: Sequence[Path],
     suite_parameters: Path | None = None,
     parameter_stacking: bool = True,
+    extra_inputs: Sequence[InputFile] = (),
 ) -> None:
     """Capture suite provenance once onto the container. Slots are not updated."""
     if ctx.provenance is not None:
         return
-    snapshot = collect_provenance(
-        suite_input_files(
-            ctx,
-            suite_path=suite_path,
-            setup=setup,
-            tests=tests,
-            between_tests=between_tests,
-            teardown=teardown,
-            suite_parameters=suite_parameters,
-            parameter_stacking=parameter_stacking,
-        ),
+    files = suite_input_files(
+        ctx,
+        suite_path=suite_path,
+        setup=setup,
+        tests=tests,
+        between_tests=between_tests,
+        teardown=teardown,
+        suite_parameters=suite_parameters,
+        parameter_stacking=parameter_stacking,
     )
+    files.extend(extra_inputs)
+    snapshot = collect_provenance(files)
     ctx.provenance = snapshot
     if ctx.no_artifacts or ctx.suite_output_dir is None:
         return
