@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -29,6 +30,135 @@ def _slot_with_stem(container, stem: str):
     matches = slot_dirs_matching(container, stem)
     assert matches, f"no slot dir matching {stem!r} under {container}"
     return matches[-1]
+
+
+def test_suite_config_and_metadata_layers(isolated_cwd):
+    root = isolated_cwd
+    files = {
+        "suite.toml": (
+            'name = "layered"\nconfig = "suite-config.toml"\nmetadata = "suite.yaml"\n'
+            'setup = ["phase.py"]\nteardown = ["phase.py"]\n'
+            'tests = [{path = "checks/case.py", repeat_count = 2}]\n'
+        ),
+        "suite-config.toml": '[[bench.psu]]\nid = 3\n',
+        "suite.yaml": 'test_metadata:\n  uut: suite\n  sub_units: []\n',
+        "checks/config.toml": (
+            '[[bench.psu]]\nid = 1\n[[bench.psu]]\nid = 2\n'
+            '[[bench.relay]]\nid = 4\n[bench.dmm]\naddress = "declared"\n'
+        ),
+        "checks/metadata.yaml": 'uut: test\nserial_number: declared\n',
+        "checks/loaded.toml": '[bench.dmm]\naddress = "script"\n[bench.scope]\nchannel = 1\n',
+        "checks/loaded.yaml": 'location: script\nserial_number: script\nsub_units:\n  - pn: old\n',
+        "phase.py": (
+            'from colosseum.context import get_context\n'
+            'def main():\n'
+            '    ctx = get_context()\n'
+            '    assert ctx.config.get_section("bench") == {"psu": [{"id": 3}]}\n'
+            '    assert ctx.metadata_yaml == {"uut": "suite"}\n'
+        ),
+        "checks/case.py": (
+            'import colosseum as col\n'
+            'from colosseum.context import get_context\n'
+            'def main():\n'
+            '    ctx = get_context()\n'
+            '    assert ctx.config.get_section("bench.psu") == [{"id": 3}]\n'
+            '    assert ctx.config.get_section("bench.relay") == [{"id": 4}]\n'
+            '    assert ctx.config.get_section("bench.scope") is None\n'
+            '    class Connection:\n'
+            '        closed = False\n'
+            '        def close(self):\n'
+            '            self.closed = True\n'
+            '    conn = Connection()\n'
+            '    ctx.resource_cache["connection"] = conn\n'
+            '    col.config.load_config("loaded.toml", metadata_path="loaded.yaml")\n'
+            '    assert conn.closed and not ctx.resource_cache\n'
+            '    assert ctx.config.get_section("bench.dmm") == {"address": "declared"}\n'
+            '    assert ctx.config.get_section("bench.scope") == {"channel": 1}\n'
+            '    assert ctx.metadata_yaml == {"uut": "suite", "serial_number": "declared", "location": "script"}\n'
+            '    conn = Connection()\n'
+            '    ctx.resource_cache["connection"] = conn\n'
+            '    col.config.load_config("loaded.toml", metadata_path="loaded.yaml", force=True)\n'
+            '    assert conn.closed\n'
+            '    assert ctx.config.get_section("bench.dmm") == {"address": "script"}\n'
+            '    assert ctx.metadata_yaml["serial_number"] == "script"\n'
+            '    col.config.load_config("loaded.toml", metadata_path="loaded.yaml")\n'
+            '    assert ctx.config.get_section("bench.dmm") == {"address": "declared"}\n'
+            '    assert ctx.metadata_yaml["serial_number"] == "declared"\n'
+        ),
+    }
+    (root / "checks").mkdir()
+    for name, content in files.items():
+        (root / name).write_text(content, encoding="utf-8")
+
+    _run_suite_expect_exit(root / "suite.toml", None, root, 0)
+    container = latest_suite_container(root)
+    summary = _container_summary(container)
+    inputs = {(item["role"], Path(item["path"]).name) for item in summary["provenance"]["inputs"]}
+    assert {("config", "suite-config.toml"), ("config", "config.toml"),
+            ("metadata", "suite.yaml"), ("metadata", "metadata.yaml")} <= inputs
+    slot = _slot_with_stem(container, "case")
+    recorded = dict(query_db(slot, "SELECT key, value FROM run_metadata"))
+    assert Path(recorded["config_path_script"]).name == "loaded.toml"
+    assert Path(recorded["metadata_path_script"]).name == "loaded.yaml"
+
+
+def test_suite_cli_only_files_remain_pinned(isolated_cwd):
+    root = isolated_cwd
+    (root / "config.toml").write_text('[bench]\nname = "sibling"\n', encoding="utf-8")
+    (root / "metadata.yaml").write_text("uut: sibling\n", encoding="utf-8")
+    (root / "cli.toml").write_text('[bench]\nname = "cli"\n', encoding="utf-8")
+    (root / "cli.yaml").write_text("uut: cli\n", encoding="utf-8")
+    (root / "case.py").write_text(
+        'import colosseum as col\n'
+        'def main():\n'
+        '    assert col.config.load_config("missing.toml").get_section("bench") == {"name": "cli"}\n'
+        '    assert col.config.load_metadata("missing.yaml") == {"uut": "cli"}\n',
+        encoding="utf-8",
+    )
+    suite = root / "suite.toml"
+    suite.write_text('name = "legacy"\ntests = ["case.py"]\n', encoding="utf-8")
+    with pytest.raises(SystemExit) as exc:
+        run_suite(suite, root / "cli.toml", metadata_path=root / "cli.yaml")
+    assert exc.value.code == 0
+
+
+def test_suite_cli_layers_replace_suite_paths_and_failed_test_still_runs_teardown(isolated_cwd):
+    root = isolated_cwd
+    (root / "entry.toml").write_text('[bench.psu]\naddress = "entry"\n[bench.dmm]\naddress = "entry"\n')
+    (root / "cli.toml").write_text('[bench.psu]\naddress = "cli"\n')
+    (root / "cli.yaml").write_text('uut: cli\n')
+    (root / "test.yaml").write_text('uut: test\nrevision: test\n')
+    (root / "bad.yaml").write_text('broken: [\n')
+    (root / "case.py").write_text(
+        'from colosseum.context import get_context\n'
+        'def main():\n'
+        '    ctx = get_context()\n'
+        '    assert ctx.config.get_section("bench.psu") == {"address": "cli"}\n'
+        '    assert ctx.config.get_section("bench.dmm") == {"address": "entry"}\n'
+        '    assert ctx.metadata_yaml == {"uut": "cli", "revision": "test"}\n'
+    )
+    (root / "cleanup.py").write_text(
+        'from pathlib import Path\n'
+        'from colosseum.context import get_context\n'
+        'def main():\n'
+        '    ctx = get_context()\n'
+        '    assert ctx.config.get_section("bench.dmm") is None\n'
+        '    assert ctx.metadata_yaml == {"uut": "cli"}\n'
+        '    Path("cleanup-ran").touch()\n'
+    )
+    suite = root / "suite.toml"
+    suite.write_text(
+        'name = "overrides"\nconfig = "unused.toml"\nmetadata = "unused.yaml"\n'
+        'fail_fast = true\nteardown = ["cleanup.py"]\n'
+        'tests = [{path = "case.py", config = "entry.toml", metadata = "test.yaml"},'
+        '{path = "case.py", metadata = "bad.yaml"}]\n'
+    )
+    with pytest.raises(SystemExit) as exc:
+        run_suite(suite, root / "cli.toml", metadata_path=root / "cli.yaml")
+    assert exc.value.code == 1
+    summary = _container_summary(latest_suite_container(root))
+    assert [slot["overall_result"] for slot in summary["test_slots"]] == ["PASS", "FAIL"]
+    assert (root / "cleanup-ran").is_file()
 
 
 def test_suite_slot_summary_lists_passing_and_optional_verifications(isolated_cwd, core_config):

@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Literal
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from colosseum.config.suite_inputs import SuiteInputs
     from colosseum.context import RuntimeContext
     from colosseum.runner.run_options import ExecutionMode
 
@@ -37,6 +38,7 @@ class RunSession:
     config_pin_warned: bool = False
     metadata_pinned: bool = False
     metadata_pin_warned: bool = False
+    suite_inputs: SuiteInputs | None = None
 
     def mark_suite_failed(self, reason: str) -> None:
         self.suite_failed = True

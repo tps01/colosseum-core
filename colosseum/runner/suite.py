@@ -4,8 +4,9 @@ import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable
 
+from colosseum.config.suite_inputs import SuiteInputs
 from colosseum.paths import absolute_path
-from colosseum.runner.provenance import record_suite_provenance
+from colosseum.runner.provenance import InputFile, record_suite_provenance
 from colosseum.runner.runtime import (
     begin_script_slot,
     ensure_suite_runtime_ready,
@@ -22,6 +23,7 @@ from colosseum.runner.suite_toml import (
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from colosseum.config.suite_inputs import InputKind
     from colosseum.context import RuntimeContext
     from colosseum.runner.run_options import RunOptions
 
@@ -148,7 +150,7 @@ def _repeat_exhausted(
     return repeat_index >= entry.repeat_count
 
 
-def _attach_slot_parameters(
+def _attach_slot_inputs(
     suite: SuiteDefinition,
     ctx: RuntimeContext,
     script: Path,
@@ -156,7 +158,7 @@ def _attach_slot_parameters(
     phase: str,
     entry: SuiteTestEntry | None,
 ) -> bool:
-    """Attach parameters for one slot. Returns False when load failed."""
+    """Apply managed files for one slot. Returns False when parameters failed to load."""
     from colosseum.config.parameters import (
         ParametersError,
         _attach_parameter_sources,
@@ -164,6 +166,8 @@ def _attach_slot_parameters(
         attach_parameters,
     )
 
+    if ctx.session.suite_inputs is not None:
+        ctx.session.suite_inputs.attach(ctx, entry)
     entry_parameters = entry.parameters if entry is not None else None
     suite_level = ctx.run_options.parameters_path if ctx.run_options.parameters_path is not None else suite.parameters
     try:
@@ -257,6 +261,8 @@ def _run_script_slot(
     """Run one script slot. Returns True when fail_fast should stop non-teardown work."""
     slot_started = False
     try:
+        if ctx.session.suite_inputs is not None:
+            ctx.session.suite_inputs.label_slot(ctx, entry)
         begin_script_slot(
             ctx,
             script.stem,
@@ -284,14 +290,14 @@ def _run_script_slot(
     script_crash = False
     stop_fail_fast = False
     try:
-        params_ok = _attach_slot_parameters(
+        inputs_ok = _attach_slot_inputs(
             suite,
             ctx,
             script,
             phase=phase,
             entry=entry,
         )
-        if not params_ok:
+        if not inputs_ok:
             script_crash = True
         else:
             if test_index is not None and repeat_index is not None and entry is not None:
@@ -444,6 +450,13 @@ def _bootstrap_suite(
     from .single_test import ScriptRunError, run_script
 
     suite = load_suite_toml(suite_path)
+    layers: dict[InputKind, Path | None] = {}
+    if suite.config is not None or any(entry.config is not None for entry in suite.tests):
+        layers["config"] = config_path or suite.config
+        config_path = None
+    if suite.metadata is not None or any(entry.metadata is not None for entry in suite.tests):
+        layers["metadata"] = metadata_path or suite.metadata
+        metadata_path = None
     options = run_options or RunOptions()
     init_context(
         test_case_name=suite.name,
@@ -464,6 +477,17 @@ def _bootstrap_suite(
         load_metadata(metadata_path)
         ctx.session.metadata_pinned = True
 
+    extra_inputs: list[InputFile] = []
+    if layers:
+        inputs = SuiteInputs(layers)
+        ctx.session.suite_inputs = inputs
+        inputs.attach(ctx)
+        extra_inputs = [
+            InputFile(kind, path)
+            for entry in suite.tests
+            for kind in layers
+            if (path := inputs.test_path(kind, entry)) is not None
+        ]
     apply_enabled_reports(ctx)
     ensure_suite_runtime_ready(ctx, suite.name)
     suite_level = options.parameters_path if options.parameters_path is not None else suite.parameters
@@ -476,6 +500,7 @@ def _bootstrap_suite(
         teardown=suite.teardown,
         suite_parameters=suite_level,
         parameter_stacking=suite.parameter_stacking,
+        extra_inputs=extra_inputs,
     )
     runner = _ScriptRunner(run_script, ScriptRunError)
     if ctx.logger is not None:
