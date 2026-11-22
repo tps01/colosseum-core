@@ -144,6 +144,48 @@ For the parameter-file format and lookup by evidence key, see
 :doc:`using_parameters`. See ``examples/parameters/`` in the core repository
 and :doc:`testware_library` for copy-out examples.
 
+Suite configuration and metadata
+--------------------------------
+
+Declare ``config`` (TOML) and ``metadata`` (YAML) at the suite level, in a test
+entry, or both. Relative declared paths are resolved next to the suite TOML.
+
+.. code-block:: toml
+
+   name = "bench_checks"
+   config = "bench.toml"
+   metadata = "run.yaml"
+   tests = [
+       {path = "checks/power.py", config = "power.toml", metadata = "power.yaml"},
+       "checks/receiver.py",
+   ]
+
+Declaring either file type opts that type into stacking. The order from
+lowest to highest precedence is:
+
+1. The file the current script loads with ``col.config.load_config()`` or
+   ``col.config.load_metadata()``. An ordinary load replaces this layer.
+2. The test entry's file, or the script's sibling ``config.toml`` or ``metadata.yaml`` if present.
+3. The suite's file. ``--config`` and ``--metadata`` replace the corresponding suite paths.
+
+The higher config replaces overlapping sections as whole tables or arrays
+of tables. For example, a suite's ``[equipment.psu]`` replaces every lower PSU
+row, and a lower ``[equipment.dmm]`` survives. Nested namespace tables keep
+unrelated child sections. At a namespace path, the higher file's direct
+values replace lower direct values together. Metadata replaces overlapping
+keys inside ``test_metadata`` (or in the flat YAML mapping). An empty list can
+clear a lower ``sub_units`` or ``misc_infos`` list.
+
+Setup, between-test, and teardown slots use the suite files and their own
+script loads. Each slot starts fresh. ``force=True`` replaces the effective
+file for the current slot, and a later ordinary load reapplies the stack.
+Config changes during a slot close cached connections. Explicit suite file
+errors stop the suite before scripts run, and test file errors fail their
+slot under the usual fail-fast and teardown rules.
+
+For each file type without a declaration in the suite TOML, CLI pinning and
+script reloads keep their existing behavior.
+
 Suite CLI options
 -----------------
 
@@ -270,9 +312,10 @@ runner does not turn them into ``SystemExit``.
 State between slots
 -------------------
 
-All slots execute in one Python process. The runtime context and active
-configuration persist; a deliberate reload replaces the shared store. CLI pins
-continue to apply. Imported helper modules and their globals also persist;
+All slots execute in one Python process. The runtime context persists.
+Config and metadata stacks are rebuilt for each opted-in slot. For other file
+types, the active values persist and CLI pins continue to apply. Imported
+helper modules and their globals also persist;
 see :doc:`python_imports`. Each script module is loaded for its execution.
 
 Each slot starts fresh evidence, result aggregation, parameter selection, and

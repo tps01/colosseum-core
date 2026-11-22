@@ -69,6 +69,11 @@ Calling ``load_config`` again (unpinned, or with ``force=True``) replaces the
 whole store. Sections present only in the previous file are dropped unless the
 new TOML includes them.
 
+Suite TOML can opt into config and metadata stacking independently. In an
+opted-in slot, an ordinary script load supplies the lowest layer and
+``force=True`` replaces the effective file for the current slot. See
+:doc:`running_suites` for the file selection and precedence rules.
+
 Reload scenarios
 ----------------
 

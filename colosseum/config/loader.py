@@ -176,6 +176,7 @@ def apply_raw_config(
     raw: dict[str, Any],
     *,
     source_label: str,
+    close_changed_resources: bool = False,
 ) -> ConfigStore:
     ensure_plugins_loaded(ctx.plugin_registry)
     specs = list(ctx.plugin_registry.config_section_specs())
@@ -197,6 +198,10 @@ def apply_raw_config(
         for warning in ctx.config_warnings:
             ctx.logger.warning(warning)
     store = ConfigStore(raw, normalized, spec_map)
+    if close_changed_resources and (ctx.config is None or ctx.config.raw() != raw):
+        from colosseum.results.finalize import close_resource_cache
+
+        close_resource_cache(ctx.resource_cache, logger=ctx.logger)
     ctx.config = store
     ctx.config_path = source_label
     if ctx.db.is_initialized():
@@ -259,7 +264,12 @@ def load_config(
     else:
         apply_no_artifacts(ctx, no_artifacts=no_artifacts)
 
-    store = apply_raw_config(ctx, raw, source_label=str(config_path))
+    source = str(config_path)
+    suite = ctx.session.suite_inputs
+    layered = suite is not None and "config" in suite.paths
+    if suite is not None and layered:
+        raw, source = suite.for_script(ctx, "config", config_path, raw, force=force)
+    store = apply_raw_config(ctx, raw, source_label=source, close_changed_resources=layered)
     if metadata_path is not None:
         from .metadata import load_metadata
 

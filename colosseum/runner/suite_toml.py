@@ -34,6 +34,8 @@ class SuiteTestEntry:
     repeat_count: int = 1
     repeat_for: timedelta | None = None
     parameters: Path | None = None
+    config: Path | None = None
+    metadata: Path | None = None
 
 
 @dataclass
@@ -48,6 +50,8 @@ class SuiteDefinition:
     cycle_for: timedelta | None = None
     parameters: Path | None = None
     parameter_stacking: bool = True
+    config: Path | None = None
+    metadata: Path | None = None
 
 
 def parse_repeat_duration(value: str, *, field: str = "repeat_for") -> timedelta:
@@ -80,12 +84,11 @@ def _as_path_list(value: object, field: str, base_dir: Path) -> list[Path]:
     return paths
 
 
-def _parse_parameters_field(item: dict[str, object], base_dir: Path, *, index: int) -> Path | None:
-    raw = item.get("parameters")
+def _parse_input_path(raw: object, base_dir: Path, *, label: str) -> Path | None:
     if raw is None:
         return None
     if not isinstance(raw, str) or not raw.strip():
-        raise SuiteError(f"Suite tests[{index}] parameters must be a non-empty string path")
+        raise SuiteError(f"Suite {label} must be a non-empty string path")
     return absolute_path(base_dir / raw)
 
 
@@ -98,7 +101,13 @@ def _parse_test_entry(item: object, base_dir: Path, *, index: int) -> SuiteTestE
     if not path or not isinstance(path, str):
         raise SuiteError(f"Suite tests[{index}] table requires string field `path`")
     resolved = absolute_path(base_dir / path)
-    parameters = _parse_parameters_field(item, base_dir, index=index)
+    inputs = {
+        name: _parse_input_path(item.get(name), base_dir, label=f"tests[{index}] {name}")
+        for name in ("parameters", "config", "metadata")
+    }
+    entry = SuiteTestEntry(
+        path=resolved, parameters=inputs["parameters"], config=inputs["config"], metadata=inputs["metadata"],
+    )
     repeat_count = item.get("repeat_count")
     repeat_for = item.get("repeat_for")
     if repeat_count is not None and repeat_for is not None:
@@ -108,16 +117,12 @@ def _parse_test_entry(item: object, base_dir: Path, *, index: int) -> SuiteTestE
             raise SuiteError(f"Suite tests[{index}] repeat_count must be an integer")
         if repeat_count < 1:
             raise SuiteError(f"Suite tests[{index}] repeat_count must be >= 1")
-        return SuiteTestEntry(path=resolved, repeat_count=repeat_count, parameters=parameters)
+        entry.repeat_count = repeat_count
     if repeat_for is not None:
         if not isinstance(repeat_for, str):
             raise SuiteError(f"Suite tests[{index}] repeat_for must be a string")
-        return SuiteTestEntry(
-            path=resolved,
-            repeat_for=parse_repeat_duration(repeat_for),
-            parameters=parameters,
-        )
-    return SuiteTestEntry(path=resolved, parameters=parameters)
+        entry.repeat_for = parse_repeat_duration(repeat_for)
+    return entry
 
 
 def _parse_tests(value: object, base_dir: Path) -> list[SuiteTestEntry]:
@@ -153,14 +158,6 @@ def _as_bool(value: object, field: str) -> bool:
     if parsed is None:
         raise SuiteError(f"Suite field `{field}` must be a boolean")
     return parsed
-
-
-def _parse_suite_parameters(raw: object, base_dir: Path) -> Path | None:
-    if raw is None:
-        return None
-    if not isinstance(raw, str) or not raw.strip():
-        raise SuiteError("Suite field `parameters` must be a non-empty string path")
-    return absolute_path(base_dir / raw)
 
 
 def _parse_parameter_stacking(raw: object) -> bool:
@@ -229,6 +226,8 @@ def load_suite_toml(path: Path) -> SuiteDefinition:
         fail_fast=_as_bool(raw.get("fail_fast"), "fail_fast"),
         cycle_count=cycle_count,
         cycle_for=cycle_for,
-        parameters=_parse_suite_parameters(raw.get("parameters"), base),
+        parameters=_parse_input_path(raw.get("parameters"), base, label="field `parameters`"),
         parameter_stacking=_parse_parameter_stacking(raw.get("parameter_stacking")),
+        config=_parse_input_path(raw.get("config"), base, label="field `config`"),
+        metadata=_parse_input_path(raw.get("metadata"), base, label="field `metadata`"),
     )

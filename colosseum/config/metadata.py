@@ -9,6 +9,8 @@ import yaml
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from colosseum.context import RuntimeContext
+
 from colosseum.context import get_context
 from colosseum.summary.wats import (
     COMPLEX_METADATA_KEYS,
@@ -48,7 +50,7 @@ def validate_colosseum_metadata_table(raw: dict[str, Any]) -> list[str]:
     return warnings
 
 
-def load_metadata_yaml(path: str | Path) -> dict[str, Any]:
+def _read_metadata_yaml(path: str | Path) -> dict[str, Any]:
     from colosseum.paths import absolute_path
 
     from .loader import ConfigError
@@ -67,7 +69,11 @@ def load_metadata_yaml(path: str | Path) -> dict[str, Any]:
     block = data.get("test_metadata", data)
     if not isinstance(block, dict):
         raise ConfigError(f"Metadata file `test_metadata` must be a mapping: {metadata_path}")
-    return normalize_metadata_dict(block)
+    return block
+
+
+def load_metadata_yaml(path: str | Path) -> dict[str, Any]:
+    return normalize_metadata_dict(_read_metadata_yaml(path))
 
 
 def load_metadata(path: str | Path, *, force: bool = False) -> dict[str, Any]:
@@ -93,11 +99,20 @@ def load_metadata(path: str | Path, *, force: bool = False) -> dict[str, Any]:
     from .loader import _resolve_load_path
 
     metadata_path = _resolve_load_path(path, label="Metadata")
-    parsed = load_metadata_yaml(metadata_path)
+    raw = _read_metadata_yaml(metadata_path)
+    suite = ctx.session.suite_inputs
+    source = str(metadata_path)
+    if suite is not None and "metadata" in suite.paths:
+        raw, source = suite.for_script(ctx, "metadata", metadata_path, raw, force=force)
+    return _apply_metadata(ctx, raw, source)
+
+
+def _apply_metadata(ctx: RuntimeContext, raw: dict[str, Any], source: str | None) -> dict[str, Any]:
+    parsed = normalize_metadata_dict(raw)
     ctx.metadata_yaml = parsed
-    ctx.metadata_path = str(metadata_path)
-    if ctx.logger is not None:
+    ctx.metadata_path = source
+    if ctx.logger is not None and source is not None:
         ctx.logger.info("Loaded WATS metadata from %s (%d keys)", ctx.metadata_path, len(parsed))
     if ctx.db.is_initialized():
-        ctx.db.insert_run_metadata("metadata_path", ctx.metadata_path)
+        ctx.db.insert_run_metadata("metadata_path", source or "")
     return parsed
