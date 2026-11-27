@@ -482,7 +482,7 @@ class DatabaseManager:
         kind: str,
         slots: list[dict[str, Any]] | None = None,
     ) -> None:
-        """Persist the finalized conclusion and legacy status metadata together.
+        """Persist the finalized result and its status and exit-code metadata together.
 
         :param payload: Compact completed result, or None when publishing only slots.
         :param kind: Single run, suite slot, or suite container.
@@ -667,9 +667,10 @@ class DatabaseManager:
 
         Relative paths are joined to the directory that contains
         ``execution.sqlite``. When the row was imported, ``imported_from`` is
-        the next place to look. Legacy absolute paths that no longer exist
-        (because the run folder was renamed ``-pass`` / ``-fail``) are rebased
-        onto that directory when a matching suffix is present.
+        the next place to look. A missing absolute path can be rebased when its
+        former run directory is a sibling of the current run directory and both
+        names share the same base after removing the result and collision suffixes.
+        The rebased path must point to an existing file.
         """
         if not stored:
             return None

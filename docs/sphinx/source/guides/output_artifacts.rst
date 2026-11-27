@@ -74,9 +74,11 @@ Three core-owned tables add inspectable completion data:
   and ``payload_json``. The payload contains the existing summary JSON fields,
   plus ``outcomes`` and ``optional_outcomes`` with scored kind, identity,
   status, optionality, message, cause, description, and requirement IDs.
-  ``stored_status`` mirrors legacy status metadata (PASS/FAIL, or N/A for
-  supporting slots). Raw sample payloads
-  are not duplicated. The snapshot and legacy result metadata commit together.
+  ``stored_status`` mirrors the ``overall_status`` entry in ``run_metadata``. It records
+  ``PASS``, ``FAIL``, or ``INCOMPLETE``, with ``N/A`` for supporting slots
+  that do not contribute to the suite verdict and complete without interruption.
+  Raw sample payloads are stored in the measurements table. The snapshot and
+  result metadata commit together.
 * The suite container's ``suite_slot_results`` has one row per occurrence,
   identified by ``slot_id`` in execution order. Columns retain phase, script,
   relative output directory, test/repeat/cycle indexes, scoring participation,

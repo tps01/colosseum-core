@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 from colosseum.config.parameters import _suite_parameter_paths
 from colosseum.database.manager import DatabaseManager
+from colosseum.paths import absolute_path
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -86,23 +87,31 @@ def _md5_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def hash_inputs(files: Sequence[InputFile]) -> list[dict[str, str]]:
+def hash_inputs(
+    files: Sequence[InputFile], *, logger: logging.Logger | None = None,
+) -> list[dict[str, str]]:
     """MD5 each existing file once. The same path under two roles is read once."""
+    logger = logger or logging.getLogger(__name__)
     hashed: dict[Path, str] = {}
     rows: list[dict[str, str]] = []
-    seen: set[tuple[str, Path]] = set()
+    seen: set[tuple[str, str]] = set()
     for item in files:
-        path = item.path.resolve()
-        key = (item.role, path)
+        path = absolute_path(item.path)
+        key = (item.role, str(path))
         if key in seen:
             continue
         seen.add(key)
-        if not path.is_file():
+        try:
+            target = path.resolve(strict=True)
+            digest = hashed.get(target)
+            if digest is None:
+                if not target.is_file():
+                    raise OSError("expected a regular file")
+                digest = _md5_file(target)
+                hashed[target] = digest
+        except (OSError, RuntimeError) as exc:
+            logger.warning("Could not hash %s %s: %s", item.role, path, exc)
             continue
-        digest = hashed.get(path)
-        if digest is None:
-            digest = _md5_file(path)
-            hashed[path] = digest
         rows.append({"role": item.role, "path": str(path), "md5": digest})
     return rows
 
@@ -189,13 +198,15 @@ def suite_input_files(
     return files
 
 
-def collect_provenance(files: Sequence[InputFile]) -> dict[str, object]:
+def collect_provenance(
+    files: Sequence[InputFile], *, logger: logging.Logger | None = None,
+) -> dict[str, object]:
     """Build the snapshot stored in the log, database, and summary."""
     versions, plugins = selected_packages()
     return {
         "platform": platform_info(),
         "packages": {"versions": versions, "plugins": plugins},
-        "inputs": hash_inputs(files),
+        "inputs": hash_inputs(files, logger=logger),
     }
 
 
@@ -265,6 +276,7 @@ def record_single_provenance(
             metadata_path=ctx.metadata_path,
             parameters_path=parameters_path,
         ),
+        logger=ctx.logger,
     )
     ctx.provenance = snapshot
     log_path = None
@@ -301,7 +313,7 @@ def record_suite_provenance(
         parameter_stacking=parameter_stacking,
     )
     files.extend(extra_inputs)
-    snapshot = collect_provenance(files)
+    snapshot = collect_provenance(files, logger=ctx.logger)
     ctx.provenance = snapshot
     if ctx.no_artifacts or ctx.suite_output_dir is None:
         return

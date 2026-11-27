@@ -11,6 +11,7 @@ Run with the same interpreter that has colosseum-core and its plugins installed:
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import tarfile
@@ -20,6 +21,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Literal
 
+from colosseum.paths import is_link_entry
 from colosseum.plugins.loader import _discovered_for_group
 
 _APP_NAME = "colosseum"
@@ -72,6 +74,33 @@ def _plugin_package_path_roots() -> list[str]:
     return roots
 
 
+def _raise_walk_error(error: OSError) -> None:
+    raise error
+
+
+def _validate_archive_links(app_dir: Path, kind: ArchiveKind) -> None:
+    for directory, dirs, files in os.walk(app_dir, onerror=_raise_walk_error):
+        for name in dirs + files:
+            member = Path(directory) / name
+            if not is_link_entry(member.lstat()):
+                continue
+            if kind == "zip" or not member.is_symlink():
+                raise SystemExit(f"{kind} cannot archive link: {member}")
+            link = member.readlink()
+            try:
+                archive_target = Path(os.path.normpath(member.parent / link))
+                if (
+                    link.anchor
+                    or not archive_target.is_relative_to(app_dir)
+                    or not member.resolve(strict=True).is_relative_to(app_dir)
+                ):
+                    raise ValueError("expected a relative link inside the bundle")
+            except (OSError, RuntimeError, ValueError) as exc:
+                raise SystemExit(f"Invalid archive link {member}: {exc}") from exc
+            if name in dirs:
+                dirs.remove(name)
+
+
 def archive_app(
     app_dir: Path,
     *,
@@ -83,13 +112,16 @@ def archive_app(
     recreates a directory you can run. Pass ``kind`` to force an archive type
     (unit tests); ``None`` selects zip on Windows and ``gztar`` elsewhere.
     """
+    resolved_kind = _default_archive_kind() if kind is None else kind
+    if app_dir.exists() and is_link_entry(app_dir.lstat()):
+        raise SystemExit(f"{resolved_kind} cannot archive link as bundle root: {app_dir}")
     app_dir = app_dir.resolve()
     launcher = app_dir / _launcher_name()
     internal = app_dir / "_internal"
     if not launcher.is_file() or not internal.is_dir():
         raise SystemExit(f"Expected {launcher.name} and _internal inside {app_dir}")
 
-    resolved_kind = _default_archive_kind() if kind is None else kind
+    _validate_archive_links(app_dir, resolved_kind)
     if resolved_kind == "zip":
         archive_path = app_dir.parent / f"{_APP_NAME}.zip"
         if archive_path.exists():

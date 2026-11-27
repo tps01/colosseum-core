@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 from colosseum.context import get_context
+from colosseum.paths import link_target
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -38,8 +39,11 @@ def _script_import_path(script: Path) -> Iterator[None]:
     """
     ctx = get_context()
     previous_script = ctx.active_script_path
-    ctx.active_script_path = script
-    directory = str(script.parent)
+    target = link_target(script)
+    # CPython follows script links for sys.path[0] on POSIX. On Windows
+    # it uses the directory of the path passed on the command line.
+    directory = str(script.absolute().parent if sys.platform == "win32" else target.parent.resolve())
+    ctx.active_script_path = target
     saved = list(sys.path)
     if not sys.path or sys.path[0] != directory:
         sys.path.insert(0, directory)

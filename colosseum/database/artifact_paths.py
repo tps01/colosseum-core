@@ -2,9 +2,28 @@
 
 from __future__ import annotations
 
+import os
+import re
 from pathlib import Path
 
-from colosseum.paths import absolute_path
+from colosseum.paths import absolute_path, is_link_entry
+
+_RESULT_SUFFIX = re.compile(r"-(?:pass|fail|incomplete)(?:_[1-9][0-9]*)?$")
+
+
+def _through_link(path: Path, *, require_target: bool = False) -> bool:
+    linked = False
+    for part in (*reversed(path.parents), path):
+        try:
+            entry = part.lstat()
+        except FileNotFoundError:
+            break
+        if is_link_entry(entry):
+            if not require_target:
+                return True
+            part.stat()
+            linked = True
+    return linked
 
 
 def stored_artifact_path(path: Path | str, output_dir: Path | None) -> str:
@@ -17,13 +36,19 @@ def stored_artifact_path(path: Path | str, output_dir: Path | None) -> str:
     candidate = Path(path)
     if output_dir is None:
         return candidate.as_posix() if not candidate.is_absolute() else str(candidate)
-    if not candidate.is_absolute():
-        return candidate.as_posix()
+    root = absolute_path(output_dir)
+    candidate = absolute_path(root / candidate)
+    # A link to the entire run directory is part of the run's address. Inspect
+    # the actual target for containment, keeping ordinary external paths as given.
+    linked = _through_link(candidate, require_target=True)
+    if ".." in candidate.parts and not candidate.exists():
+        return str(candidate)
+    target = Path(os.path.realpath(candidate))
+    real_root = Path(os.path.realpath(root))
     try:
-        relative = absolute_path(candidate).relative_to(absolute_path(output_dir))
+        return target.relative_to(real_root).as_posix()
     except ValueError:
-        return str(absolute_path(candidate))
-    return relative.as_posix()
+        return str(target if linked or ".." in candidate.parts else candidate)
 
 
 def resolve_stored_artifact(
@@ -35,8 +60,8 @@ def resolve_stored_artifact(
     """Resolve a stored artifact path against the owning run, then an import origin.
 
     Absolute paths that still exist are returned as-is. Absolute paths that
-    disappeared because the run directory was renamed are rebased by matching
-    a suffix under ``run_dir`` (and ``import_origin`` when set).
+    disappeared because the run directory was renamed are rebased under the
+    corresponding result directory.
     """
     text = stored.replace("\\", "/")
     candidate = Path(stored)
@@ -66,24 +91,24 @@ def relativize_imported_artifact(stored: str | None, source_run: Path) -> str | 
     if stored is None or stored == "":
         return None
     text = str(stored)
-    path = Path(text)
-    if not path.is_absolute():
-        return text.replace("\\", "/")
     resolved = resolve_stored_artifact(text, run_dir=source_run)
-    try:
-        return absolute_path(resolved).relative_to(absolute_path(source_run)).as_posix()
-    except ValueError:
-        if resolved.is_file():
-            return str(resolved)
-        return text
+    if _through_link(resolved):
+        # Imported evidence stays with the source even if the destination has
+        # a file at the same relative path.
+        return str(Path(os.path.realpath(resolved))) if resolved.is_file() else str(resolved)
+    if Path(text).is_absolute() and resolved.is_file():
+        return stored_artifact_path(resolved, source_run)
+    return text if Path(text).is_absolute() else text.replace("\\", "/")
 
 
 def _rebase_missing_absolute(stored: Path, run_dir: Path) -> Path | None:
-    parts = stored.parts
-    # Skip the drive/root component; try longest meaningful suffix first.
-    for start in range(1, len(parts)):
-        suffix = Path(*parts[start:])
-        candidate = absolute_path(run_dir / suffix)
-        if candidate.is_file():
-            return candidate
+    if not _RESULT_SUFFIX.search(run_dir.name):
+        return None
+    base = _RESULT_SUFFIX.sub("", run_dir.name)
+    for ancestor in stored.parents:
+        if ancestor.parent != run_dir.parent or ancestor == run_dir:
+            continue
+        if _RESULT_SUFFIX.sub("", ancestor.name) == base:
+            candidate = run_dir / stored.relative_to(ancestor)
+            return candidate if candidate.is_file() else None
     return None
