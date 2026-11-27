@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import stat
+import sys
 from pathlib import Path
 from typing import Union
 
@@ -62,7 +63,7 @@ def link_target(path: Path) -> Path:
 def is_link_entry(info: os.stat_result) -> bool:
     """Recognize symbolic links and Windows directory junctions from lstat."""
     return stat.S_ISLNK(info.st_mode) or (
-        os.name == "nt" and getattr(info, "st_reparse_tag", 0) == stat.IO_REPARSE_TAG_MOUNT_POINT
+        sys.platform == "win32" and getattr(info, "st_reparse_tag", 0) == stat.IO_REPARSE_TAG_MOUNT_POINT
     )
 
 

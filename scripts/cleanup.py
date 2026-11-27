@@ -22,6 +22,7 @@ import fnmatch
 import os
 import shutil
 import stat
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -64,7 +65,7 @@ VENV_DIR_NAMES = frozenset({".venv", "venv", "ENV", "env"})
 def _is_link(path: Path) -> bool:
     info = path.lstat()
     return stat.S_ISLNK(info.st_mode) or (
-        os.name == "nt" and getattr(info, "st_reparse_tag", 0) == stat.IO_REPARSE_TAG_MOUNT_POINT
+        sys.platform == "win32" and getattr(info, "st_reparse_tag", 0) == stat.IO_REPARSE_TAG_MOUNT_POINT
     )
 
 
