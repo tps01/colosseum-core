@@ -100,8 +100,6 @@ def write_junit_report(
     result: FinalizeRunResult,
 ) -> Path:
     """Write ``junit.xml`` for one slot."""
-    suite = ET.Element("testsuite")
-    suite.set("name", ctx.test_case_name)
     cases: list[ET.Element] = []
     parameters_file = str(ctx.parameters_path) if ctx.parameters_path is not None else ""
     abort_cause = _first_abort_cause(result.commands)
@@ -117,6 +115,32 @@ def write_junit_report(
                 continue
             cases.append(_command_error_case(command, parameters_file=parameters_file))
 
+    if reason := result.summary.get("interruption_reason"):
+        cases.append(_interruption_case(reason))
+
+    path = _write_cases(output_dir, ctx.test_case_name, cases)
+    if ctx.logger is not None:
+        ctx.logger.info("Wrote JUnit report: %s", path)
+    return path
+
+
+def _interruption_case(reason: str) -> ET.Element:
+    case = ET.Element("testcase", {"classname": "colosseum", "name": "Run interrupted"})
+    ET.SubElement(case, "error", {"type": "Interrupted", "message": reason})
+    return case
+
+
+def write_suite_interruption(output_dir: Path, ctx: RuntimeContext, reason: str) -> None:
+    """Publish a suite interruption marker when no interrupted test slot reported one."""
+    reports = [slot for slot in ctx.suite_test_results if (slot.output_dir / "junit.xml").is_file()]
+    if any(slot.overall == "INCOMPLETE" for slot in reports):
+        return
+    if reports or "junit" in (ctx.enabled_reports | ctx.session.suite_reports):
+        _write_cases(output_dir, ctx.suite_name or ctx.test_case_name, [_interruption_case(reason)])
+
+
+def _write_cases(output_dir: Path, name: str, cases: list[ET.Element]) -> Path:
+    suite = ET.Element("testsuite", {"name": name})
     failure_count = sum(1 for case in cases if case.find("failure") is not None)
     error_count = sum(1 for case in cases if case.find("error") is not None)
     skipped_count = sum(1 for case in cases if case.find("skipped") is not None)
@@ -130,6 +154,4 @@ def write_junit_report(
     ET.indent(suite, space="  ")
     path = output_dir / "junit.xml"
     ET.ElementTree(suite).write(path, encoding="utf-8", xml_declaration=True)
-    if ctx.logger is not None:
-        ctx.logger.info("Wrote JUnit report: %s", path)
     return path

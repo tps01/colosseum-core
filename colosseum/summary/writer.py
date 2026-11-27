@@ -96,6 +96,8 @@ def _slot_count_lines(counts: dict[str, int | float]) -> list[str]:
     if total > 0:
         lines.append(f"Pass: {counts['pass_percent']:.1f}%")
         lines.append(f"Fail: {counts['fail_percent']:.1f}%")
+    if "incomplete" in counts:
+        lines.append(f"Incomplete: {int(counts['incomplete'])} ({counts['incomplete_percent']:.1f}%)")
     return lines
 
 
@@ -164,6 +166,7 @@ class SummaryWriter:
             *([f"Runtime: {timedelta(seconds=payload['duration_seconds'])}"] if "duration_seconds" in payload else []),
             f"Overall result: {payload['overall_result']}",
             f"Exit code: {payload['exit_code']}",
+            *([payload["interruption_reason"]] if "interruption_reason" in payload else []),
             *(["Dry run: yes"] if payload.get("dry_run") else []),
             "",
             f"Measurements: {measurement_count}",
@@ -246,6 +249,7 @@ class SuiteSummaryWriter:
             [
                 f"Overall result: {overall}",
                 f"Exit code: {exit_code}",
+                *([payload["interruption_reason"]] if "interruption_reason" in payload else []),
                 f"Fail-fast stopped: {'yes' if ctx.session.fail_fast_stopped else 'no'}",
             ],
         )

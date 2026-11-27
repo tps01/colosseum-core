@@ -713,9 +713,8 @@ def test_keyboard_interrupt_in_teardown_propagates(
     container = latest_suite_container(isolated_cwd)
     assert _slot_with_stem(container, "pass_test")
     assert _slot_with_stem(container, "teardown_keyboard_interrupt")
-    # Later teardown is skipped; suite summary is not written (Python default unwind).
     assert slot_dirs_matching(container, "teardown_ok") == []
-    assert not (container / "summary.json").is_file()
+    assert _container_summary(container)["overall_result"] == "INCOMPLETE"
 
 
 def _write_parameter_probe(tmp_path) -> tuple:

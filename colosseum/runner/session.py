@@ -22,12 +22,15 @@ if TYPE_CHECKING:
     from colosseum.runner.run_options import ExecutionMode
 
 RunKind = Literal["single", "suite"]
+INTERRUPTION_REASON = "Interrupted by user"
 
 
 @dataclass
 class RunSession:
     kind: RunKind = "single"
     suite_failed: bool = False
+    interrupted: bool = False
+    cancel_requested: bool = False
     suite_fail_reason: str | None = None
     fail_fast_stopped: bool = False
     fail_fast_stop_reason: str | None = None
@@ -39,6 +42,7 @@ class RunSession:
     metadata_pinned: bool = False
     metadata_pin_warned: bool = False
     suite_inputs: SuiteInputs | None = None
+    suite_reports: frozenset[str] = frozenset()
 
     def mark_suite_failed(self, reason: str) -> None:
         self.suite_failed = True

@@ -47,6 +47,7 @@ class RuntimeContext:
     suite_output_dir: Path | None = None
     suite_slot_results: list[Any] = field(default_factory=list)
     slot_finalized: bool = False
+    interrupted: bool = False
     slot_affects_suite_result: bool = False
     suite_finalized: bool = False
     slot_script_path: Path | None = None

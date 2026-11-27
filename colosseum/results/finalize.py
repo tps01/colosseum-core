@@ -13,6 +13,7 @@ from colosseum.runner.runtime import ensure_runtime_ready, rename_run_directory_
 
 if TYPE_CHECKING:
     import logging
+    from collections.abc import Callable
     from pathlib import Path
 
     from colosseum.context import RuntimeContext
@@ -36,6 +37,7 @@ def close_resource_cache(
     cache: dict[str, object],
     *,
     logger: logging.Logger | None = None,
+    on_interrupt: Callable[[], None] | None = None,
 ) -> None:
     if not cache:
         return
@@ -48,6 +50,10 @@ def close_resource_cache(
             continue
         try:
             close()
+        except KeyboardInterrupt:
+            if on_interrupt is None:
+                raise
+            on_interrupt()
         except Exception:  # noqa: BLE001
             if logger is not None:
                 logger.exception("Failed to close cached resource %s", key)
@@ -127,24 +133,35 @@ def _write_run_artifacts(
 
 
 def _finalize_shutdown_and_drain(ctx: RuntimeContext, policy: FinalizePolicy) -> None:
+    def mark_interrupted() -> None:
+        if ctx.interrupted:
+            raise KeyboardInterrupt
+        ctx.interrupted = True
+
+    ctx.interrupted |= ctx.session.cancel_requested
     # Existing producers finish before the evidence barrier and owed-key check.
     # Suite shutdown remains owned by the suite, never by an individual slot.
     if policy.run_shutdown:
         if ctx.logger is not None:
             ctx.logger.debug("Running plugin shutdown hooks")
-        ctx.plugin_registry.run_shutdown()
+        try:
+            ctx.plugin_registry.run_shutdown()
+        except KeyboardInterrupt:
+            mark_interrupted()
     if policy.close_resources:
-        close_resource_cache(ctx.resource_cache, logger=ctx.logger)
+        try:
+            close_resource_cache(ctx.resource_cache, logger=ctx.logger, on_interrupt=mark_interrupted)
+        except KeyboardInterrupt:
+            mark_interrupted()
 
+    ctx.interrupted |= ctx.session.cancel_requested
     if ctx.db.is_initialized():
         ctx.db.drain()
-        _insert_blocked_owed_keys(ctx)
+        if not ctx.interrupted:
+            _insert_blocked_owed_keys(ctx)
 
 
 def _finalize_collect(ctx: RuntimeContext, policy: FinalizePolicy) -> FinalizeRunResult:
-    code = ctx.result_aggregator.exit_code()
-    overall = "PASS" if code == 0 else "FAIL"
-
     if policy.kind == "single" and ctx.logger is not None:
         counts = ctx.result_aggregator.counts()
         ctx.logger.debug(
@@ -176,8 +193,8 @@ def _finalize_collect(ctx: RuntimeContext, policy: FinalizePolicy) -> FinalizeRu
         command_count=command_count,
     )
     return FinalizeRunResult(
-        exit_code=code,
-        overall=overall,
+        exit_code=summary["exit_code"],
+        overall=summary["overall_result"],
         measurement_count=measurement_count,
         command_count=command_count,
         verifications=verifications,
@@ -193,6 +210,8 @@ def _finalize_log_and_close(
     result: FinalizeRunResult,
 ) -> None:
     if ctx.logger is not None:
+        if reason := result.summary.get("interruption_reason"):
+            ctx.logger.info("%s", reason)
         if policy.kind == "single" and policy.log_overall:
             ctx.logger.info(
                 "Overall result: %s (exit %s)",
@@ -235,7 +254,7 @@ def _finalize_persist_and_artifacts(
     if ctx.output_dir is not None and (ctx.output_dir / "execution.sqlite").is_file():
         stored = {
             **result.summary,
-            "stored_status": result.overall if policy.scores_suite else "N/A",
+            "stored_status": result.overall if policy.scores_suite or ctx.interrupted else "N/A",
         }
         DatabaseManager.persist_results(
             ctx.output_dir / "execution.sqlite",

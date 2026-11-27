@@ -99,21 +99,24 @@ def _run_single_test(
     )
     ctx.debug_logging = debug
     ctx.active_execution_mode = options.execution_mode
-    _load_run_config(config_path, metadata_path)
-    ensure_runtime_ready(ctx)
     from colosseum.config.parameters import resolve_parameters_path
     from colosseum.results.reports import apply_enabled_reports
 
-    apply_enabled_reports(ctx)
-    resolved_parameters = resolve_parameters_path(
-        script_path=test_path,
-        cli_path=options.parameters_path,
-    )
-    if not _prepare_single_parameters(ctx, options, test_path, resolved_parameters):
-        return
-    record_single_provenance(ctx, test_path, resolved_parameters)
-    _import_previous_evidence(ctx, options)
     try:
+        _load_run_config(config_path, metadata_path)
+        ensure_runtime_ready(ctx)
+        apply_enabled_reports(ctx)
+        resolved_parameters = resolve_parameters_path(
+            script_path=test_path,
+            cli_path=options.parameters_path,
+        )
+        if not _prepare_single_parameters(ctx, options, test_path, resolved_parameters):
+            return
+        record_single_provenance(ctx, test_path, resolved_parameters)
+        _import_previous_evidence(ctx, options)
         _execute_single_test_body(ctx, test_path)
-    finally:
-        endex()
+    except KeyboardInterrupt:
+        if ctx.finalized:
+            raise
+        ctx.interrupted = True
+    endex()
