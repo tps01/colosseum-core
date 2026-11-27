@@ -8,7 +8,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 from colosseum.config.toml_io import coerce_config_bool, read_toml
-from colosseum.paths import absolute_path
+from colosseum.paths import absolute_path, link_target
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -208,7 +208,7 @@ def load_suite_toml(path: Path) -> SuiteDefinition:
     name = raw.get("name")
     if not name or not isinstance(name, str):
         raise SuiteError("Suite TOML requires string field `name`")
-    base = suite_path.parent
+    base = link_target(suite_path).parent
     tests = _parse_tests(raw.get("tests"), base)
     if not tests:
         raise SuiteError("Suite TOML requires non-empty `tests` list")

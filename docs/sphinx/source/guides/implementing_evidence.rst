@@ -40,7 +40,17 @@ For a voltage-style check, first follow ``@measurement`` in
    are retained for recording and removed from the body call when undeclared.
    An explicitly supplied measurement ``key`` is forwarded; only an automatic
    measurement key can be stripped when the body does not declare it.
-   ``coerce_units`` resolves explicit unit values just before invocation.
+   ``coerce_units`` resolves unit strings for named parameters just before
+   invocation, whether the values were supplied positionally or by keyword.
+   Frequency arguments and inputs declared with
+   ``colosseum.units.unit_inputs`` share case-sensitive prefixes and optional
+   whitespace. For example, ``"10e3kHz"`` and ``"10 MHz"`` both pass
+   10,000,000 Hz to the body. Apply ``@unit_inputs(voltage="V")`` below the
+   evidence decorator to convert a named input such as ``"500 mV"`` to volts.
+   For resistance, uppercase ``R`` can stand in for the ohm symbol, as in
+   ``"47R"`` or ``"2 kR"``.
+   Duration strings use lowercase units and keep compound forms such as
+   ``"1h30m"``. The symbol ``m`` in a duration means minutes.
    Measurement wrappers only take ``optional`` from their parameter section;
    ``load_parameter`` returns TOML values as loaded, with no coercion.
 3. **After the body:** a measurement records its value and returns the original

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from colosseum.config.toml_io import coerce_config_bool, read_toml
 from colosseum.exceptions import ProceduralFault
+from colosseum.paths import absolute_path, link_target
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -45,14 +46,16 @@ def resolve_parameters_path(
     Order: suite-level path (CLI ``--parameters`` or suite TOML ``parameters``),
     suite entry ``parameters``, sibling ``parameters.toml`` beside the script.
     """
-    from colosseum.paths import absolute_path
-
     if cli_path is not None:
         return absolute_path(cli_path)
     if entry_path is not None:
         return absolute_path(entry_path)
     if script_path is not None:
-        sibling = absolute_path(script_path).with_name("parameters.toml")
+        try:
+            target = link_target(script_path)
+        except OSError:
+            return None  # The runner handles invalid scripts.
+        sibling = target.with_name("parameters.toml")
         if sibling.is_file():
             return sibling
     return None
@@ -71,8 +74,6 @@ def merge_parameter_tables(
 
 def load_parameters_file(path: Path) -> dict[str, dict[str, Any]]:
     """Load a parameters TOML file. Tables are keys; values are kwargs."""
-    from colosseum.paths import absolute_path
-
     resolved = absolute_path(path)
     if not resolved.is_file():
         raise ParametersError(f"Parameters file not found: {resolved}")
@@ -162,8 +163,6 @@ def _suite_parameter_paths(
 
 
 def _attach_parameter_sources(ctx: RuntimeContext, sources: list[Path]) -> None:
-    from colosseum.paths import absolute_path
-
     ctx.parameters_map = None
     ctx.parameters_path = None
     if not sources:
@@ -186,8 +185,6 @@ def _attach_parameter_sources(ctx: RuntimeContext, sources: list[Path]) -> None:
 
 def attach_parameters(ctx: RuntimeContext, path: Path | None, *, required: bool = False) -> None:
     """Attach one file, preserving optional sibling-file behavior."""
-    from colosseum.paths import absolute_path
-
     resolved = absolute_path(path) if path is not None else None
     if resolved is not None and not required and not resolved.is_file():
         resolved = None

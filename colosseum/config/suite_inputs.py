@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from colosseum.config.loader import ConfigError, _load_toml, _resolve_load_path, apply_raw_config
 from colosseum.config.metadata import _apply_metadata, _read_metadata_yaml
+from colosseum.paths import link_target
 from colosseum.plugins.loader import ensure_plugins_loaded
 from colosseum.results.reports import apply_enabled_reports
 
@@ -68,8 +69,13 @@ class SuiteInputs:
 
     def test_path(self, kind: InputKind, entry: SuiteTestEntry) -> Path | None:
         explicit = entry.config if kind == "config" else entry.metadata
-        sibling = entry.path.with_name(_SIBLING[kind])
-        return explicit if explicit is not None else sibling if sibling.is_file() else None
+        if explicit is not None:
+            return explicit
+        try:
+            sibling = link_target(entry.path).with_name(_SIBLING[kind])
+        except OSError:
+            return None  # The runner handles invalid scripts.
+        return sibling if sibling.is_file() else None
 
     def label_slot(self, ctx: RuntimeContext, entry: SuiteTestEntry | None) -> None:
         # The slot's logger and database read these paths before loading files.

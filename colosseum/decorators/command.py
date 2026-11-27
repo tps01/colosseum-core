@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, TypeVar, overload
 
 from colosseum.config.parameters import (
     ParametersError,
-    apply_parameters_to_kwargs,
     coerce_optional_kwarg,
 )
 from colosseum.database import CommandRow
@@ -17,6 +16,8 @@ from colosseum.exceptions import ProceduralFault
 
 from ._common import (
     bind_dry_run_policy,
+    forwarded_kwargs,
+    merge_call_parameters,
     optional_from_caller,
     publish_optional_parameter,
     resolve_command,
@@ -61,8 +62,7 @@ class _CommandBinding:
     command: str
     func: Callable[..., Any]
     dry_run: object
-    accepts_optional: bool
-    accepts_key: bool
+    wrapper_keywords: frozenset[str]
 
     def should_skip(self, ctx: RuntimeContext) -> bool:
         return should_skip_command(ctx)
@@ -90,8 +90,7 @@ class _CommandBinding:
             "call_args": args,
             "kwargs": kwargs,
             "apply_parameters": True,
-            "pop_key": not self.accepts_key,
-            "pop_optional": not self.accepts_optional,
+            "wrapper_keywords": self.wrapper_keywords,
         }
 
     def prepare(
@@ -103,24 +102,16 @@ class _CommandBinding:
     ) -> PreparedCall | EarlyReturn:
         call_kwargs = dict(kwargs)
         try:
-            if identity.key_text:
-                call_kwargs = apply_parameters_to_kwargs(
-                    call_kwargs,
-                    key=identity.key_text,
-                    parameters=ctx.parameters_map,
-                )
+            call_kwargs = merge_call_parameters(
+                ctx, kwargs, identity.key_text, apply_parameters=True,
+            )
             optional = coerce_optional_kwarg(call_kwargs)
         except ParametersError as exc:
             return self._parameters_error(ctx, identity, args, kwargs, call_kwargs, exc)
-        logged_kwargs = dict(call_kwargs)
-        if not self.accepts_optional:
-            call_kwargs.pop("optional", None)
-        if not self.accepts_key:
-            call_kwargs.pop("key", None)
         return PreparedCall(
             optional=optional,
-            call_kwargs=call_kwargs,
-            logged_kwargs=logged_kwargs,
+            call_kwargs=forwarded_kwargs(call_kwargs, self.wrapper_keywords),
+            logged_kwargs=call_kwargs,
             call_args=args,
         )
 
@@ -281,8 +272,7 @@ def command(_func: Callable[..., Any] | None = None, *, dry_run: object = "log")
             command=resolve_command(func),
             func=func,
             dry_run=dry_run,
-            accepts_optional="optional" in params,
-            accepts_key="key" in params,
+            wrapper_keywords=frozenset({"key", "optional"}.difference(params)),
         )
 
         @wraps(func)

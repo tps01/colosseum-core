@@ -302,8 +302,8 @@ aggregator, writes artifacts, and raises ``SystemExit`` with 0 or 1.
 3. Read settled evidence for report callbacks and build one compact finalized
    summary. Log the verdict, close log handlers, and stop/join the database
    writer before closing its connection.
-4. Rename the result folder with ``-pass`` or ``-fail``. Commit the finalized
-   SQLite snapshot and legacy result metadata together, then render
+4. Rename the result folder with ``-pass``, ``-fail``, or ``-incomplete``.
+   Commit the finalized SQLite snapshot and result metadata together, then render
    ``summary.txt`` and ``summary.json`` from that conclusion and call enabled
    report listeners once. See :doc:`output_artifacts` for the stored format.
 

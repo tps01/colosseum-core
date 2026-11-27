@@ -21,6 +21,8 @@ import contextlib
 import fnmatch
 import os
 import shutil
+import stat
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -60,6 +62,49 @@ ROOT_DIRS = (
 VENV_DIR_NAMES = frozenset({".venv", "venv", "ENV", "env"})
 
 
+def _is_link(path: Path) -> bool:
+    info = path.lstat()
+    return stat.S_ISLNK(info.st_mode) or (
+        sys.platform == "win32" and getattr(info, "st_reparse_tag", 0) == stat.IO_REPARSE_TAG_MOUNT_POINT
+    )
+
+
+def _ordinary_path(root: Path, path: Path) -> bool:
+    current = root
+    for part in path.relative_to(root).parts:
+        current /= part
+        try:
+            if _is_link(current):
+                return False
+        except (FileNotFoundError, NotADirectoryError):
+            return False
+    return True
+
+
+def _prune_links(current: Path, names: list[str]) -> None:
+    names[:] = [name for name in names if _ordinary_path(current, current / name)]
+
+
+def _raise_walk_error(error: OSError) -> None:
+    raise error
+
+
+def _safe_to_remove(root: Path, path: Path) -> bool:
+    try:
+        if not _ordinary_path(root, path):
+            return False
+        if not path.is_dir():
+            return True
+        for dirpath, dirs, files in os.walk(path, onerror=_raise_walk_error):
+            if any(_is_link(Path(dirpath) / name) for name in dirs + files):
+                print(f"Skipping {path.relative_to(root)} because it contains a link.")
+                return False
+    except OSError as exc:
+        print(f"Skipping {path.relative_to(root)} because it could not be inspected ({exc}).")
+        return False
+    return True
+
+
 def _is_venv_top_level(name: str) -> bool:
     if name in VENV_DIR_NAMES:
         return True
@@ -70,10 +115,15 @@ def _iter_venv_top_level_dirs(root: Path) -> list[Path]:
     dirs: list[Path] = []
     for name in VENV_DIR_NAMES:
         path = root / name
-        if path.is_dir():
+        if _ordinary_path(root, path) and path.is_dir():
             dirs.append(path)
     for child in root.iterdir():
-        if child.is_dir() and _is_venv_top_level(child.name) and child.name not in VENV_DIR_NAMES:
+        if (
+            _is_venv_top_level(child.name)
+            and child.name not in VENV_DIR_NAMES
+            and _ordinary_path(root, child)
+            and child.is_dir()
+        ):
             dirs.append(child)
     return dirs
 
@@ -132,6 +182,8 @@ def _collect_venv_artifacts(root: Path) -> list[Path]:
     for venv in _iter_venv_top_level_dirs(root):
         for dirpath, dirnames, filenames in os.walk(venv, topdown=True):
             current = Path(dirpath)
+            _prune_links(current, dirnames)
+            _prune_links(current, filenames)
             for dirname in list(dirnames):
                 if dirname in VENV_ARTIFACT_DIR_NAMES:
                     targets.append(current / dirname)
@@ -151,11 +203,13 @@ def _collect_paths(
 
     for name in ROOT_DIRS:
         path = root / name
-        if path.exists():
+        if _ordinary_path(root, path):
             targets.append(path)
 
     for pattern in ("*-offline-*.zip", "*-offline-*.tar.gz"):
-        targets.extend(path for path in root.glob(pattern) if path.is_file())
+        targets.extend(
+            path for path in root.glob(pattern) if _ordinary_path(root, path) and path.is_file()
+        )
 
     if keep_venvs:
         targets.extend(_collect_venv_artifacts(root))
@@ -163,7 +217,7 @@ def _collect_paths(
         targets.extend(_iter_venv_top_level_dirs(root))
 
     for egg_info in root.glob("*.egg-info"):
-        if egg_info.is_dir():
+        if _ordinary_path(root, egg_info) and egg_info.is_dir():
             targets.append(egg_info)
 
     for dirpath, dirnames, filenames in os.walk(root, topdown=True):
@@ -173,6 +227,8 @@ def _collect_paths(
             dirnames.clear()
             continue
 
+        _prune_links(current, dirnames)
+        _prune_links(current, filenames)
         for dirname in list(dirnames):
             if dirname in WALK_DIR_NAMES or _matches_any(dirname, WALK_DIR_GLOBS):
                 targets.append(current / dirname)
@@ -186,7 +242,10 @@ def _collect_paths(
                 targets.append(current / filename)
 
     # Deduplicate: drop paths inside another target (keep outermost only).
-    targets = sorted(set(targets), key=lambda p: (len(p.parts), str(p)))
+    targets = sorted(
+        (path for path in set(targets) if _safe_to_remove(root, path)),
+        key=lambda p: (len(p.parts), str(p)),
+    )
     pruned: list[Path] = []
     for path in targets:
         if any(path != other and other in path.parents for other in targets):
@@ -199,10 +258,13 @@ def _format_size(path: Path) -> str:
     if path.is_file():
         return f"{path.stat().st_size} B"
     total = 0
-    for p in path.rglob("*"):
-        if p.is_file():
+    for dirpath, dirs, files in os.walk(path):
+        current = Path(dirpath)
+        _prune_links(current, dirs)
+        _prune_links(current, files)
+        for name in files:
             with contextlib.suppress(OSError):
-                total += p.stat().st_size
+                total += (current / name).lstat().st_size
     if total < 1024:
         return f"{total} B"
     if total < 1024 * 1024:
@@ -263,7 +325,7 @@ def main(argv: list[str] | None = None) -> int:
     for path in targets:
         rel = path.relative_to(root)
         try:
-            size = _format_size(path) if path.exists() else "missing"
+            size = _format_size(path) if _ordinary_path(root, path) else "missing"
         except OSError:
             size = "?"
         print(f"  {rel}  ({size})")
@@ -273,7 +335,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     for path in targets:
-        _remove(path, dry_run=False)
+        if _safe_to_remove(root, path):
+            _remove(path, dry_run=False)
 
     leftover = [path for path in targets if path.exists()]
     if leftover:

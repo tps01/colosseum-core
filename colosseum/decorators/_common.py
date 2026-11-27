@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from colosseum.config.parameters import (
     ParametersError,
+    apply_parameters_to_kwargs,
     coerce_bool,
 )
 from colosseum.context import RuntimeContext, get_context
@@ -243,6 +244,33 @@ def bind_dry_run_policy(wrapper: Callable[..., Any], policy: object) -> None:
             f"dry_run must be 'log', 'call', or a callable, got {type(policy).__name__}",
         )
     setattr(wrapper, DRY_RUN_ATTR, policy)
+
+
+def merge_call_parameters(
+    ctx: RuntimeContext,
+    kwargs: dict[str, Any],
+    key: str,
+    *,
+    apply_parameters: bool,
+    optional_only: bool = False,
+) -> dict[str, Any]:
+    """Copy caller inputs and apply the parameter fields allowed for this call."""
+    if apply_parameters and key:
+        return apply_parameters_to_kwargs(kwargs, key=key, parameters=ctx.parameters_map)
+    resolved = dict(kwargs)
+    if optional_only and ctx.parameters_map is not None:
+        section = ctx.parameters_map.get(key, {})
+        if "optional" in section:
+            resolved["optional"] = section["optional"]
+    return resolved
+
+
+def forwarded_kwargs(
+    resolved: dict[str, Any],
+    wrapper_keywords: frozenset[str],
+) -> dict[str, Any]:
+    """Keep the resolved evidence inputs intact while preparing body inputs."""
+    return {name: value for name, value in resolved.items() if name not in wrapper_keywords}
 
 
 def optional_from_caller(kwargs: dict[str, Any]) -> bool:

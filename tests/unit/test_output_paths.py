@@ -29,7 +29,7 @@ def test_allocate_run_directory_format_and_collision(isolated_cwd, monkeypatch) 
     monkeypatch.setattr("colosseum.runner.runtime.datetime", _Frozen)
     outputs_root = isolated_cwd / "outputs"
     first = allocate_run_directory(outputs_root, "smoke test")
-    first.mkdir()
+    assert first.is_dir()
     second = allocate_run_directory(outputs_root, "smoke test")
     assert first.name == "2026-01-02_030405_smoke_test"
     assert second.name == "2026-01-02_030405_smoke_test_1"

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from inspect import Parameter, signature
 from typing import TYPE_CHECKING, Any
 
 from colosseum.units import coerce_units
@@ -107,7 +108,14 @@ def _invoke_body(
     args: tuple[Any, ...],
 ) -> Any:  # noqa: ANN401
     try:
-        prepared.call_kwargs = coerce_units(prepared.call_kwargs)
+        prepared.call_kwargs = coerce_units(prepared.call_kwargs, func=binding.func)
+        if any(isinstance(value, str) for value in args):
+            names = [
+                param.name for param in signature(binding.func).parameters.values()
+                if param.kind in (Parameter.POSITIONAL_ONLY, Parameter.POSITIONAL_OR_KEYWORD)
+            ]
+            positional = coerce_units(dict(zip(names, args)), func=binding.func)
+            args = (*positional.values(), *args[len(positional):])
         value = binding.func(*args, **prepared.call_kwargs)
         return binding.persist_success(ctx, identity, prepared, value)
     except Exception as exc:  # noqa: BLE001

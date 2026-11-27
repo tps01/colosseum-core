@@ -135,7 +135,7 @@ def _resolve_load_path(path: str | Path, *, label: str) -> Path:
     """
     import sys
 
-    from colosseum.paths import absolute_path
+    from colosseum.paths import absolute_path, link_target
 
     supplied = Path(path)
     # Keep mapped drive letters; absolute() is enough for existence checks.
@@ -152,7 +152,7 @@ def _resolve_load_path(path: str | Path, *, label: str) -> Path:
             if main_file and not str(main_file).startswith("<"):
                 script = absolute_path(main_file)
         if script is not None:
-            candidate = absolute_path(script.parent / supplied)
+            candidate = absolute_path(link_target(script).parent / supplied)
             if candidate not in candidates:
                 candidates.append(candidate)
     for candidate in candidates:

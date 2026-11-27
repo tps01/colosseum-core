@@ -9,13 +9,14 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, TypeVar, overload
 
 from colosseum.config.parameters import (
     ParametersError,
-    apply_parameters_to_kwargs,
     coerce_optional_kwarg,
 )
 from colosseum.database import VerificationRow
 
 from ._common import (
     bind_dry_run_policy,
+    forwarded_kwargs,
+    merge_call_parameters,
     optional_from_caller,
     publish_description_parameter,
     publish_optional_parameter,
@@ -130,10 +131,7 @@ class _VerificationBinding:
     command: str
     func: Callable[..., Any]
     dry_run: object
-    accepts_description: bool
-    accepts_requirements: bool
-    accepts_key: bool
-    accepts_optional: bool
+    wrapper_keywords: frozenset[str]
 
     def should_skip(self, ctx: RuntimeContext) -> bool:
         return should_skip_verification(ctx)
@@ -166,12 +164,8 @@ class _VerificationBinding:
             "kwargs": kwargs,
             "description": _clean_description(kwargs.get("description")) or "",
             "requirements": _safe_requirements(kwargs),
-            "injected": identity.injected,
             "apply_parameters": bool(identity.key) and not identity.injected,
-            "pop_key": not self.accepts_key,
-            "pop_optional": not self.accepts_optional,
-            "pop_description": not self.accepts_description,
-            "pop_requirements": not self.accepts_requirements,
+            "wrapper_keywords": self.wrapper_keywords,
         }
 
     def prepare(
@@ -183,12 +177,9 @@ class _VerificationBinding:
     ) -> PreparedCall | EarlyReturn:
         call_kwargs = dict(kwargs)
         try:
-            if identity.key and not identity.injected:
-                call_kwargs = apply_parameters_to_kwargs(
-                    call_kwargs,
-                    key=identity.key_text,
-                    parameters=ctx.parameters_map,
-                )
+            call_kwargs = merge_call_parameters(
+                ctx, kwargs, identity.key_text, apply_parameters=bool(identity.key) and not identity.injected,
+            )
             optional = coerce_optional_kwarg(call_kwargs)
         except ParametersError as exc:
             return EarlyReturn(
@@ -222,19 +213,10 @@ class _VerificationBinding:
                     include_requirements=False,
                 ),
             )
-        logged_kwargs = dict(call_kwargs)
-        if not self.accepts_optional:
-            call_kwargs.pop("optional", None)
-        if not self.accepts_description:
-            call_kwargs.pop("description", None)
-        if not self.accepts_requirements:
-            call_kwargs.pop("requirements", None)
-        if not self.accepts_key:
-            call_kwargs.pop("key", None)
         return PreparedCall(
             optional=optional,
-            call_kwargs=call_kwargs,
-            logged_kwargs=logged_kwargs,
+            call_kwargs=forwarded_kwargs(call_kwargs, self.wrapper_keywords),
+            logged_kwargs=call_kwargs,
             call_args=args,
             description=description or "",
             requirements=requirements,
@@ -408,10 +390,7 @@ def verification(
             command=resolve_command(func),
             func=func,
             dry_run=dry_run,
-            accepts_description="description" in parameters,
-            accepts_requirements="requirements" in parameters,
-            accepts_key="key" in parameters,
-            accepts_optional="optional" in parameters,
+            wrapper_keywords=frozenset({"key", "optional", "description", "requirements"}.difference(parameters)),
         )
 
         @wraps(func)
