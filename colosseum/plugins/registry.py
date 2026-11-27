@@ -119,6 +119,8 @@ def register_builtin_listeners(registry: PluginRegistry) -> None:
     """Register core WATS and JUnit listeners (opt-in via reports config/CLI)."""
 
     def _wats(output_dir: Path, result: FinalizeRunResult, ctx: RuntimeContext) -> None:
+        if result.overall == "INCOMPLETE":
+            return
         from colosseum.summary.wats import write_wats_report
 
         write_wats_report(

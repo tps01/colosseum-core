@@ -245,6 +245,29 @@ def _invoke_slot_script(
     return False
 
 
+def _execute_slot(
+    suite: SuiteDefinition,
+    ctx: RuntimeContext,
+    script: Path,
+    runner: _ScriptRunner,
+    entry: SuiteTestEntry | None,
+) -> bool:
+    phase = ctx.phase
+    if not _attach_slot_inputs(suite, ctx, script, phase=phase, entry=entry):
+        return True
+    test_index = ctx.slot_test_index
+    repeat_index = ctx.slot_repeat_index
+    if test_index is not None and repeat_index is not None and entry is not None:
+        _insert_repeat_metadata(
+            ctx, script, test_index=test_index, repeat_index=repeat_index,
+            cycle_index=ctx.slot_cycle_index, entry=entry,
+        )
+    crashed = _invoke_slot_script(ctx, script, runner, phase=phase)
+    if ctx.session.cancel_requested:
+        raise KeyboardInterrupt
+    return crashed
+
+
 def _run_script_slot(
     suite: SuiteDefinition,
     ctx: RuntimeContext,
@@ -259,7 +282,6 @@ def _run_script_slot(
     entry: SuiteTestEntry | None = None,
 ) -> bool:
     """Run one script slot. Returns True when fail_fast should stop non-teardown work."""
-    slot_started = False
     try:
         if ctx.session.suite_inputs is not None:
             ctx.session.suite_inputs.label_slot(ctx, entry)
@@ -269,7 +291,6 @@ def _run_script_slot(
             phase=phase,
             affects_suite_result=affects_suite_result,
         )
-        slot_started = True
     except Exception as exc:  # noqa: BLE001 - continue suite; signals propagate
         if ctx.logger is not None:
             ctx.logger.exception("Script slot start failed for %s: %s", script, exc)
@@ -287,29 +308,9 @@ def _run_script_slot(
     ctx.slot_repeat_index = repeat_index
     ctx.slot_cycle_index = cycle_index
 
-    script_crash = False
     stop_fail_fast = False
     try:
-        inputs_ok = _attach_slot_inputs(
-            suite,
-            ctx,
-            script,
-            phase=phase,
-            entry=entry,
-        )
-        if not inputs_ok:
-            script_crash = True
-        else:
-            if test_index is not None and repeat_index is not None and entry is not None:
-                _insert_repeat_metadata(
-                    ctx,
-                    script,
-                    test_index=test_index,
-                    repeat_index=repeat_index,
-                    cycle_index=cycle_index,
-                    entry=entry,
-                )
-            script_crash = _invoke_slot_script(ctx, script, runner, phase=phase)
+        script_crash = _execute_slot(suite, ctx, script, runner, entry)
 
         slot_has_failure = script_crash or not ctx.result_aggregator.overall_pass()
         if slot_has_failure:
@@ -322,6 +323,9 @@ def _run_script_slot(
                 affects_suite_result=affects_suite_result,
                 reason=reason,
             )
+    except KeyboardInterrupt:
+        ctx.interrupted = not ctx.slot_finalized
+        raise
     except Exception as exc:  # noqa: BLE001 - finalize slot; signals propagate
         if ctx.logger is not None:
             ctx.logger.exception("Script slot failed for %s: %s", script, exc)
@@ -335,7 +339,7 @@ def _run_script_slot(
             reason="slot_error",
         )
     finally:
-        if slot_started and not ctx.slot_finalized:
+        if not ctx.slot_finalized:
             finalize_script_slot(
                 ctx,
                 script_path=script,
@@ -343,6 +347,8 @@ def _run_script_slot(
                 repeat_index=repeat_index,
                 cycle_index=cycle_index,
             )
+    if ctx.interrupted:
+        raise KeyboardInterrupt
     return stop_fail_fast
 
 
@@ -489,6 +495,7 @@ def _bootstrap_suite(
             if (path := inputs.test_path(kind, entry)) is not None
         ]
     apply_enabled_reports(ctx)
+    ctx.session.suite_reports = ctx.enabled_reports
     ensure_suite_runtime_ready(ctx, suite.name)
     suite_level = options.parameters_path if options.parameters_path is not None else suite.parameters
     record_suite_provenance(
@@ -545,6 +552,8 @@ def _run_suite_body(
         if ctx.logger is not None:
             ctx.logger.exception("Suite execution failed: %s", exc)
         ctx.session.mark_suite_failed(f"suite_crash:{exc}")
+    except KeyboardInterrupt:
+        raise
     except BaseException as exc:
         interrupt = exc
         if ctx.logger is not None:
@@ -597,8 +606,13 @@ def run_suite(
     interrupt: BaseException | None = None
     try:
         interrupt = _run_suite_body(suite, ctx, runner)
-    finally:
+        if ctx.session.cancel_requested:
+            raise KeyboardInterrupt
         _run_suite_teardown(suite, ctx, runner)
+    except KeyboardInterrupt:
+        ctx.session.interrupted = True
+        raise
+    finally:
         code = finalize_suite(ctx)
 
     if interrupt is not None:

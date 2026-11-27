@@ -2,13 +2,18 @@ from __future__ import annotations
 
 import argparse
 import faulthandler
+import os
+import signal
 import sys
+import threading
 from importlib import import_module
 from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from colosseum.context import RuntimeContext
 
 from colosseum.config import ConfigError
 from colosseum.paths import absolute_path
@@ -21,6 +26,7 @@ from colosseum.runner.run_options import (
 )
 from colosseum.runner.runtime import OutputNotWritableError
 
+from .session import INTERRUPTION_REASON
 from .single_run import _run_single_test
 from .suite import run_suite
 from .suite_toml import SuiteError
@@ -341,7 +347,79 @@ def _wrap_dispatch(
         def wrapped() -> int:
             return run_with_no_sleep(awake_action)
 
-    return wrapped()
+    return _run_interruptibly(wrapped)
+
+
+def _active_context() -> RuntimeContext | None:
+    from colosseum.context import get_context
+
+    try:
+        return get_context()
+    except RuntimeError:
+        return None
+
+
+def _watch_stop_marker(path: Path, finished: threading.Event, main_thread_id: int) -> None:
+    while not finished.is_set():
+        if path.exists():
+            if sys.platform == "win32":
+                signal.raise_signal(signal.SIGINT)
+            else:
+                signal.pthread_kill(main_thread_id, signal.SIGINT)
+            return
+        finished.wait(0.1)
+
+
+def _interrupt_exit_code(previous: RuntimeContext | None) -> int:
+    ctx = _active_context()
+    if ctx is not None and ctx is not previous and ctx.finalized and ctx.final_exit_code is not None:
+        return ctx.final_exit_code
+    print(f"Overall result: INCOMPLETE (exit 1) - {INTERRUPTION_REASON}", file=sys.stderr)
+    return 1
+
+
+def _run_interruptibly(action: Callable[[], int]) -> int:
+    if threading.current_thread() is not threading.main_thread():
+        return action()
+    previous = _active_context()
+    try:
+        return _run_with_interrupt_handlers(action, previous)
+    except KeyboardInterrupt:
+        return _interrupt_exit_code(previous)
+
+
+def _run_with_interrupt_handlers(action: Callable[[], int], previous: RuntimeContext | None) -> int:
+    def interrupt(_signum: int, _frame: object) -> NoReturn:
+        ctx = _active_context()
+        if ctx is not None and ctx is not previous and not ctx.finalized:
+            ctx.session.cancel_requested = True
+        raise KeyboardInterrupt
+
+    finished = threading.Event()
+    handlers = {}
+    watcher = None
+
+    try:
+        for sig in (signal.SIGINT, signal.SIGTERM, getattr(signal, "SIGBREAK", None)):
+            if sig is not None:
+                handlers[sig] = signal.signal(sig, interrupt)
+        if stop_path := os.environ.get("COLOSSEUM_GUI_STOP_FILE"):
+            marker = Path(stop_path)
+            if marker.exists():
+                raise KeyboardInterrupt
+            watcher = threading.Thread(
+                target=_watch_stop_marker, args=(marker, finished, threading.get_ident()), daemon=True,
+            )
+            watcher.start()
+        return action()
+    finally:
+        finished.set()
+        try:
+            if watcher is not None and watcher.ident is not None:
+                watcher.join()
+        finally:
+            for sig, handler in handlers.items():
+                signal.signal(sig, handler)
 
 
 def _frozen_gui() -> int | None:

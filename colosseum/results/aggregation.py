@@ -5,6 +5,8 @@ from collections import Counter
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Protocol, TypedDict
 
+from colosseum.runner.session import INTERRUPTION_REASON
+
 if TYPE_CHECKING:
     from colosseum.context import RuntimeContext
     from colosseum.runner.runtime import SuiteSlotResult
@@ -239,7 +241,7 @@ def build_run_summary(
         statuses = counts["optional" if row["optional"] else "required"]
         statuses[row["status"]] = statuses.get(row["status"], 0) + 1
     failed = aggregator.failed_required_outcomes()
-    code = aggregator.exit_code()
+    code = 1 if ctx.interrupted else aggregator.exit_code()
     payload: dict[str, Any] = {
         "colosseum_version": ctx.framework_version,
         "test_case": ctx.test_case_name,
@@ -249,7 +251,7 @@ def build_run_summary(
         "metadata_path": ctx.metadata_path or None,
         "output_directory": str(ctx.output_dir) if ctx.output_dir else None,
         "end_time_utc": datetime.now(timezone.utc).isoformat(),
-        "overall_result": "PASS" if code == 0 else "FAIL",
+        "overall_result": ("INCOMPLETE" if ctx.interrupted else "FAIL") if code else "PASS",
         "exit_code": code,
         "measurement_count": measurement_count,
         "command_count": command_count,
@@ -270,6 +272,8 @@ def build_run_summary(
         "outcomes": records,
         "optional_outcomes": aggregator.optional_outcomes(),
     }
+    if ctx.interrupted:
+        payload["interruption_reason"] = INTERRUPTION_REASON
     if ctx.started_at is not None:
         payload["start_time_utc"] = ctx.started_at.astimezone(timezone.utc).isoformat()
     if ctx.started_monotonic is not None:
@@ -291,11 +295,15 @@ def _text(value: object) -> str:
 def _test_slot_counts(slots: list[SuiteSlotResult]) -> dict[str, int | float]:
     total = len(slots)
     passed = sum(1 for slot in slots if slot.overall == "PASS")
-    failed = total - passed
+    failed = sum(1 for slot in slots if slot.overall == "FAIL")
+    incomplete = sum(1 for slot in slots if slot.overall == "INCOMPLETE")
     counts: dict[str, int | float] = {"total": total, "pass": passed, "fail": failed}
     if total > 0:
         counts["pass_percent"] = round(100.0 * passed / total, 1)
         counts["fail_percent"] = round(100.0 * failed / total, 1)
+    if incomplete:
+        counts["incomplete"] = incomplete
+        counts["incomplete_percent"] = round(100.0 * incomplete / total, 1)
     return counts
 
 
@@ -390,6 +398,8 @@ def build_suite_summary(ctx: RuntimeContext, *, exit_code: int, overall: str) ->
         "common_failed_verifications": common_failures,
         "requirements": requirement_rows,
     }
+    if ctx.session.interrupted:
+        payload["interruption_reason"] = INTERRUPTION_REASON
     if ctx.provenance is not None:
         payload["provenance"] = ctx.provenance
     if started_utc is not None:

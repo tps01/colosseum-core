@@ -1,6 +1,15 @@
 # Colosseum Core
 
+[![CI](https://github.com/tps01/colosseum-core/actions/workflows/ci.yml/badge.svg?branch=develop&event=pull_request)](https://github.com/tps01/colosseum-core/actions/workflows/ci.yml?query=branch%3Adevelop)
+
 ## Documentation
+
+During `colosseum run` and `colosseum run-suite`, Ctrl+C, POSIX `SIGTERM`,
+and desktop Stop cancel the run with result `INCOMPLETE` and exit code `1`.
+Cancellation skips pending suite slots, including scripted teardown. Active
+script `finally` blocks and Core-managed resource cleanup can still run.
+Saved results use the `-incomplete` directory suffix where applicable.
+Forced termination or another interrupt during cleanup can leave partial artifacts.
 
 HTML hub (GitHub Pages): <https://tps01.github.io/colosseum-core/>
 

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from colosseum.context import RuntimeContext, get_context
 from colosseum.logging.setup import close_logger_handlers
 from colosseum.runner.runtime import rename_run_directory_for_result
+from colosseum.runner.session import INTERRUPTION_REASON
 
 from .finalize import close_resource_cache, finalize_run
 from .finalize_policy import policy_for_single
@@ -45,6 +46,8 @@ def _log_suite_result(
         return
     with suppress(Exception):
         ctx.logger.info("Suite overall result: %s (exit %s)", overall, code)
+        if ctx.session.interrupted:
+            ctx.logger.info(INTERRUPTION_REASON)
     with suppress(Exception):
         from colosseum.summary.requirements import (
             requirement_lines,
@@ -59,12 +62,22 @@ def _log_suite_result(
 
 
 def _shutdown_suite_resources(ctx: RuntimeContext) -> None:
-    with suppress(Exception):
-        ctx.plugin_registry.run_shutdown()
+    def mark_interrupted() -> None:
+        if ctx.session.interrupted:
+            raise KeyboardInterrupt
+        ctx.session.interrupted = True
 
-    with suppress(Exception):
-        close_resource_cache(ctx.resource_cache, logger=ctx.logger)
+    try:
+        with suppress(Exception):
+            ctx.plugin_registry.run_shutdown()
+    except KeyboardInterrupt:
+        mark_interrupted()
+    finally:
+        with suppress(Exception):
+            close_resource_cache(ctx.resource_cache, logger=ctx.logger, on_interrupt=mark_interrupted)
 
+
+def _close_suite_logger(ctx: RuntimeContext) -> None:
     if ctx.logger is not None:
         try:
             close_logger_handlers(ctx.logger)
@@ -114,9 +127,13 @@ def _persist_suite_artifacts(
             overall=overall,
             payload=summary,
         )
+        if reason := summary.get("interruption_reason"):
+            from colosseum.summary.junit import write_suite_interruption
+
+            write_suite_interruption(ctx.suite_output_dir, ctx, reason)
     except Exception as exc:  # noqa: BLE001 - suite exit code still returned
         print(
-            f"Colosseum: failed to write suite summary: {exc}",
+            f"Colosseum: failed to write suite artifacts: {exc}",
             file=sys.stderr,
         )
 
@@ -125,19 +142,25 @@ def finalize_suite(ctx: RuntimeContext) -> int:
     """Finalize a suite container after all script slots have completed.
 
     Each side effect is isolated so a logger-close or summary-write failure still
-    returns the suite exit code. KeyboardInterrupt and other signals are not
-    caught here.
+    returns the suite exit code. A first interrupt during cleanup marks the
+    suite incomplete.
     """
     from colosseum.results.aggregation import build_suite_summary
     from colosseum.summary.writer import SuiteSummaryWriter
 
     writer = SuiteSummaryWriter()
-    code = writer.suite_exit_code(ctx)
-    overall = "PASS" if code == 0 else "FAIL"
+    try:
+        _shutdown_suite_resources(ctx)
+    except KeyboardInterrupt:
+        _close_suite_logger(ctx)
+        raise
+    ctx.session.interrupted |= ctx.session.cancel_requested
+    code = 1 if ctx.session.interrupted else writer.suite_exit_code(ctx)
+    overall = ("INCOMPLETE" if ctx.session.interrupted else "FAIL") if code else "PASS"
     summary = build_suite_summary(ctx, exit_code=code, overall=overall)
 
     _log_suite_result(ctx, summary, overall=overall, code=code)
-    _shutdown_suite_resources(ctx)
+    _close_suite_logger(ctx)
     _persist_suite_artifacts(ctx, writer, summary, overall=overall, code=code)
 
     ctx.suite_finalized = True
@@ -169,10 +192,13 @@ def _handle_unhandled_exception(
     except RuntimeError:
         ctx = None
     if ctx is not None and not ctx.finalized and ctx.auto_finalize:
-        ctx.result_aggregator.mark_suite_error(f"unhandled exception: {exc_value}")
-        if ctx.db.is_initialized():
-            with suppress(Exception):
-                ctx.db.insert_event("ERROR", "runner", f"unhandled_exception:{exc_value}")
+        if isinstance(exc_value, KeyboardInterrupt):
+            ctx.interrupted = True
+        else:
+            ctx.result_aggregator.mark_suite_error(f"unhandled exception: {exc_value}")
+            if ctx.db.is_initialized():
+                with suppress(Exception):
+                    ctx.db.insert_event("ERROR", "runner", f"unhandled_exception:{exc_value}")
     _ORIGINAL_EXCEPTHOOK(exc_type, exc_value, exc_traceback)
 
 
@@ -202,6 +228,9 @@ def endex() -> None:
     if ctx.finalized:
         raise SystemExit(ctx.final_exit_code if ctx.final_exit_code is not None else 1)
 
+    pending_exception = sys.exc_info()[1]
+    if isinstance(pending_exception, KeyboardInterrupt) and not ctx.slot_finalized:
+        ctx.interrupted = True
     if ctx.session.kind == "suite" and not ctx.suite_finalized:
         from colosseum.runner.runtime import finalize_script_slot
 
@@ -216,6 +245,8 @@ def endex() -> None:
             repeat_index=ctx.slot_repeat_index,
             cycle_index=ctx.slot_cycle_index,
         )
+        if isinstance(pending_exception, KeyboardInterrupt):
+            raise pending_exception
         return
 
     code = _finalize_context(ctx)
