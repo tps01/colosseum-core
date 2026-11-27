@@ -77,7 +77,7 @@ def allocate_run_directory(
 
 def _strip_result_suffix(name: str) -> str:
     """Remove a trailing ``-pass`` / ``-fail`` suffix if present."""
-    for result_suffix in ("-pass", "-fail"):
+    for result_suffix in ("-pass", "-fail", "-incomplete"):
         if name.endswith(result_suffix):
             return name[: -len(result_suffix)]
     return name
@@ -99,7 +99,7 @@ def rename_run_directory_for_result(
     write summaries into the original path.
     """
     normalized = overall.lower()
-    if normalized not in {"pass", "fail"}:
+    if normalized not in {"pass", "fail", "incomplete"}:
         raise ValueError(f"Unsupported run result: {overall}")
     base_name = _strip_result_suffix(output_dir.name)
     target_base = output_dir.with_name(f"{base_name}-{normalized}")
@@ -223,6 +223,8 @@ class SuiteSlotResult:
             "config_path": self.config_path,
             "parameters_path": self.parameters_path,
             "metadata_path": self.metadata_path,
+            **({"interruption_reason": self.summary["interruption_reason"]}
+               if "interruption_reason" in self.summary else {}),
         }
 
     def persisted(self, root: Path) -> dict[str, Any]:
@@ -279,9 +281,12 @@ def begin_script_slot(
     phase: str,
     affects_suite_result: bool,
 ) -> None:
+    if ctx.session.cancel_requested:
+        raise KeyboardInterrupt
     ctx.phase = phase
     ctx.slot_affects_suite_result = affects_suite_result
     ctx.slot_finalized = False
+    ctx.interrupted = False
     ctx.test_case_name = logical_name
     ctx.result_aggregator = ResultAggregator()
     ctx.db = DatabaseManager()
@@ -365,7 +370,7 @@ def finalize_script_slot(
 
     final_dir = ctx.output_dir or Path.cwd()
     if result_data is not None:
-        overall = result_data.overall if affects else None
+        overall = result_data.overall if affects or ctx.interrupted else None
         exit_code = result_data.exit_code
     else:
         overall = "FAIL" if affects else None
@@ -427,7 +432,11 @@ def refresh_slot_artifacts(ctx: RuntimeContext, slot: SuiteSlotResult) -> None:
         slot.output_dir / "execution.sqlite",
         {
             **slot.summary,
-            "stored_status": slot.summary["overall_result"] if slot.affects_suite_result else "N/A",
+            "stored_status": (
+                slot.summary["overall_result"]
+                if slot.affects_suite_result or slot.overall == "INCOMPLETE"
+                else "N/A"
+            ),
         },
         kind="slot",
     )
