@@ -29,9 +29,9 @@ traceback. Pass ``--debug`` to also show DEBUG messages on the console.
    * - SSH operation times out
      - Connection timeout/retries and command/collection timeout are independent.
        A timed-out command is not evidence that the remote process stopped.
-   * - Suite passes after setup failed
-     - Supporting slots do not fail the suite with ``fail_fast=false``.
-       See :doc:`running_suites`.
+   * - Tests keep running after setup failed
+     - Setup failures count against the suite result. Set ``fail_fast=true``
+       to stop scheduling work after a setup failure. See :ref:`suite-fail-fast`.
    * - A report is absent
      - Enable ``--report junit`` or ``--report wats``. Metadata alone does not
        enable reports; supporting suite slots do not write them.
