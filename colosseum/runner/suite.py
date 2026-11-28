@@ -63,6 +63,27 @@ def _stop_remaining_work(ctx: RuntimeContext, test_path: Path, reason: str) -> N
 _SlotFailure = Literal["slot_start", "script_error", "required_failure", "slot_error"]
 
 
+def _fail_fast_reason(
+    suite: SuiteDefinition,
+    ctx: RuntimeContext,
+    phase: str,
+    reason: _SlotFailure,
+) -> _SlotFailure | Literal["required_error"] | None:
+    if phase == "teardown" or suite.fail_fast is False:
+        return None
+    if suite.fail_fast is True:
+        return reason
+    if phase != "test":
+        return None
+    if reason != "required_failure":
+        return reason
+    if ctx.result_aggregator.suite_error:
+        return "slot_error"
+    if any(row["status"] == "ERROR" for row in ctx.result_aggregator.failed_required_outcomes()):
+        return "required_error"
+    return None
+
+
 def _record_slot_failure(
     suite: SuiteDefinition,
     ctx: RuntimeContext,
@@ -90,12 +111,10 @@ def _record_slot_failure(
     elif reason == "slot_start":
         ctx.session.mark_suite_failed(f"slot_start_failed:{script}")
 
-    if not suite.fail_fast:
+    stop_reason = _fail_fast_reason(suite, ctx, phase, reason)
+    if stop_reason is None:
         return False
-    if phase == "teardown":
-        # Fail the suite but never skip remaining teardown scripts.
-        return False
-    _stop_remaining_work(ctx, script, reason)
+    _stop_remaining_work(ctx, script, stop_reason)
     return True
 
 
@@ -331,6 +350,15 @@ def _run_script_slot(
             )
     if ctx.interrupted:
         raise KeyboardInterrupt
+    if (
+        not stop_fail_fast
+        and suite.fail_fast == "error"
+        and phase == "test"
+        and ctx.result_aggregator.suite_error
+    ):
+        # Automatic finalization can record a slot error after the script outcome was scored.
+        _stop_remaining_work(ctx, script, "slot_error")
+        return True
     return stop_fail_fast
 
 

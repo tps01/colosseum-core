@@ -77,14 +77,22 @@ def test_fail_fast_accepts_bool_spellings(tmp_path, fixtures_dir) -> None:
     assert load_suite_toml(path).fail_fast is False
 
 
-def test_fail_fast_non_bool_raises(tmp_path, fixtures_dir) -> None:
+@pytest.mark.parametrize("value", ['"error"', '" ERROR "'])
+def test_fail_fast_error_loads(tmp_path, fixtures_dir, value) -> None:
+    script = fixtures_dir / "scripts" / "pass_test.py"
+    path = tmp_path / "suite.toml"
+    path.write_text(f'name = "x"\nfail_fast = {value}\ntests = ["{script.as_posix()}"]\n', encoding="utf-8")
+    assert load_suite_toml(path).fail_fast == "error"
+
+
+def test_fail_fast_invalid_value_raises(tmp_path, fixtures_dir) -> None:
     script = fixtures_dir / "scripts" / "pass_test.py"
     path = tmp_path / "bad_fail_fast.toml"
     path.write_text(
         f'name = "x"\nfail_fast = "maybe"\ntests = ["{script.as_posix()}"]\n',
         encoding="utf-8",
     )
-    with pytest.raises(SuiteError, match="fail_fast.*boolean"):
+    with pytest.raises(SuiteError, match='fail_fast.*boolean or "error"'):
         load_suite_toml(path)
 
 
