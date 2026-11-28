@@ -23,7 +23,7 @@ This is covered by
 `tests/integration/test_suite_runner.py::test_test_script_exception_fails_suite_without_verification`.
 
 When a test entry uses **`repeat_count`** or **`repeat_for`**, a failed
-iteration does not stop later iterations of that entry unless `fail_fast = true`.
+iteration does not stop later iterations of that entry with the default setting.
 Failures accumulate across the soak window.
 
 Supporting-script failures (setup, `between_tests`, teardown) are logged in
@@ -80,3 +80,10 @@ failures do not stop the suite.
 Covered by `tests/integration/test_suite_runner.py` and
 `tests/e2e/test_suite_cli.py` fail-fast cases (including setup abort,
 teardown continuation, and metadata write resilience).
+
+## `fail_fast = "error"`
+
+After a test-slot execution error or required ERROR outcome, skip pending
+test and between-test slots and run teardown. Required FAIL and BLOCKED
+outcomes and supporting-phase failures still fail the suite while scheduling
+continues. Optional outcomes allow scheduling to continue.

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from inspect import Parameter, Signature, signature
+from inspect import Parameter, signature
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -11,12 +11,11 @@ from typing import (
 
 from colosseum.config.parameters import (
     ParametersError,
-    apply_parameters_to_kwargs,
-    coerce_bool,
+    coerce_optional_kwarg,
 )
 from colosseum.units import coerce_units
 
-from ._common import missing_key_guidance
+from ._common import forwarded_kwargs, merge_call_parameters, missing_key_guidance
 from ._kernel import log_evidence, log_evidence_error, short_repr
 
 if TYPE_CHECKING:
@@ -181,143 +180,6 @@ def _dry_run_measurement_precheck(
     return None, row_index
 
 
-def _dry_run_apply_parameters(
-    ctx: RuntimeContext,
-    *,
-    key: str,
-    kwargs: dict[str, Any],
-    injected: bool,
-    apply_parameters: bool,
-) -> tuple[str | None, dict[str, Any], bool, bool]:
-    """Apply the parameters file and coerce ``optional`` when present."""
-    key_in_parameters = bool(key) and ctx.parameters_map is not None and key in ctx.parameters_map
-    call_kwargs = dict(kwargs)
-    applied_parameters = False
-    if apply_parameters and key and not injected:
-        try:
-            before = dict(call_kwargs)
-            call_kwargs = apply_parameters_to_kwargs(
-                call_kwargs,
-                key=key,
-                parameters=ctx.parameters_map,
-            )
-            applied_parameters = call_kwargs != before
-        except ParametersError as exc:
-            return str(exc), kwargs, False, key_in_parameters
-    elif key_in_parameters and ctx.parameters_map is not None and "optional" in ctx.parameters_map[key]:
-        call_kwargs["optional"] = ctx.parameters_map[key]["optional"]
-    try:
-        if "optional" in call_kwargs:
-            call_kwargs["optional"] = coerce_bool(call_kwargs["optional"])
-    except ParametersError as exc:
-        return str(exc), call_kwargs, applied_parameters, key_in_parameters
-    return None, call_kwargs, applied_parameters, key_in_parameters
-
-
-def _dry_run_filter_call_kwargs(
-    *,
-    kind: str,
-    key: str,
-    func: Callable[..., Any],
-    kwargs: dict[str, Any],
-    call_kwargs: dict[str, Any],
-    pop_key: bool,
-    pop_optional: bool,
-    pop_description: bool,
-    pop_requirements: bool,
-) -> Signature:
-    """Strip wrapper-owned names and drop file-only extras the body rejects."""
-    if pop_optional:
-        call_kwargs.pop("optional", None)
-    if pop_key:
-        call_kwargs.pop("key", None)
-    elif kind == "verification" and not key:
-        # Match live mode: inject blank key so signature.bind succeeds.
-        call_kwargs["key"] = ""
-    if pop_description:
-        call_kwargs.pop("description", None)
-    if pop_requirements:
-        call_kwargs.pop("requirements", None)
-    # A parameters section may hold limit fields for another call on the same key.
-    # Drop file-only names the function does not accept; caller keywords still bind.
-    bound = signature(func)
-    if not any(item.kind is Parameter.VAR_KEYWORD for item in bound.parameters.values()):
-        accepted = set(bound.parameters)
-        for name in list(call_kwargs):
-            if name not in accepted and name not in kwargs:
-                del call_kwargs[name]
-    return bound
-
-
-def _dry_run_note_structure(
-    ctx: RuntimeContext,
-    *,
-    kind: str,
-    domain: str,
-    command: str,
-    key: str,
-    row_index: int,
-) -> None:
-    if kind == "measurement" and key:
-        ctx.dry_run_measurements.add((domain, command, key, row_index))
-    if key:
-        ctx.note_parameter_use(key)
-
-
-def _dry_run_bind(
-    ctx: RuntimeContext,
-    *,
-    kind: str,
-    domain: str,
-    command: str,
-    key: str,
-    func: Callable[..., Any],
-    call_args: tuple[Any, ...],
-    kwargs: dict[str, Any],
-    call_kwargs: dict[str, Any],
-    pop_key: bool,
-    pop_optional: bool,
-    pop_description: bool,
-    pop_requirements: bool,
-    key_in_parameters: bool,
-    row_index: int,
-) -> tuple[str | None, dict[str, Any]]:
-    """Filter wrapper kwargs and bind the user signature."""
-    resolved = dict(call_kwargs)
-    bound = _dry_run_filter_call_kwargs(
-        kind=kind,
-        key=key,
-        func=func,
-        kwargs=kwargs,
-        call_kwargs=call_kwargs,
-        pop_key=pop_key,
-        pop_optional=pop_optional,
-        pop_description=pop_description,
-        pop_requirements=pop_requirements,
-    )
-    try:
-        binding = bound.bind(*call_args, **call_kwargs)
-    except TypeError as exc:
-        message = f"`{command}` call did not match its signature: {exc}"
-        if key_in_parameters:
-            message += f"; check parameters[{key!r}] fields against the function signature"
-        return message, resolved
-    binding.apply_defaults()
-    try:
-        coerce_units(dict(binding.arguments))
-    except ValueError as exc:
-        return str(exc), resolved
-    _dry_run_note_structure(
-        ctx,
-        kind=kind,
-        domain=domain,
-        command=command,
-        key=key,
-        row_index=row_index,
-    )
-    return None, resolved
-
-
 def _dry_run_structure_message(
     ctx: RuntimeContext,
     *,
@@ -328,20 +190,11 @@ def _dry_run_structure_message(
     func: Callable[..., Any],
     call_args: tuple[Any, ...],
     kwargs: dict[str, Any],
-    injected: bool,
     apply_parameters: bool,
-    pop_key: bool,
-    pop_optional: bool,
-    pop_description: bool,
-    pop_requirements: bool,
+    wrapper_keywords: frozenset[str],
     multi_row: bool,
 ) -> tuple[str | None, dict[str, Any]]:
-    """Return a procedure error and the kwargs after the parameters file is applied.
-
-    A parameters-file field overrides the call. ``optional`` is coerced to a bool
-    when it is present. The returned mapping still contains bookkeeping names so
-    the dry-run record can use the file's ``optional`` and ``description``.
-    """
+    """Check the body signature and units while retaining resolved evidence inputs."""
     precheck_error, row_index = _dry_run_measurement_precheck(
         ctx,
         kind=kind,
@@ -353,32 +206,42 @@ def _dry_run_structure_message(
     )
     if precheck_error is not None:
         return precheck_error, kwargs
-    apply_error, call_kwargs, _applied_parameters, key_in_parameters = _dry_run_apply_parameters(
-        ctx,
-        key=key,
-        kwargs=kwargs,
-        injected=injected,
-        apply_parameters=apply_parameters,
-    )
-    if apply_error is not None:
-        return apply_error, call_kwargs
-    return _dry_run_bind(
-        ctx,
-        kind=kind,
-        domain=domain,
-        command=command,
-        key=key,
-        func=func,
-        call_args=call_args,
-        kwargs=kwargs,
-        call_kwargs=call_kwargs,
-        pop_key=pop_key,
-        pop_optional=pop_optional,
-        pop_description=pop_description,
-        pop_requirements=pop_requirements,
-        key_in_parameters=key_in_parameters,
-        row_index=row_index,
-    )
+    resolved = kwargs
+    try:
+        resolved = merge_call_parameters(
+            ctx, kwargs, key, apply_parameters=apply_parameters, optional_only=bool(key),
+        )
+        coerce_optional_kwarg(resolved)
+    except ParametersError as exc:
+        return str(exc), resolved
+
+    body_kwargs = forwarded_kwargs(resolved, wrapper_keywords)
+    if kind == "verification" and not key and "key" not in wrapper_keywords:
+        body_kwargs["key"] = ""
+    bound = signature(func)
+    # A section can also contain fields for another call using the same key.
+    if not any(param.kind is Parameter.VAR_KEYWORD for param in bound.parameters.values()):
+        body_kwargs = {
+            name: value for name, value in body_kwargs.items()
+            if name in bound.parameters or name in kwargs
+        }
+    try:
+        binding = bound.bind(*call_args, **body_kwargs)
+    except TypeError as exc:
+        message = f"`{command}` call did not match its signature: {exc}"
+        if key and ctx.parameters_map is not None and key in ctx.parameters_map:
+            message += f"; check parameters[{key!r}] fields against the function signature"
+        return message, resolved
+    binding.apply_defaults()
+    try:
+        coerce_units(dict(binding.arguments), func=func)
+    except ValueError as exc:
+        return str(exc), resolved
+    if kind == "measurement" and key:
+        ctx.dry_run_measurements.add((domain, command, key, row_index))
+    if key:
+        ctx.note_parameter_use(key)
+    return None, resolved
 
 
 def finish_dry_run_log(
@@ -395,12 +258,8 @@ def finish_dry_run_log(
     kwargs: dict[str, Any],
     description: str = "",
     requirements: list[str] | None = None,
-    injected: bool = False,
     apply_parameters: bool = False,
-    pop_key: bool = False,
-    pop_optional: bool = False,
-    pop_description: bool = False,
-    pop_requirements: bool = False,
+    wrapper_keywords: frozenset[str] = frozenset(),
     multi_row: bool = False,
 ) -> bool:
     """Check structure, log the call, and skip the body when the policy is ``log``."""
@@ -415,12 +274,8 @@ def finish_dry_run_log(
         func=func,
         call_args=call_args,
         kwargs=kwargs,
-        injected=injected,
         apply_parameters=apply_parameters,
-        pop_key=pop_key,
-        pop_optional=pop_optional,
-        pop_description=pop_description,
-        pop_requirements=pop_requirements,
+        wrapper_keywords=wrapper_keywords,
         multi_row=multi_row,
     )
     if "description" in resolved:

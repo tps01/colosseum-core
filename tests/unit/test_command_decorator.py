@@ -8,6 +8,7 @@ import pytest
 from colosseum.decorators import CommandResult, command
 from colosseum.decorators.command import COLOSSEUM_DECORATOR
 from colosseum.results.aggregation import ResultAggregator
+from colosseum.units import unit_inputs
 
 
 @pytest.fixture
@@ -86,6 +87,27 @@ def test_optional_keyword_is_on_the_signature() -> None:
     assert param.default is False
     assert param.kind.name == "KEYWORD_ONLY"
     assert list(signature(_logical_fail).parameters).count("optional") == 1
+
+
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_command_converts_named_positional_units(ctx, dry_run) -> None:
+    from colosseum.logging.setup import setup_logging
+
+    ctx.run_options.dry_run = dry_run
+    ctx.parameters_map = {"rail": {"frequency_hz": "2 kHz"}}
+    setup_logging(ctx, console=False, file=True)
+
+    @command(dry_run="call")
+    @unit_inputs(voltage="V")
+    def configure(voltage, /, timeout_s, *extras, frequency_hz):
+        return voltage, timeout_s, extras, frequency_hz
+
+    result = configure("500 mV", 2, "1 ms", frequency_hz="4 kHz", key="rail")
+    assert result == (0.5, 2, ("1 ms",), 2000)
+    assert isinstance(result[1], int)
+    log = (ctx.output_dir / "debug.log").read_text(encoding="utf-8")
+    assert "args=('500 mV', 2, '1 ms')" in log
+    assert "'frequency_hz': '2 kHz'" in log
 
 
 def test_debug_log_lists_call_arguments(ctx) -> None:

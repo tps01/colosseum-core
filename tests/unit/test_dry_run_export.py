@@ -15,16 +15,19 @@ def test_dry_run_log_skips_the_body(unit_runtime_context) -> None:
     called = False
 
     @command
-    def ping(*, message: str) -> None:
+    def ping(timeout_s: float) -> None:
         nonlocal called
         called = True
 
     assert getattr(ping, DRY_RUN_ATTR) == "log"
-    assert ping(message="hi") is None
+    assert ping("10 ms") is None
     assert called is False
     assert ctx.result_aggregator._records[0]["status"] == "DRY"  # noqa: SLF001
     assert ctx.result_aggregator.overall_pass()
     assert ctx.db.count_rows("commands") == 0
+    assert ping("10 Hz") is None
+    assert ctx.result_aggregator._records[-1]["status"] == "ERROR"
+    assert "timeout_s: Invalid duration" in ctx.result_aggregator._records[-1]["message"]
 
 
 def test_dry_run_call_runs_the_body(unit_runtime_context) -> None:
@@ -43,14 +46,14 @@ def test_dry_run_substitute_runs_instead_of_the_body(unit_runtime_context) -> No
     ctx = unit_runtime_context
     ctx.run_options.dry_run = True
 
-    def probe(*, message: str) -> str:
-        return f"saw {message}"
+    def probe(timeout_s: str, *, frequency_hz: str) -> tuple[str, str]:
+        return timeout_s, frequency_hz
 
     @command(dry_run=probe)
-    def ping(*, message: str) -> None:
+    def ping(timeout_s: float, *, frequency_hz: float) -> None:
         raise AssertionError("body ran")
 
-    assert ping(message="hi") == "saw hi"
+    assert ping("10 ms", frequency_hz="1 kHz") == ("10 ms", "1 kHz")
     assert ctx.db.count_rows("commands") == 0
     assert ctx.result_aggregator._records[0]["status"] == "DRY"  # noqa: SLF001
 

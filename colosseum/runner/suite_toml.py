@@ -5,10 +5,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from colosseum.config.toml_io import coerce_config_bool, read_toml
-from colosseum.paths import absolute_path
+from colosseum.paths import absolute_path, link_target
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -45,7 +45,7 @@ class SuiteDefinition:
     tests: list[SuiteTestEntry]
     between_tests: list[Path]
     teardown: list[Path]
-    fail_fast: bool = False
+    fail_fast: bool | Literal["error"] = False
     cycle_count: int = 1
     cycle_for: timedelta | None = None
     parameters: Path | None = None
@@ -151,12 +151,14 @@ def _parse_cycle(raw: dict[str, Any]) -> tuple[int, timedelta | None]:
     return 1, None
 
 
-def _as_bool(value: object, field: str) -> bool:
+def _parse_fail_fast(value: object) -> bool | Literal["error"]:
     if value is None:
         return False
+    if isinstance(value, str) and value.strip().lower() == "error":
+        return "error"
     parsed = coerce_config_bool(value)
     if parsed is None:
-        raise SuiteError(f"Suite field `{field}` must be a boolean")
+        raise SuiteError('Suite field `fail_fast` must be a boolean or "error"')
     return parsed
 
 
@@ -208,7 +210,7 @@ def load_suite_toml(path: Path) -> SuiteDefinition:
     name = raw.get("name")
     if not name or not isinstance(name, str):
         raise SuiteError("Suite TOML requires string field `name`")
-    base = suite_path.parent
+    base = link_target(suite_path).parent
     tests = _parse_tests(raw.get("tests"), base)
     if not tests:
         raise SuiteError("Suite TOML requires non-empty `tests` list")
@@ -223,7 +225,7 @@ def load_suite_toml(path: Path) -> SuiteDefinition:
         tests=tests,
         between_tests=between_tests,
         teardown=teardown,
-        fail_fast=_as_bool(raw.get("fail_fast"), "fail_fast"),
+        fail_fast=_parse_fail_fast(raw.get("fail_fast")),
         cycle_count=cycle_count,
         cycle_for=cycle_for,
         parameters=_parse_input_path(raw.get("parameters"), base, label="field `parameters`"),

@@ -105,9 +105,10 @@ Terms used in the runtime and in the user guides. See
       ERROR, or BLOCKED (or a marked script error) produces exit code 1.
 
    fail_fast
-      Suite TOML flag. After a setup, between, or test slot failure, skip
-      remaining non-teardown work, always run every teardown script, and fail
-      the suite (``suite_failed``). See :doc:`running_suites`.
+      Suite TOML setting. Use ``false`` to continue after slot failures,
+      ``true`` to stop after a setup, between, or test slot failure, or
+      ``"error"`` to stop after an error in a test slot. Teardown follows
+      a fail-fast stop. See :ref:`suite-fail-fast`.
 
    RuntimeContext
       Process-wide singleton for one run or suite: config, plugins, SQLite,

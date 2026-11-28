@@ -311,6 +311,128 @@ def test_fail_fast_stops_after_required_verification_fail(fixtures_dir, core_con
     assert meta.get("fail_fast_stopped") == "1"
 
 
+@pytest.mark.parametrize(
+    ("status", "optional", "stop_reason", "exit_code"),
+    [
+        ("FAIL", False, None, 1),
+        ("BLOCKED", False, None, 1),
+        ("ERROR", True, None, 0),
+        ("ERROR", False, "required_error", 1),
+        (None, False, "script_error", 1),
+    ],
+)
+def test_error_only_fail_fast_outcomes(
+    fixtures_dir, core_config, isolated_cwd, status, optional, stop_reason, exit_code,
+) -> None:
+    scripts = fixtures_dir / "scripts"
+    body = (
+        "def main(): raise RuntimeError('test crashed')\n"
+        if status is None
+        else (
+            "import colosseum as col\n"
+            "@col.verification\n"
+            "def check():\n"
+            f"    return col.VerificationResult(status={status!r}, optional={optional!r})\n"
+            "def main():\n"
+            f"    check(key='tracked', optional={optional!r})\n"
+            "    col.endex()\n"
+        )
+    )
+    (isolated_cwd / "subject.py").write_text(body, encoding="utf-8")
+    suite = isolated_cwd / "suite.toml"
+    suite.write_text(
+        'name = "error-only"\nfail_fast = "error"\ncycle_count = 2\n'
+        f'tests = [{{path = "subject.py", repeat_count = 2}}, "{scripts.as_posix()}/pass_test.py"]\n'
+        f'between_tests = ["{scripts.as_posix()}/count_between.py"]\n'
+        f'teardown = ["{scripts.as_posix()}/teardown_ok.py"]\n',
+        encoding="utf-8",
+    )
+    _run_suite_expect_exit(suite, core_config, isolated_cwd, exit_code)
+    container = latest_suite_container(isolated_cwd)
+    subjects = slot_dirs_matching(container, "subject")
+    assert len(subjects) == (1 if stop_reason else 4)
+    assert len(slot_dirs_matching(container, "pass_test")) == (0 if stop_reason else 2)
+    assert len(slot_dirs_matching(container, "count_between")) == (0 if stop_reason else 5)
+    assert _slot_with_stem(container, "teardown_ok")
+    if status is not None:
+        assert query_db(subjects[0], "SELECT status, optional FROM verifications") == [(status, int(optional))]
+    summary = _container_summary(container)
+    assert summary["fail_fast_stopped"] is (stop_reason is not None)
+    assert summary["fail_fast_stop_reason"] == stop_reason
+    if stop_reason:
+        assert summary["fail_fast_stop_script"] == str(isolated_cwd / "subject.py")
+
+
+def test_error_only_fail_fast_continues_after_support_errors(fixtures_dir, core_config, isolated_cwd) -> None:
+    scripts = (fixtures_dir / "scripts").as_posix()
+    suite = isolated_cwd / "suite.toml"
+    suite.write_text(
+        'name = "support-errors"\nfail_fast = "error"\n'
+        f'setup = ["{scripts}/crash_test.py"]\nbetween_tests = ["{scripts}/crash_test.py"]\n'
+        f'tests = [{{path = "{scripts}/pass_test.py", repeat_count = 2}}]\n'
+        f'teardown = ["{scripts}/crash_test.py", "{scripts}/teardown_ok.py"]\n',
+        encoding="utf-8",
+    )
+    _run_suite_expect_exit(suite, core_config, isolated_cwd, 1)
+    container = latest_suite_container(isolated_cwd)
+    assert len(slot_dirs_matching(container, "crash_test")) == 3
+    assert len(slot_dirs_matching(container, "pass_test")) == 2
+    assert _slot_with_stem(container, "teardown_ok")
+    summary = _container_summary(container)
+    assert summary["suite_failed"] is True
+    assert summary["fail_fast_stopped"] is False
+
+
+@pytest.mark.parametrize(
+    ("failure", "stop_reason"),
+    [
+        ("start", "slot_start"),
+        ("finalize", "slot_error"),
+        ("endex", "slot_error"),
+        ("inputs", "script_error"),
+    ],
+)
+def test_error_only_fail_fast_handles_runner_errors(
+    fixtures_dir, core_config, isolated_cwd, monkeypatch, failure, stop_reason,
+) -> None:
+    from colosseum.results import finalize
+    from colosseum.runner import suite as suite_mod
+
+    if failure == "start":
+        original = suite_mod.begin_script_slot
+        module, method = suite_mod, "begin_script_slot"
+    else:
+        original = finalize.finalize_run
+        module, method = finalize, "finalize_run"
+
+    def invoke(ctx, *args, **kwargs):
+        phase = kwargs.get("phase", ctx.phase)
+        if phase == "test":
+            raise OSError(f"induced {failure} failure")
+        return original(ctx, *args, **kwargs)
+
+    if failure != "inputs":
+        monkeypatch.setattr(module, method, invoke)
+    scripts = (fixtures_dir / "scripts").as_posix()
+    body = "import colosseum as col\ndef main(): col.endex()\n" if failure == "endex" else "def main(): pass\n"
+    (isolated_cwd / "subject.py").write_text(body, encoding="utf-8")
+    suite = isolated_cwd / "suite.toml"
+    parameters = ', parameters = "missing.toml"' if failure == "inputs" else ""
+    suite.write_text(
+        'name = "runner-error"\nfail_fast = "error"\n'
+        f'tests = [{{path = "subject.py"{parameters}}}, "{scripts}/pass_test.py"]\n'
+        f'teardown = ["{scripts}/teardown_ok.py"]\n',
+        encoding="utf-8",
+    )
+    _run_suite_expect_exit(suite, core_config, isolated_cwd, 1)
+    container = latest_suite_container(isolated_cwd)
+    assert slot_dirs_matching(container, "pass_test") == []
+    assert _slot_with_stem(container, "teardown_ok")
+    summary = _container_summary(container)
+    assert summary["fail_fast_stopped"] is True
+    assert summary["fail_fast_stop_reason"] == stop_reason
+
+
 def test_repeat_for_runs_until_deadline(fixtures_dir, core_config, isolated_cwd) -> None:
     suite = fixtures_dir / "suites" / "repeat_for.toml"
     _run_suite_expect_exit(suite, core_config, isolated_cwd, 0)

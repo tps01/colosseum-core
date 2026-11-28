@@ -8,7 +8,7 @@ Suites are TOML files whose script paths are relative to the suite file::
    tests = ["tests/check_device.py"]
    between_tests = ["scripts/delay.py"]
    teardown = ["teardown/cleanup.py"]
-   # fail_fast = true   # optional: abort remaining setup/between/test work after any of those fail
+   # fail_fast = "error"   # optional: stop after a test slot errors
 
 Suite pass/fail behavior
 ------------------------
@@ -18,11 +18,9 @@ session-level ``suite_failed`` mark. Failures in **setup**, ``between_tests``,
 or **teardown** always set ``suite_failed`` (the suite overall is FAIL) even
 when later work still runs.
 
-``fail_fast`` only controls **scheduling**: with ``fail_fast = false`` (default),
-later setup / between / test scripts continue after a failure; with
-``fail_fast = true``, remaining setup / between / test work is aborted after
-any of those fail. Teardown is always attempted. Inspect supporting-slot
-``debug.log`` and ``execution.sqlite`` for details.
+The :ref:`suite-fail-fast` setting controls scheduling. Teardown is attempted
+after a fail-fast stop. Inspect supporting-slot ``debug.log`` and
+``execution.sqlite`` for details.
 
 Scheduling tests
 ----------------
@@ -285,6 +283,8 @@ handles). Plugin ``register_shutdown`` hooks run once in ``finalize_suite`` afte
 all slots, not on per-slot ``endex()``. Scripts that stash live connections in the
 cache must reopen them after each slot (or after a mid-suite ``load_config``).
 
+.. _suite-fail-fast:
+
 ``fail_fast``
 -------------
 
@@ -299,9 +299,16 @@ supporting slot or test slot failed.
 
 Set ``fail_fast = true`` to abort remaining **setup / between / test** work after
 any of those slots fail (script exception, non-zero exit, parameters load
-failure, slot-start / bookkeeping failure, or required verification/command
-FAIL/ERROR). The runner always runs **every** teardown script. Optional
-verification failures never trigger fail-fast.
+failure, slot-start / bookkeeping failure, or required FAIL, ERROR, or BLOCKED
+outcome).
+
+Set ``fail_fast = "error"`` to skip pending test iterations, cycles, and
+``between_tests`` work after an execution error or required ERROR in a slot
+from ``tests``. Execution errors include script errors, input-load errors, and
+errors starting, running, or finalizing the slot. A required FAIL or BLOCKED
+still fails the suite and allows later slots to run. Optional outcomes and
+errors in setup or ``between_tests`` also allow later slots to run. The runner
+still attempts every teardown script after a fail-fast stop.
 
 Soak-style suites accumulate failures across repeat iterations; the suite container
 summary and exit code reflect whether any test slot failed or ``suite_failed`` was set.

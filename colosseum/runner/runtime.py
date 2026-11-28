@@ -10,6 +10,7 @@ import uuid
 from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from os.path import lexists
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -63,16 +64,19 @@ def allocate_run_directory(
     parent: Path | None = None,
 ) -> Path:
     base = parent if parent is not None else outputs_root
-    if parent is None:
-        base.mkdir(parents=True, exist_ok=True)
+    base.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
     run_name = f"{stamp}_{sanitize_logical_name(logical_name)}"
     candidate = base / run_name
     suffix = 1
-    while candidate.exists():
-        candidate = base / f"{run_name}_{suffix}"
-        suffix += 1
-    return candidate
+    while True:
+        try:
+            candidate.mkdir()
+        except FileExistsError:
+            candidate = base / f"{run_name}_{suffix}"
+            suffix += 1
+        else:
+            return candidate
 
 
 def _strip_result_suffix(name: str) -> str:
@@ -105,15 +109,15 @@ def rename_run_directory_for_result(
     target_base = output_dir.with_name(f"{base_name}-{normalized}")
     candidate = target_base
     suffix = 1
-    while candidate.exists() and candidate != output_dir:
-        candidate = target_base.with_name(f"{target_base.name}_{suffix}")
-        suffix += 1
-    if candidate == output_dir:
-        return output_dir
     attempts = max(1, retries)
     last_error: OSError | None = None
     delay = max(0.0, initial_delay_s)
     for attempt in range(attempts):
+        while candidate != output_dir and lexists(candidate):
+            candidate = target_base.with_name(f"{target_base.name}_{suffix}")
+            suffix += 1
+        if candidate == output_dir:
+            return output_dir
         try:
             output_dir.rename(candidate)
             return candidate
@@ -158,7 +162,6 @@ def ensure_runtime_ready(ctx: RuntimeContext, logical_name: str | None = None) -
             outputs_root = resolve_outputs_root(ctx.run_options)
             ensure_outputs_writable(outputs_root)
             output_dir = allocate_run_directory(outputs_root, logical_name)
-            output_dir.mkdir(parents=True, exist_ok=True)
             ctx.output_dir = output_dir
         ctx.logger = ctx.session.start_logging(
             ctx,
@@ -257,7 +260,6 @@ def ensure_suite_runtime_ready(ctx: RuntimeContext, suite_name: str) -> None:
     outputs_root = resolve_outputs_root(ctx.run_options)
     ensure_outputs_writable(outputs_root)
     container = allocate_run_directory(outputs_root, suite_name)
-    container.mkdir(parents=True, exist_ok=True)
     ctx.suite_output_dir = container
     database = DatabaseManager()
     try:
@@ -326,7 +328,6 @@ def begin_script_slot(
         logical_name,
         parent=parent,
     )
-    slot_dir.mkdir(parents=True, exist_ok=True)
     ctx.output_dir = slot_dir
     ctx.logger = ctx.session.start_logging(
         ctx,

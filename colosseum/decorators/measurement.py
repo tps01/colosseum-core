@@ -12,6 +12,8 @@ from colosseum.database import MeasurementRow
 
 from ._common import (
     bind_dry_run_policy,
+    forwarded_kwargs,
+    merge_call_parameters,
     missing_key_guidance,
     publish_optional_parameter,
     resolve_auto_key,
@@ -46,8 +48,7 @@ class _MeasurementBinding:
     func: Callable[..., Any]
     dry_run: object
     multi_row: bool
-    accepts_optional: bool
-    accepts_key: bool
+    wrapper_keywords: frozenset[str]
 
     def should_skip(self, ctx: RuntimeContext) -> bool:
         return should_skip_measurement(ctx)
@@ -96,9 +97,7 @@ class _MeasurementBinding:
             "func": self.func,
             "call_args": args,
             "kwargs": kwargs,
-            "injected": identity.injected,
-            "pop_key": identity.injected and not self.accepts_key,
-            "pop_optional": not self.accepts_optional,
+            "wrapper_keywords": self._wrapper_keywords(identity),
             "multi_row": self.multi_row,
         }
 
@@ -142,6 +141,9 @@ class _MeasurementBinding:
                 f"Duplicate measurement key for ({self.domain}, {self.command}, {key}, row_index={row_index})",
             )
 
+    def _wrapper_keywords(self, identity: Identity) -> frozenset[str]:
+        return self.wrapper_keywords if identity.injected else self.wrapper_keywords - {"key"}
+
     def prepare(
         self,
         ctx: RuntimeContext,
@@ -149,23 +151,14 @@ class _MeasurementBinding:
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
     ) -> PreparedCall | EarlyReturn:
-        call_kwargs = dict(kwargs)
-        if (
-            ctx.parameters_map is not None
-            and identity.key_text in ctx.parameters_map
-            and "optional" in ctx.parameters_map[identity.key_text]
-        ):
-            call_kwargs["optional"] = ctx.parameters_map[identity.key_text]["optional"]
-        optional = coerce_optional_kwarg(call_kwargs)
-        logged_kwargs = dict(call_kwargs)
-        if not self.accepts_optional:
-            call_kwargs.pop("optional", None)
-        if identity.injected and not self.accepts_key:
-            call_kwargs.pop("key", None)
+        resolved = merge_call_parameters(
+            ctx, kwargs, identity.key_text, apply_parameters=False, optional_only=True,
+        )
+        optional = coerce_optional_kwarg(resolved)
         return PreparedCall(
             optional=optional,
-            call_kwargs=call_kwargs,
-            logged_kwargs=logged_kwargs,
+            call_kwargs=forwarded_kwargs(resolved, self._wrapper_keywords(identity)),
+            logged_kwargs=resolved,
             call_args=args,
             row_index=identity.row_index,
         )
@@ -281,8 +274,7 @@ def measurement(
             func=func,
             dry_run=dry_run,
             multi_row=multi_row,
-            accepts_optional="optional" in parameters,
-            accepts_key="key" in parameters,
+            wrapper_keywords=frozenset({"key", "optional"}.difference(parameters)),
         )
 
         @wraps(func)

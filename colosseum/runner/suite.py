@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, Literal
 
 from colosseum.config.suite_inputs import SuiteInputs
 from colosseum.paths import absolute_path
@@ -60,6 +60,30 @@ def _stop_remaining_work(ctx: RuntimeContext, test_path: Path, reason: str) -> N
         ctx.logger.error("fail_fast: stopping remaining tests after %s (%s)", test_path, reason)
 
 
+_SlotFailure = Literal["slot_start", "script_error", "required_failure", "slot_error"]
+
+
+def _fail_fast_reason(
+    suite: SuiteDefinition,
+    ctx: RuntimeContext,
+    phase: str,
+    reason: _SlotFailure,
+) -> _SlotFailure | Literal["required_error"] | None:
+    if phase == "teardown" or suite.fail_fast is False:
+        return None
+    if suite.fail_fast is True:
+        return reason
+    if phase != "test":
+        return None
+    if reason != "required_failure":
+        return reason
+    if ctx.result_aggregator.suite_error:
+        return "slot_error"
+    if any(row["status"] == "ERROR" for row in ctx.result_aggregator.failed_required_outcomes()):
+        return "required_error"
+    return None
+
+
 def _record_slot_failure(
     suite: SuiteDefinition,
     ctx: RuntimeContext,
@@ -67,7 +91,7 @@ def _record_slot_failure(
     *,
     phase: str,
     affects_suite_result: bool,
-    reason: str,
+    reason: _SlotFailure,
 ) -> bool:
     """Score the suite for a failed slot; optionally stop remaining work.
 
@@ -87,12 +111,10 @@ def _record_slot_failure(
     elif reason == "slot_start":
         ctx.session.mark_suite_failed(f"slot_start_failed:{script}")
 
-    if not suite.fail_fast:
+    stop_reason = _fail_fast_reason(suite, ctx, phase, reason)
+    if stop_reason is None:
         return False
-    if phase == "teardown":
-        # Fail the suite but never skip remaining teardown scripts.
-        return False
-    _stop_remaining_work(ctx, script, reason)
+    _stop_remaining_work(ctx, script, stop_reason)
     return True
 
 
@@ -227,45 +249,37 @@ def _insert_repeat_metadata(
     )
 
 
-def _invoke_slot_script(
-    ctx: RuntimeContext,
-    script: Path,
-    runner: _ScriptRunner,
-    *,
-    phase: str,
-) -> bool:
-    """Run the slot script. Returns True when the script crashed."""
-    try:
-        runner.run(script)
-    except runner.error_type:
-        ctx.result_aggregator.mark_suite_error(f"{phase} script failed")
-        if ctx.slot_finalized:
-            _mark_post_endex_slot_failure(ctx, script, phase)
-        return True
-    return False
-
-
 def _execute_slot(
     suite: SuiteDefinition,
     ctx: RuntimeContext,
     script: Path,
     runner: _ScriptRunner,
     entry: SuiteTestEntry | None,
-) -> bool:
+) -> _SlotFailure | None:
     phase = ctx.phase
-    if not _attach_slot_inputs(suite, ctx, script, phase=phase, entry=entry):
-        return True
-    test_index = ctx.slot_test_index
-    repeat_index = ctx.slot_repeat_index
-    if test_index is not None and repeat_index is not None and entry is not None:
-        _insert_repeat_metadata(
-            ctx, script, test_index=test_index, repeat_index=repeat_index,
-            cycle_index=ctx.slot_cycle_index, entry=entry,
-        )
-    crashed = _invoke_slot_script(ctx, script, runner, phase=phase)
-    if ctx.session.cancel_requested:
-        raise KeyboardInterrupt
-    return crashed
+    try:
+        if not _attach_slot_inputs(suite, ctx, script, phase=phase, entry=entry):
+            return "script_error"
+        test_index = ctx.slot_test_index
+        repeat_index = ctx.slot_repeat_index
+        if test_index is not None and repeat_index is not None and entry is not None:
+            _insert_repeat_metadata(
+                ctx, script, test_index=test_index, repeat_index=repeat_index,
+                cycle_index=ctx.slot_cycle_index, entry=entry,
+            )
+        try:
+            runner.run(script)
+        except runner.error_type:
+            ctx.result_aggregator.mark_suite_error(f"{phase} script failed")
+            if ctx.slot_finalized:
+                _mark_post_endex_slot_failure(ctx, script, phase)
+            return "script_error"
+        return None if ctx.result_aggregator.overall_pass() else "required_failure"
+    except Exception as exc:  # noqa: BLE001 - report a failed slot and let the suite proceed
+        if ctx.logger is not None:
+            ctx.logger.exception("Script slot failed for %s: %s", script, exc)
+        ctx.result_aggregator.mark_suite_error(f"{phase} slot failed: {exc}")
+        return "slot_error"
 
 
 def _run_script_slot(
@@ -310,11 +324,10 @@ def _run_script_slot(
 
     stop_fail_fast = False
     try:
-        script_crash = _execute_slot(suite, ctx, script, runner, entry)
-
-        slot_has_failure = script_crash or not ctx.result_aggregator.overall_pass()
-        if slot_has_failure:
-            reason = "script_error" if script_crash else "required_failure"
+        reason = _execute_slot(suite, ctx, script, runner, entry)
+        if ctx.session.cancel_requested:
+            raise KeyboardInterrupt
+        if reason is not None:
             stop_fail_fast = _record_slot_failure(
                 suite,
                 ctx,
@@ -326,18 +339,6 @@ def _run_script_slot(
     except KeyboardInterrupt:
         ctx.interrupted = not ctx.slot_finalized
         raise
-    except Exception as exc:  # noqa: BLE001 - finalize slot; signals propagate
-        if ctx.logger is not None:
-            ctx.logger.exception("Script slot failed for %s: %s", script, exc)
-        ctx.result_aggregator.mark_suite_error(f"{phase} slot failed: {exc}")
-        stop_fail_fast = _record_slot_failure(
-            suite,
-            ctx,
-            script,
-            phase=phase,
-            affects_suite_result=affects_suite_result,
-            reason="slot_error",
-        )
     finally:
         if not ctx.slot_finalized:
             finalize_script_slot(
@@ -349,6 +350,15 @@ def _run_script_slot(
             )
     if ctx.interrupted:
         raise KeyboardInterrupt
+    if (
+        not stop_fail_fast
+        and suite.fail_fast == "error"
+        and phase == "test"
+        and ctx.result_aggregator.suite_error
+    ):
+        # Automatic finalization can record a slot error after the script outcome was scored.
+        _stop_remaining_work(ctx, script, "slot_error")
+        return True
     return stop_fail_fast
 
 
@@ -359,28 +369,19 @@ def _run_phase_scripts(
     runner: _ScriptRunner,
     *,
     phase: str,
-    affects_suite_result: bool,
-    stop_on_fail_fast: bool,
 ) -> bool:
-    """Run phase scripts. Returns True if fail_fast should stop non-teardown work.
-
-    Teardown always runs every script (``stop_on_fail_fast=False``).
-    """
-    stopped = False
+    """Run support slots until the failure handler requests a stop."""
     for script in scripts:
-        stop = _run_script_slot(
+        if _run_script_slot(
             suite,
             ctx,
             script,
             runner,
             phase=phase,
-            affects_suite_result=affects_suite_result,
-        )
-        if stop and stop_on_fail_fast:
+            affects_suite_result=False,
+        ):
             return True
-        if stop:
-            stopped = True
-    return stopped and stop_on_fail_fast
+    return False
 
 
 def _run_test_schedule(
@@ -427,8 +428,6 @@ def _run_test_schedule(
                         suite.between_tests,
                         runner,
                         phase="between_tests",
-                        affects_suite_result=False,
-                        stop_on_fail_fast=True,
                     )
                     if between_stop:
                         return True
@@ -535,17 +534,7 @@ def _run_suite_body(
     """Run setup and the test schedule. Returns a deferred interrupt, if any."""
     interrupt: BaseException | None = None
     try:
-        stop = False
-        if suite.setup:
-            stop = _run_phase_scripts(
-                suite,
-                ctx,
-                suite.setup,
-                runner,
-                phase="setup",
-                affects_suite_result=False,
-                stop_on_fail_fast=True,
-            )
+        stop = _run_phase_scripts(suite, ctx, suite.setup, runner, phase="setup")
         if not stop:
             _run_test_schedule(suite, ctx, runner)
     except Exception as exc:  # noqa: BLE001 - still tear down and finalize
@@ -568,16 +557,7 @@ def _run_suite_teardown(
     runner: _ScriptRunner,
 ) -> None:
     try:
-        if suite.teardown:
-            _run_phase_scripts(
-                suite,
-                ctx,
-                suite.teardown,
-                runner,
-                phase="teardown",
-                affects_suite_result=False,
-                stop_on_fail_fast=False,
-            )
+        _run_phase_scripts(suite, ctx, suite.teardown, runner, phase="teardown")
     except Exception as exc:  # noqa: BLE001 - finalize anyway
         if ctx.logger is not None:
             ctx.logger.exception("Suite teardown failed: %s", exc)
